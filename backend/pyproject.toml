@@ -14,6 +14,14 @@ dependencies = [
   "pydantic>=2.9,<3",
   "pydantic-settings>=2.6,<3",
 
+  # DB (ORM + Migration). 드라이버 분기는 ADR-0001 참조:
+  #   - Docker 운영 (Python 3.12) = asyncpg (빠른 raw I/O)
+  #   - 로컬 (Python 3.14)        = psycopg3 (binary wheel 안정)
+  "sqlalchemy[asyncio]>=2.0.35,<2.1",
+  "alembic>=1.13,<1.15",
+  "asyncpg>=0.30; python_version < '3.14'",
+  "psycopg[binary]>=3.2,<4",
+
   # HTTP client (async)
   "httpx>=0.27,<0.29",
 
@@ -26,9 +34,6 @@ dependencies = [
 
   # Observability
   "prometheus-client>=0.21,<0.22",
-
-  # NOTE: DB 드라이버(sqlalchemy[asyncio], asyncpg, alembic)는
-  # Phase 1.2.3 (DB & Migration) 에서 추가한다.
 ]
 
 [dependency-groups]

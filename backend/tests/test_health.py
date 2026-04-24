@@ -19,6 +19,24 @@ def test_readyz_structure(client: TestClient) -> None:
     assert body["env"] == "local"
     assert "version" in body
     assert body["checks"]["app"] == "ok"
+    assert body["checks"]["db"] == "ok"
+
+
+def test_readyz_returns_503_when_db_down(client_db_down: TestClient) -> None:
+    """DB ping 실패 시 503 + checks.db=fail. healthz 는 영향 없음."""
+    r = client_db_down.get("/readyz")
+    assert r.status_code == 503
+    body = r.json()
+    assert body["status"] == "unready"
+    assert body["checks"]["db"] == "fail"
+    assert body["checks"]["app"] == "ok"
+
+
+def test_healthz_unaffected_by_db_state(client_db_down: TestClient) -> None:
+    """DB 다운이어도 healthz 는 200 (liveness 는 외부 의존성과 분리)."""
+    r = client_db_down.get("/healthz")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok"}
 
 
 def test_request_id_is_generated_when_missing(client: TestClient) -> None:

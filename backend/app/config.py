@@ -6,10 +6,21 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# .env 탐색 경로: 현재 cwd → backend/ → repo root.
+# 중복 정의된 키는 마지막에 로드된 파일 값이 우선 (Pydantic 문서 기준).
+_BACKEND_DIR = Path(__file__).resolve().parents[1]
+_REPO_ROOT = _BACKEND_DIR.parent
+_ENV_FILES: tuple[str, ...] = (
+    str(_REPO_ROOT / ".env"),  # repo root (운영/개발 통합 .env)
+    str(_BACKEND_DIR / ".env"),  # backend 전용 override (선택)
+    ".env",  # cwd (테스트나 임시 override)
+)
 
 type Environment = Literal["local", "dev", "staging", "prod"]
 
@@ -19,7 +30,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="APP_",
-        env_file=".env",
+        env_file=_ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

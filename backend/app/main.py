@@ -25,6 +25,7 @@ from app.config import Settings, get_settings
 from app.core.errors import DomainError
 from app.core.logging import configure_logging, get_logger
 from app.core.request_context import set_request_id
+from app.db import session as db_session
 
 log = get_logger(__name__)
 
@@ -59,14 +60,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     configure_logging(settings)
     log.info("startup.begin", env=settings.env, version=__version__)
-    # TODO(Phase 1.2.3+): DB connection pool + Redis ping readiness 체크 추가.
+
+    # DB 연결 사전 검증. 실패해도 startup 자체는 통과시키고 /readyz 가 unready 보고.
+    # (12-Factor: 외부 의존성 일시 단절이 컨테이너 재시작 사유가 되지 않도록)
+    if await db_session.ping():
+        log.info("db.connected")
+    else:
+        log.warning("db.unreachable", url_host=settings.database_url.split("@")[-1])
+
     log.info("startup.complete")
     try:
         yield
     finally:
         # SIGTERM 시 이 finally 블록이 실행된다.
         log.info("shutdown.begin")
-        # TODO(Phase 2): outbox publisher 정리, background task drain, DB pool close
+        await db_session.dispose_engine()
+        # TODO(Phase 2): outbox publisher 정리, background task drain, Redis pool close
         log.info("shutdown.complete")
 
 
@@ -123,24 +132,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok"}
 
     @app.get("/readyz", tags=["health"])
-    async def readyz() -> dict[str, object]:
-        """Readiness probe — 외부 의존성 ping 결과.
+    async def readyz() -> JSONResponse:
+        """Readiness probe — 외부 의존성 ping.
 
-        Phase 1.2.3 에서 DB/Redis 연결 확인 추가 예정.
-        지금은 구조만 유지.
+        DB 연결 실패 시 503 + checks.db=fail. healthz 는 영향 없음.
         """
-        checks = {
+        db_ok = await db_session.ping()
+        checks: dict[str, str] = {
             "app": "ok",
-            # "db": "ok",   # Phase 1.2.3
-            # "redis": "ok",# Phase 2
+            "db": "ok" if db_ok else "fail",
+            # "redis": "ok",  # Phase 2
         }
         all_ok = all(v == "ok" for v in checks.values())
-        return {
+        body: dict[str, object] = {
             "status": "ready" if all_ok else "unready",
             "version": __version__,
             "env": settings.env,
             "checks": checks,
         }
+        return JSONResponse(content=body, status_code=200 if all_ok else 503)
 
     @app.get("/", tags=["meta"], include_in_schema=False)
     async def root() -> dict[str, str]:
