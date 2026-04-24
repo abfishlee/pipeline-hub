@@ -1,0 +1,105 @@
+# ==== Environment / secrets ====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+
+# ==== Python ====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.nox/
+dist/
+build/
+pip-wheel-metadata/
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ==== Node / Frontend ====
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.next/
+.turbo/
+.vite/
+.parcel-cache/
+out/
+
+# frontend build output (Vite)
+frontend/dist/
+frontend/build/
+
+# ==== Docker / compose overrides ====
+docker-compose.override.yml
+docker-compose.override.yaml
+.docker/
+
+# ==== Terraform (Phase 4부터) ====
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# ==== IDE / editors ====
+.idea/
+.vscode/*
+!.vscode/settings.json.example
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+.cursor/
+
+# ==== OS ====
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ==== 프로젝트 특화 ====
+# PDF에서 재추출 가능한 산출물
+_pdf_extracted/
+
+# Airflow 로컬 metadata / logs (Phase 2에서 docker volume 대신 호스트 바인딩 할 때)
+infra/airflow/logs/
+infra/airflow/plugins/__pycache__/
+
+# 로컬 MinIO / Postgres 데이터
+infra/data/
+
+# 임시 스크래치
+tmp/
+scratch/
+*.log
