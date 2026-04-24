@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+dist/
+build/
+
+# venv / uv
+.venv/
+venv/
+env/
+
+# Tests / fixtures (이미지에 필요 없음)
+tests/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Git
+.git/
+.gitignore
+
+# 기타
+*.log
+README*
+Dockerfile
+.dockerignore
