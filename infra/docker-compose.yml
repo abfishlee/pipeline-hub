@@ -1,0 +1,95 @@
+# Phase 1 로컬 개발 인프라.
+# 실행: 프로젝트 루트에서
+#   docker compose -f infra/docker-compose.yml --env-file .env up -d
+# 또는:
+#   make dev-up
+#
+# 운영용은 별도 docker-compose.prod.yml (Phase 1.2.10 / 배포 가이드 참조).
+
+name: datapipeline-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dp_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-datapipeline}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      # 성능 힌트 (로컬 dev 전용, 운영은 Cloud DB가 관리)
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-datapipeline}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: dp_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: dp_minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      # NCP Object Storage가 S3 호환이므로 region 일관성 유지
+      MINIO_REGION: kr-standard
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Web Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  minio-setup:
+    # 최초 기동 시 raw 버킷 생성 → 바로 종료
+    image: minio/mc:latest
+    container_name: dp_minio_setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      APP_OS_BUCKET: ${APP_OS_BUCKET:-datapipeline-raw}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing local/"$$APP_OS_BUCKET"
+        mc anonymous set none local/"$$APP_OS_BUCKET"
+        echo "[minio-setup] bucket ready: $$APP_OS_BUCKET"
+    restart: "no"
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
