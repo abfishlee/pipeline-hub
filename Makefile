@@ -23,9 +23,18 @@ help:
 	@echo "  make dev-redis   - Redis CLI"
 	@echo "  make dev-minio   - MinIO Web Console 열기 안내"
 	@echo ""
+	@echo "DB 마이그레이션 (Phase 1.2.3+):"
+	@echo "  make db-migrate     - 최신 head 까지 upgrade"
+	@echo "  make db-downgrade   - 1단계 downgrade"
+	@echo "  make db-current     - 현재 revision"
+	@echo "  make db-history     - 전체 history"
+	@echo "  make db-revision M='msg'  - 빈 revision 생성"
+	@echo "  make db-reset       - 볼륨 초기화 + 재마이그레이션 (위험)"
+	@echo ""
 	@echo "처음이라면:"
 	@echo "  1) cp .env.example .env"
 	@echo "  2) make dev-up"
+	@echo "  3) make db-migrate"
 
 .env:
 	@echo ""
@@ -74,3 +83,40 @@ dev-redis:
 dev-minio:
 	@echo "MinIO Console: http://localhost:9001"
 	@echo "Login: minioadmin / minioadmin"
+
+# ============================================================================
+# DB Migration (Alembic) — backend/ 에서 실행
+# ============================================================================
+# Phase 1.2.3 부터 사용. 운영(NKS)에서는 Helm pre-install Job 으로 동일하게 실행.
+# 로컬: cp .env.example .env  →  make dev-up  →  make db-migrate
+
+ALEMBIC := cd backend && python -m uv run --python /c/Users/fishlee/AppData/Local/Microsoft/WindowsApps/python.exe python -m alembic
+
+.PHONY: db-migrate
+db-migrate: .env
+	$(ALEMBIC) upgrade head
+	@echo "✅  마이그레이션 적용 완료"
+
+.PHONY: db-downgrade
+db-downgrade: .env
+	$(ALEMBIC) downgrade -1
+	@echo "↩️   1단계 롤백 완료"
+
+.PHONY: db-current
+db-current:
+	$(ALEMBIC) current
+
+.PHONY: db-history
+db-history:
+	$(ALEMBIC) history --verbose
+
+.PHONY: db-revision
+db-revision:
+	@if [ -z "$(M)" ]; then echo "Usage: make db-revision M='메시지'"; exit 1; fi
+	$(ALEMBIC) revision -m "$(M)"
+
+.PHONY: db-reset
+db-reset: dev-reset
+	@sleep 5
+	$(MAKE) db-migrate
+	@echo "🔥  DB 초기화 + 마이그레이션 재적용 완료"
