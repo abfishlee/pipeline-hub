@@ -29,6 +29,7 @@ class EventTopic(StrEnum):
     PRICE_OBSERVATION = "price_observation"
     STAGING = "staging"
     PRICE_FACT = "price_fact"
+    CRAWLER_PAGE = "crawler_page"
 
 
 class StreamEnvelope(BaseModel):
@@ -112,6 +113,23 @@ class StagingReadyPayload(BaseModel):
     crowd_task_count: int = 0  # 매핑 미달로 발급된 crowd_task 수.
 
 
+class CrawlerPageFetchedPayload(BaseModel):
+    """`crawler.page.fetched` 이벤트 — Phase 2.2.8 크롤러 결과.
+
+    html_object_uri 는 Object Storage URI (`s3://...` 또는 `nos://...`).
+    """
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    page_id: int
+    source_id: int
+    url: str
+    http_status: int
+    content_hash: str
+    html_object_uri: str
+    bytes_size: int = 0
+
+
 class PriceFactReadyPayload(BaseModel):
     """`price_fact.ready` 이벤트 — Phase 2.2.6 가격 팩트 적재 결과.
 
@@ -154,6 +172,7 @@ def parse_message(fields: dict[str, str]) -> StreamEnvelope:
 
 
 __all__ = [
+    "CrawlerPageFetchedPayload",
     "CrowdTaskCreatedPayload",
     "EventTopic",
     "OcrCompletedPayload",

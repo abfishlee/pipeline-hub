@@ -101,6 +101,13 @@ class Settings(BaseSettings):
     # 80~95 confidence 구간의 row 중 이 비율만 crowd_task("price_fact_sample_review") 적재.
     price_fact_sample_rate: float = 0.05
 
+    # ---- 크롤러 정책 (Phase 2.2.8) ----
+    crawler_user_agent: str = (
+        "datapipeline-crawler/2.2.8 (+https://github.com/abfishlee/pipeline-hub)"
+    )
+    crawler_timeout_sec: float = 15.0
+    crawler_respect_robots: bool = True
+
     # ---- 계산 프로퍼티 ----
     @property
     def cors_origin_list(self) -> list[str]:

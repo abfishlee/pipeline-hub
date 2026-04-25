@@ -180,6 +180,22 @@ db_incremental_lag_seconds = Gauge(
     labelnames=("source_code",),
 )
 
+# ---------------------------------------------------------------------------
+# 크롤러 (Phase 2.2.8)
+# ---------------------------------------------------------------------------
+crawler_pages_fetched_total = Counter(
+    "crawler_pages_fetched_total",
+    "크롤러 fetch 결과 (outcome=fetched/dedup/error/blocked_by_robots).",
+    labelnames=("source_code", "outcome"),
+)
+
+crawler_fetch_duration_seconds = Histogram(
+    "crawler_fetch_duration_seconds",
+    "크롤러 1 URL fetch 소요 시간(초).",
+    labelnames=("source_code",),
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
+)
+
 
 # ---------------------------------------------------------------------------
 # HTTP 미들웨어
@@ -243,6 +259,8 @@ def metrics_response_body(registry: CollectorRegistry = REGISTRY) -> tuple[bytes
 __all__ = [
     "CONTENT_TYPE_LATEST",
     "HttpMetricsMiddleware",
+    "crawler_fetch_duration_seconds",
+    "crawler_pages_fetched_total",
     "crowd_task_created_total",
     "db_incremental_lag_seconds",
     "db_incremental_pulled_total",

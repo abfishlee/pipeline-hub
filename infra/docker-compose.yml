@@ -231,6 +231,26 @@ services:
         "db_incremental",
       ]
 
+  worker-crawler:
+    <<: *worker-common
+    container_name: dp_worker_crawler
+    environment:
+      <<: *worker-common-env
+      APP_CRAWLER_USER_AGENT: ${APP_CRAWLER_USER_AGENT:-datapipeline-crawler/2.2.8 (+https://github.com/abfishlee/pipeline-hub)}
+      APP_CRAWLER_TIMEOUT_SEC: ${APP_CRAWLER_TIMEOUT_SEC:-15.0}
+      APP_CRAWLER_RESPECT_ROBOTS: ${APP_CRAWLER_RESPECT_ROBOTS:-true}
+    command:
+      [
+        "dramatiq",
+        "app.workers",
+        "--processes",
+        "1",
+        "--threads",
+        "4",
+        "--queues",
+        "crawler",
+      ]
+
   grafana:
     image: grafana/grafana:11.3.0
     container_name: dp_grafana

@@ -208,12 +208,25 @@
 
 ### 2.2.8 크롤링 프레임워크 [W6]
 
-- [ ] `app/integrations/crawler/base.py` — Crawler 인터페이스
-- [ ] Playwright 런타임 (docker-compose에 브라우저 이미지)
-- [ ] robots.txt 준수 가드, rate limit 설정
-- [ ] 한 개 샘플 크롤러 구현 (예: aT KAMIS 공공 데이터 조회)
-- [ ] HTML 원본은 Object Storage 저장, raw.raw_web_page 메타만 DB
-- [ ] 파서 버전 기록
+**기반 (이번 commit) — httpx 기반 정적 HTML 크롤러 + raw_web_page 적재 + content_hash dedup**
+- [x] `app/integrations/crawler/types.py` — `CrawlerConfig` + `CrawlPage` + `CrawlerSpider` Protocol + `CrawlerError` / `RobotsBlocked` ✅ 2026-04-25
+- [x] `app/integrations/crawler/httpx_spider.py` — `HttpxSpider` 구현. User-Agent 강제, `urllib.robotparser` 로 robots.txt 검사 (per-host TTL 캐시), retry 3회 + 4xx 즉시 실패, `CircuitBreaker` 재사용 ✅ 2026-04-25
+- [x] `app/domain/crawl.py::fetch_and_store` — source(type=CRAWLER) 검증 → spider.fetch → content_hash 계산 → 같은 (source_id, content_hash) 의 raw_web_page 존재 시 dedup → Object Storage 업로드(`crawl/<source>/<yyyy>/<mm>/<dd>/<hash>.html`) → `raw.raw_web_page` INSERT (parser_version = spider.name) → outbox(`crawler.page.fetched`, kind="crawl") ✅ 2026-04-25
+- [x] `app/workers/crawler_worker.py::process_crawl_event(source_code, url)` actor (queue=crawler, max_retries=3, time_limit=300s) ✅ 2026-04-25
+- [x] `event_topics`: `EventTopic.CRAWLER_PAGE` + `CrawlerPageFetchedPayload` (page_id/url/content_hash/http_status/html_object_uri/bytes_size) ✅ 2026-04-25
+- [x] 메트릭 — `crawler_pages_fetched_total{source_code,outcome=fetched/dedup/error/blocked_by_robots}` Counter, `crawler_fetch_duration_seconds{source_code}` Histogram ✅ 2026-04-25
+- [x] Settings — `crawler_user_agent`, `crawler_timeout_sec`(15), `crawler_respect_robots`(true). `.env`/`.env.example` 동기화. `data_source.config_json` 의 spider_kind/seed_urls/respect_robots/fetch_interval_sec 키 사용 ✅ 2026-04-25
+- [x] `docker-compose worker-crawler` 서비스 (queue=crawler, threads=4, robots/timeout/UA env 노출) ✅ 2026-04-25
+- [x] 테스트 ✅ 2026-04-25
+  - `tests/test_httpx_spider.py` (5건, httpx.MockTransport): 200 정상 / 4xx 영구 실패 (재시도 X) / 5xx 재시도 후 성공 / robots.txt Disallow → `RobotsBlocked` (다른 path 는 허용) / robots 404 → 모든 path 허용
+  - `tests/integration/test_crawler.py` (3건, 실 PG + stub spider/storage): fetch → raw_web_page INSERT + html_object_uri + outbox / 같은 content_hash 재요청 → dedup outcome (storage put 1번만) / robots 차단 → outcome="blocked_by_robots" 반환 (DB 무영향)
+
+**다음 sub-phase 로 분리**
+- [ ] Playwright 런타임 — 동적 페이지 렌더링이 필요한 사이트용 spider 추가 (compose 에 브라우저 이미지 필요)
+- [ ] Rate limit 정책 — per-host 토큰 버킷 (현재는 단순 retry/breaker만)
+- [ ] 샘플 크롤러 구현 (aT KAMIS 공공 데이터) — Phase 2.2.3 후속 Airflow `system_ingest_kamis` DAG 와 결합
+- [ ] HTML → 구조화 파서 (`stg.standard_record` 변환) — 사이트별 스크래퍼 plugin (Phase 3 Visual ETL 의 SOURCE_HTML 노드로 표현 권장)
+- [ ] 사이트맵 / RSS 따라가기 (현재는 단일 URL 호출)
 
 ### 2.2.9 관제 고도화 [W7]
 
