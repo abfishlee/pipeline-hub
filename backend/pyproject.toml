@@ -34,6 +34,9 @@ dependencies = [
 
   # Observability
   "prometheus-client>=0.21,<0.22",
+
+  # Cron 표현식 검증 (data_source.schedule_cron). Phase 2 Airflow 와는 무관 — 사용자 입력 검증용.
+  "croniter>=2.0,<7",
 ]
 
 [dependency-groups]
@@ -85,7 +88,7 @@ show_error_codes = true
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["jose.*"]
+module = ["jose.*", "croniter.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
