@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     clova_ocr_url: str = ""
     clova_ocr_secret: SecretStr = SecretStr("")
     hyperclova_api_key: SecretStr = SecretStr("")
+    hyperclova_api_url: str = "https://clovastudio.stream.ntruss.com"
+    hyperclova_embedding_app: str = "/testapp/v1/api-tools/embedding/v2"
 
     # ---- Upstage Document OCR (Phase 2.2.4 폴백) ----
     upstage_ocr_url: str = "https://api.upstage.ai"
@@ -89,6 +91,11 @@ class Settings(BaseSettings):
 
     # ---- OCR 정책 ----
     ocr_confidence_threshold: float = 0.85
+
+    # ---- 표준화 정책 (Phase 2.2.5) ----
+    std_trigram_threshold: float = 0.7
+    std_embedding_threshold: float = 0.85
+    embedding_dim: int = 1536
 
     # ---- 계산 프로퍼티 ----
     @property

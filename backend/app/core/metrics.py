@@ -125,6 +125,28 @@ crowd_task_created_total = Counter(
     labelnames=("reason",),
 )
 
+# ---------------------------------------------------------------------------
+# 표준화 (Phase 2.2.5)
+# ---------------------------------------------------------------------------
+standardization_requests_total = Counter(
+    "standardization_requests_total",
+    "표준화 매칭 요청 수 (outcome=trigram_hit/embedding_hit/crowd/error).",
+    labelnames=("outcome",),
+)
+
+standardization_confidence = Histogram(
+    "standardization_confidence",
+    "매핑 성공 시 confidence (similarity 또는 cosine_similarity, 0~1).",
+    labelnames=("strategy",),  # 'trigram' or 'embedding'
+    buckets=(0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99),
+)
+
+hyperclova_embedding_duration_seconds = Histogram(
+    "hyperclova_embedding_duration_seconds",
+    "HyperCLOVA 임베딩 1회 호출 소요 시간(초).",
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+)
+
 
 # ---------------------------------------------------------------------------
 # HTTP 미들웨어
@@ -192,6 +214,7 @@ __all__ = [
     "db_pool_in_use",
     "http_request_duration_seconds",
     "http_requests_total",
+    "hyperclova_embedding_duration_seconds",
     "ingest_bytes_total",
     "ingest_dedup_total",
     "ingest_requests_total",
@@ -199,6 +222,8 @@ __all__ = [
     "ocr_confidence",
     "ocr_duration_seconds",
     "ocr_requests_total",
+    "standardization_confidence",
+    "standardization_requests_total",
 ]
 
 

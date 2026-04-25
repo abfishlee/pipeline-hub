@@ -26,6 +26,8 @@ class EventTopic(StrEnum):
     RAW_OBJECT = "raw_object"
     OCR_RESULT = "ocr_result"
     CROWD_TASK = "crowd_task"
+    PRICE_OBSERVATION = "price_observation"
+    STAGING = "staging"
 
 
 class StreamEnvelope(BaseModel):
@@ -91,6 +93,24 @@ class CrowdTaskCreatedPayload(BaseModel):
     status: str = "PENDING"
 
 
+class StagingReadyPayload(BaseModel):
+    """`staging.ready` 이벤트의 payload — Phase 2.2.5 표준화 후 다운스트림 준비 완료.
+
+    `record_count` 는 standard_record / price_observation 적재 행수 (둘 다 같음).
+    """
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    raw_object_id: int
+    partition_date: str
+    record_count: int
+    price_observation_count: int
+    standard_record_ids: list[int] = Field(default_factory=list)
+    price_observation_ids: list[int] = Field(default_factory=list)
+    matched_count: int = 0  # std_code 매핑된 record 수.
+    crowd_task_count: int = 0  # 매핑 미달로 발급된 crowd_task 수.
+
+
 def parse_message(fields: dict[str, str]) -> StreamEnvelope:
     """Stream message fields → 타입화 envelope.
 
@@ -120,6 +140,7 @@ __all__ = [
     "EventTopic",
     "OcrCompletedPayload",
     "RawObjectCreatedPayload",
+    "StagingReadyPayload",
     "StreamEnvelope",
     "parse_message",
 ]

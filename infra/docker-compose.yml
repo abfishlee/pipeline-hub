@@ -172,6 +172,29 @@ services:
     command:
       ["dramatiq", "app.workers", "--processes", "1", "--threads", "8", "--queues", "ocr"]
 
+  worker-transform:
+    <<: *worker-common
+    container_name: dp_worker_transform
+    environment:
+      <<: *worker-common-env
+      APP_HYPERCLOVA_API_KEY: ${APP_HYPERCLOVA_API_KEY:-}
+      APP_HYPERCLOVA_API_URL: ${APP_HYPERCLOVA_API_URL:-https://clovastudio.stream.ntruss.com}
+      APP_HYPERCLOVA_EMBEDDING_APP: ${APP_HYPERCLOVA_EMBEDDING_APP:-/testapp/v1/api-tools/embedding/v2}
+      APP_STD_TRIGRAM_THRESHOLD: ${APP_STD_TRIGRAM_THRESHOLD:-0.7}
+      APP_STD_EMBEDDING_THRESHOLD: ${APP_STD_EMBEDDING_THRESHOLD:-0.85}
+      APP_EMBEDDING_DIM: ${APP_EMBEDDING_DIM:-1536}
+    command:
+      [
+        "dramatiq",
+        "app.workers",
+        "--processes",
+        "1",
+        "--threads",
+        "8",
+        "--queues",
+        "transform",
+      ]
+
   grafana:
     image: grafana/grafana:11.3.0
     container_name: dp_grafana

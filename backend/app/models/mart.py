@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     BigInteger,
     Boolean,
@@ -27,6 +28,10 @@ from sqlalchemy.sql import func
 
 from app.models.base import Base
 
+# Phase 2.2.5 표준화 임베딩 차원. HCX-Embedding-Med 1536 차원 가정 (Settings 의
+# embedding_dim 과 일치 필요 — 변경 시 migration 재작성).
+STD_CODE_EMBEDDING_DIM = 1536
+
 
 class StandardCode(Base):
     """농림축산식품부 / aT 기반 표준 품목 코드."""
@@ -43,6 +48,8 @@ class StandardCode(Base):
     default_unit: Mapped[str | None] = mapped_column(Text)
     source_authority: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Phase 2.2.5 — HyperCLOVA 임베딩 (cosine top-1 매칭). nullable: 시드/수동 row 호환.
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(STD_CODE_EMBEDDING_DIM))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

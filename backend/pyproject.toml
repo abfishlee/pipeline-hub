@@ -48,6 +48,10 @@ dependencies = [
   # dramatiq[redis] 가 redis-py 를 가져오지만, app/core/events.py 의 직접 사용을 위해 명시.
   "dramatiq[redis]>=1.17,<2",
   "redis>=5.2,<7",
+
+  # 임베딩 / 벡터 매칭 (Phase 2.2.5 표준화)
+  # pgvector(서버) 는 migration 0012 에서 CREATE EXTENSION. 클라이언트 라이브러리만 의존.
+  "pgvector>=0.3,<0.5",
 ]
 
 [dependency-groups]
@@ -99,7 +103,7 @@ show_error_codes = true
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["jose.*", "croniter.*", "boto3.*", "botocore.*"]
+module = ["jose.*", "croniter.*", "boto3.*", "botocore.*", "pgvector.*"]
 ignore_missing_imports = true
 
 # dramatiq: 타입 스텁이 일부만 제공되어 strict 모드와 충돌. 호출 자체는 우리가 책임.

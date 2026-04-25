@@ -131,24 +131,28 @@
 
 ### 2.2.5 표준화 파이프라인 [W4~W5]
 
-- [ ] `scripts/seed_standard_codes.py` — 표준코드 + aliases 초기 적재
-- [ ] 임베딩 사전 계산: `scripts/precompute_std_embeddings.py` → 별도 벡터 테이블 (`mart.standard_code_embedding`) 또는 pgvector 확장 도입
-- [ ] `app/domain/standardization.py`:
-  1. 이름 정규화 (공백/괄호/산지 태그 제거)
-  2. 중량/단위/등급 파싱 (정규식 + 사전)
-  3. alias 매칭
-  4. trigram 유사도 상위 5개
-  5. 임베딩 유사도 top-1
-  6. 종합 점수 → std_code + confidence 결정
-  7. product_master upsert
-  8. product_mapping upsert
-- [ ] Dramatiq actor: `standardization.process(price_obs_id)`
-- [ ] confidence 게이트 반영:
-  - ≥0.95: 즉시 price_fact insert
-  - 0.80~0.95: price_fact insert + 5% 샘플링 crowd
-  - 0.70~0.80: crowd_task(PRODUCT_MATCHING) 생성, price_fact 보류
-  - <0.70: FAIL, staging 유지
-- [ ] **pgvector 도입 여부 사용자 확인** (권장: pgvector 도입, NCP PG에서 지원 확인 필요)
+**기반 (이번 commit) — raw_object → standard_record + price_observation + std_code 매핑 + outbox(staging.ready)**
+- [x] Migration `0012_std_code_embedding` — `CREATE EXTENSION vector` + `mart.standard_code.embedding vector(1536)` + IVFFLAT cosine 인덱스 ✅ 2026-04-25
+- [x] `pgvector>=0.3` deps + `app/models/mart.py::StandardCode.embedding` (Vector(1536) nullable) ✅ 2026-04-25
+- [x] `app/integrations/hyperclova/client.py` — `EmbeddingClient` Protocol + `HyperClovaEmbeddingClient` (httpx async, Bearer + X-NCP-CLOVASTUDIO-REQUEST-ID, retry 3회 + 4xx 즉시 실패 + CircuitBreaker) ✅ 2026-04-25
+- [x] `app/domain/standardization.py::resolve_std_code` — 3단계 매칭 (pg_trgm `similarity()` + aliases → cosine `<=>` top-1 → crowd) ✅ 2026-04-25
+- [x] `app/domain/transform.py::process_record` — payload_json items → `stg.standard_record` + `stg.price_observation` 적재 + std_code 매핑 + `crowd_task("std_low_confidence")` placeholder + outbox(`staging.ready`) ✅ 2026-04-25
+- [x] `app/workers/transform_worker.py::process_transform_event` actor (queue=transform, max_retries=3, time_limit=120s, idempotent) ✅ 2026-04-25
+- [x] `event_topics`: `EventTopic.PRICE_OBSERVATION/STAGING` + `StagingReadyPayload` ✅ 2026-04-25
+- [x] 메트릭 — `standardization_requests_total{outcome}`, `standardization_confidence{strategy}`, `hyperclova_embedding_duration_seconds` ✅ 2026-04-25
+- [x] Settings — `hyperclova_api_url/embedding_app`, `std_trigram_threshold`(0.7), `std_embedding_threshold`(0.85), `embedding_dim`(1536). `.env`/`.env.example` 동기화 ✅ 2026-04-25
+- [x] `docker-compose worker-transform` 서비스 추가 (queue=transform, threads=8) ✅ 2026-04-25
+- [x] 통합 테스트 ✅ 2026-04-25
+  - `tests/integration/test_standardization.py` (5건): trigram_hit (embedding 미호출 회귀), embedding_hit, crowd, embedding_client=None → crowd, pg_trgm extension 정합
+  - `tests/integration/test_transform_pipeline.py` (2건): trigram_hit 다중 라인 매핑 + outbox staging.ready, 매칭 미달 → crowd_task 적재 + 두 종 outbox
+
+**다음 sub-phase 로 분리 (Phase 2.2.5.x / 2.2.6)**
+- [ ] `scripts/seed_standard_codes.py` — 농림축산식품부/aT 기반 표준코드 + aliases 초기 적재
+- [ ] `scripts/precompute_std_embeddings.py` — 시드 후 표준코드 모든 row 의 `embedding` 채우기 (HyperCLOVA 임베딩 일괄 호출 + REINDEX ivfflat)
+- [ ] 이름 정규화 (공백/괄호/산지 태그 제거), 중량/단위/등급 정규식 파싱
+- [ ] confidence 게이트 세분화 (≥0.95 즉시, 0.80~0.95 5% 샘플링 crowd, 0.70~0.80 보류, <0.70 FAIL) — 현재는 단일 임계
+- [ ] `mart.product_master` / `mart.product_mapping` upsert (현재는 std_code 만 채움)
+- [ ] price_fact 자동 반영 — Phase 2.2.6 분리
 
 ### 2.2.6 가격 팩트 자동 반영 [W5]
 
