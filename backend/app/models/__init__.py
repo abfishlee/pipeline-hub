@@ -10,11 +10,11 @@ from __future__ import annotations
 
 from app.models import ctl as ctl
 from app.models import raw as raw
+from app.models import run as run
 from app.models.base import Base
 
 # Sub-module imports — Alembic target_metadata 가 모든 테이블을 인식.
 # 향후 추가:
-#   from app.models import run   (0004)
 #   from app.models import audit (0005)
 #   from app.models import mart  (0006)
 #   from app.models import stg   (0007)
