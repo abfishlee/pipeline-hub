@@ -184,11 +184,27 @@
 
 ### 2.2.7 DB-to-DB 커넥터 [W5~W6]
 
-- [ ] `app/integrations/connectors/base.py` — 표준 인터페이스 (snapshot/incremental)
-- [ ] PG/MySQL/MSSQL 드라이버 고려 (Phase 2는 PG만 필수)
-- [ ] `IncrementalConnector`: `updated_at` 워터마크 저장 후 delta 추출
-- [ ] 스냅샷 테이블 자동 생성(`stg.<source>_<table>_staging`) → 커스텀 변환 로직 → `stg.price_observation`
-- [ ] 테스트용 가짜 PG 소스
+**기반 (이번 commit) — 외부 DB cursor 기반 incremental fetch + raw_object 적재**
+- [x] Migration `0014_data_source_watermark` — `ctl.data_source.watermark JSONB` (last_cursor / last_run_at / last_count) ✅ 2026-04-25
+- [x] `app/integrations/sourcedb/{__init__,types,client}.py` — `SourceDbConnector` Protocol + `SqlAlchemySourceDb` 단일 구현. `postgresql+psycopg` / `mysql+pymysql` URL 자동 매칭, identifier 인용(double-quote/backtick), parameterized cursor 비교 ✅ 2026-04-25
+- [x] pyproject `pymysql>=1.1` 추가 (PostgreSQL 은 기존 psycopg) ✅ 2026-04-25
+- [x] `app/domain/db_incremental.py::pull_incremental` — `data_source` 로드 → connector.fetch_incremental → 단일 트랜잭션에 ingest_job + raw_object(DB_ROW) + content_hash_index + outbox(`ingest.api.received`, kind="db") + watermark UPDATE ✅ 2026-04-25
+- [x] `app/workers/db_incremental_worker.py::process_db_incremental_event(source_code, batch_size)` actor (queue=db_incremental, max_retries=3, time_limit=300s) ✅ 2026-04-25
+- [x] 메트릭 — `db_incremental_pulled_total{source_code,outcome=fetched/dedup/empty/error}` Counter, `db_incremental_lag_seconds{source_code}` Gauge ✅ 2026-04-25
+- [x] `docker-compose worker-db-incremental` 서비스 (queue=db_incremental, threads=4, host-gateway 노출) ✅ 2026-04-25
+- [x] `ctl.data_source` ORM 에 watermark 컬럼 + `app/integrations/connectors/base.py` 의 표준 인터페이스 책임을 `sourcedb/types.py` 가 수행 ✅ 2026-04-25
+- [x] 통합 테스트 — `tests/integration/test_db_incremental.py` 4건 ✅ 2026-04-25
+  - `ext_test_db_incremental.<table>` 시뮬 → 첫 fetch 3건 INSERT + watermark `last_cursor=3` 전진
+  - 두 번째 호출 (새 row 없음) → 0 fetch (멱등)
+  - 외부 INSERT 후 세 번째 호출 → 신규만 가져옴, watermark 전진
+  - `SqlAlchemySourceDb.fetch_incremental(cursor_value=None, batch_size=3)` adapter 단독 회귀
+
+**다음 sub-phase 로 분리**
+- [ ] MSSQL/Oracle 드라이버 (필요 시점에 `mssql+pyodbc`, `oracle+oracledb` 추가)
+- [ ] 스냅샷 테이블 자동 생성 (`stg.<source>_<table>_snapshot`) — 외부 schema 의 컬럼을 DDL 자동 변환 (Phase 3 SQL Studio sqlglot 검증과 결합)
+- [ ] 외부 DB row → `stg.price_observation` 변환 (도메인 별 매핑 — Phase 3 Visual ETL 의 SQL_TRANSFORM 노드로 표현 권장)
+- [ ] secret_ref → NCP Secret Manager 연동 (현재는 `password` 평문 — Phase 4 NKS 이관 시점)
+- [ ] Airflow DAG `system_ingest_db_incremental` (Phase 2.2.3 후속) — 매 10분 활성 DB source 전수 enqueue
 
 ### 2.2.8 크롤링 프레임워크 [W6]
 

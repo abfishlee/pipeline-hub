@@ -90,6 +90,8 @@ class DataSource(Base):
     owner_team: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     config_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
+    # Phase 2.2.7 — DB-to-DB 증분 수집의 진행 상태(last_cursor / last_run_at / last_count).
+    watermark: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
     schedule_cron: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

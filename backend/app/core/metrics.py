@@ -164,6 +164,22 @@ price_fact_observed_to_inserted_seconds = Histogram(
     buckets=(0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0),
 )
 
+# ---------------------------------------------------------------------------
+# DB-to-DB 증분 수집 (Phase 2.2.7)
+# ---------------------------------------------------------------------------
+db_incremental_pulled_total = Counter(
+    "db_incremental_pulled_total",
+    "DB-to-DB 증분 수집 row 수 (outcome=fetched/dedup/empty/error).",
+    labelnames=("source_code", "outcome"),
+)
+
+# 외부 DB 의 최신 cursor(timestamp) 와 현재 시각의 차 — 파이프라인 lag.
+db_incremental_lag_seconds = Gauge(
+    "db_incremental_lag_seconds",
+    "외부 DB 최신 row 의 cursor 시각과 현재 시각의 차이(초).",
+    labelnames=("source_code",),
+)
+
 
 # ---------------------------------------------------------------------------
 # HTTP 미들웨어
@@ -228,6 +244,8 @@ __all__ = [
     "CONTENT_TYPE_LATEST",
     "HttpMetricsMiddleware",
     "crowd_task_created_total",
+    "db_incremental_lag_seconds",
+    "db_incremental_pulled_total",
     "db_pool_in_use",
     "http_request_duration_seconds",
     "http_requests_total",

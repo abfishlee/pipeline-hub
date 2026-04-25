@@ -213,6 +213,24 @@ services:
         "price_fact",
       ]
 
+  worker-db-incremental:
+    <<: *worker-common
+    container_name: dp_worker_db_incremental
+    # 외부 DB 연결 — extra_hosts 로 host machine 접근 허용 (Linux 도커 포함).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      [
+        "dramatiq",
+        "app.workers",
+        "--processes",
+        "1",
+        "--threads",
+        "4",
+        "--queues",
+        "db_incremental",
+      ]
+
   grafana:
     image: grafana/grafana:11.3.0
     container_name: dp_grafana

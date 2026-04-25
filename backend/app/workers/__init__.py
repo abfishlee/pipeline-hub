@@ -152,6 +152,7 @@ get_broker()
 
 # 모든 actor 를 broker 에 등록 — 하위 모듈 임포트 자체가 등록 effect.
 from app.workers import (  # noqa: E402
+    db_incremental_worker,
     ocr_worker,
     outbox_publisher,
     price_fact_worker,
@@ -160,6 +161,7 @@ from app.workers import (  # noqa: E402
 
 __all__ = [
     "DeadLetterMiddleware",
+    "db_incremental_worker",
     "get_broker",
     "ocr_worker",
     "outbox_publisher",

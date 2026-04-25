@@ -52,6 +52,10 @@ dependencies = [
   # 임베딩 / 벡터 매칭 (Phase 2.2.5 표준화)
   # pgvector(서버) 는 migration 0012 에서 CREATE EXTENSION. 클라이언트 라이브러리만 의존.
   "pgvector>=0.3,<0.5",
+
+  # DB-to-DB 증분 수집 (Phase 2.2.7) — 외부 MySQL 소스 지원.
+  # PostgreSQL 은 이미 psycopg 의존. SQLAlchemy 가 dialect 자동 매칭.
+  "pymysql>=1.1,<2",
 ]
 
 [dependency-groups]
