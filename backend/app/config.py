@@ -108,6 +108,14 @@ class Settings(BaseSettings):
     crawler_timeout_sec: float = 15.0
     crawler_respect_robots: bool = True
 
+    # ---- Sentry (Phase 2.2.9) — DSN 비어 있으면 init skip ----
+    sentry_dsn: SecretStr = SecretStr("")
+    # 환경 라벨 (env 와 분리). prod 만 보내고 싶을 때 sample_rate 0 으로 끌 수도 있음.
+    sentry_env: str = "local"
+    sentry_sample_rate: float = 0.1
+    # transaction sample (APM). 1.0 이면 모든 요청 추적 (성능 영향 큼).
+    sentry_traces_sample_rate: float = 0.0
+
     # ---- 계산 프로퍼티 ----
     @property
     def cors_origin_list(self) -> list[str]:

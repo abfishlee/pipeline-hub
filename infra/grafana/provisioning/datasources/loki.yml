@@ -1,0 +1,20 @@
+# Phase 2.2.9 — Loki datasource 자동 등록.
+# Grafana 컨테이너가 자동으로 datasources.yml + loki.yml 을 모두 로드.
+
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    uid: loki
+    isDefault: false
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        # Grafana 로그 패널에서 request_id 클릭 시 같은 request_id 의 다른 로그로 점프.
+        - datasourceUid: loki
+          matcherRegex: "request_id=([A-Za-z0-9-]+)"
+          name: "request_id"
+          url: '$${__value.raw}'

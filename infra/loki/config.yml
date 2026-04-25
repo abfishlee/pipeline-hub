@@ -1,0 +1,55 @@
+# Loki single-binary 모드 — 로컬 개발용 (Phase 2.2.9).
+# 운영(NKS)에서는 grafana/loki-distributed Helm chart 권장.
+#
+# 디스크 위치는 컨테이너 안 /var/loki (volume mount). 7d retention.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: info
+
+common:
+  path_prefix: /var/loki
+  storage:
+    filesystem:
+      chunks_directory: /var/loki/chunks
+      rules_directory: /var/loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2026-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+# 7d retention (compactor 가 주기적 정리). 운영에서는 더 길게 + Object Storage 백업.
+limits_config:
+  retention_period: 168h
+  ingestion_rate_mb: 8
+  ingestion_burst_size_mb: 16
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  max_query_lookback: 168h
+  max_label_value_length: 4096
+  max_label_name_length: 1024
+  allow_structured_metadata: true
+
+compactor:
+  working_directory: /var/loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
+ruler:
+  alertmanager_url: http://localhost:9093
+
+analytics:
+  reporting_enabled: false

@@ -1,0 +1,60 @@
+# Promtail — docker stdout 수집 → Loki (Phase 2.2.9).
+#
+# Service Discovery: docker socket. 컨테이너 stdout 의 모든 줄을 받아
+# 1) container_name 로 service 라벨 결정,
+# 2) structlog JSON 라인은 request_id / source_code / pipeline_run_id / event_id 추출.
+#
+# 운영(NKS) 에서는 promtail-daemonset + Kubernetes service discovery 로 교체.
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+  log_level: info
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        # `dp_*` 컨테이너만 수집 — Grafana/Prometheus 자체 로그는 스킵.
+        filters:
+          - name: name
+            values: ["dp_*"]
+    relabel_configs:
+      - source_labels: [__meta_docker_container_name]
+        regex: "/(.*)"
+        target_label: service
+      - source_labels: [__meta_docker_container_log_stream]
+        target_label: stream
+      - target_label: env
+        replacement: local
+    pipeline_stages:
+      # 1) JSON 라인 시도 — structlog stdout 형식 가정.
+      - json:
+          expressions:
+            level: level
+            event: event
+            request_id: request_id
+            source_code: source_code
+            pipeline_run_id: pipeline_run_id
+            event_id: event_id
+            timestamp: timestamp
+      # 2) timestamp 가 있으면 Loki ingest 시각 대신 사용.
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+          fallback_formats:
+            - RFC3339
+            - "2006-01-02T15:04:05.000Z07:00"
+          action_on_failure: skip
+      # 3) 라벨 부여 — high-cardinality 키(event_id, request_id) 는 라벨화 X (탐색은 LogQL match).
+      - labels:
+          level:
+          event:
+          source_code:

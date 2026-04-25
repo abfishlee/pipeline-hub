@@ -1,0 +1,202 @@
+{
+  "title": "Pipeline Hub — Runtime",
+  "uid": "pipeline-hub-runtime",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "tags": ["pipeline-hub", "phase-2", "runtime"],
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "OCR 호출 (provider × status, 5m rate)",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (provider, status)(rate(ocr_requests_total[5m]))",
+          "refId": "A",
+          "legendFormat": "{{provider}}/{{status}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "표준화 outcome (5m rate)",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (outcome)(rate(standardization_requests_total[5m]))",
+          "refId": "A",
+          "legendFormat": "{{outcome}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "price_fact outcome (5m rate)",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (outcome)(rate(price_fact_inserts_total[5m]))",
+          "refId": "A",
+          "legendFormat": "{{outcome}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "외부 수집 (db_incremental, crawler) 5m rate",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (source_code, outcome)(rate(db_incremental_pulled_total[5m]))",
+          "refId": "A",
+          "legendFormat": "db: {{source_code}}/{{outcome}}"
+        },
+        {
+          "expr": "sum by (source_code, outcome)(rate(crawler_pages_fetched_total[5m]))",
+          "refId": "B",
+          "legendFormat": "crawl: {{source_code}}/{{outcome}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "단계별 latency p95 (수집 → mart)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (provider, le)(rate(ocr_duration_seconds_bucket[5m])))",
+          "refId": "A",
+          "legendFormat": "ocr {{provider}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le)(rate(hyperclova_embedding_duration_seconds_bucket[5m])))",
+          "refId": "B",
+          "legendFormat": "embedding"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le)(rate(price_fact_observed_to_inserted_seconds_bucket[5m])))",
+          "refId": "C",
+          "legendFormat": "observed → price_fact"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (source_code, le)(rate(crawler_fetch_duration_seconds_bucket[5m])))",
+          "refId": "D",
+          "legendFormat": "crawler {{source_code}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Outbox PENDING",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "outbox_pending_total", "refId": "A" }],
+      "options": { "graphMode": "area", "colorMode": "value" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "red", "value": 1000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Dead Letter 미처리",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "dead_letter_pending_total", "refId": "A" }],
+      "options": { "graphMode": "area", "colorMode": "value" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Redis Streams 길이 (topic 별)",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "dramatiq_queue_lag_seconds",
+          "refId": "A",
+          "legendFormat": "{{topic}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 9,
+      "type": "logs",
+      "title": "Worker 로그 (최근, level≠debug)",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 28 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "{service=~\"dp_worker.*\"} | json | level != \"debug\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "id": 10,
+      "type": "logs",
+      "title": "에러/경고 로그 (전 서비스)",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 40 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        {
+          "expr": "{service=~\"dp_.*\"} | json | level=~\"error|warning|critical\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true
+      }
+    }
+  ]
+}

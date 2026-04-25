@@ -33,6 +33,7 @@ from app.core.errors import DomainError
 from app.core.logging import configure_logging, get_logger
 from app.core.metrics import HttpMetricsMiddleware, metrics_response_body
 from app.core.request_context import set_request_id
+from app.core.sentry import configure_sentry
 from app.db import session as db_session
 from app.integrations import object_storage as object_storage_module
 
@@ -68,7 +69,13 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     configure_logging(settings)
-    log.info("startup.begin", env=settings.env, version=__version__)
+    sentry_enabled = configure_sentry(settings)
+    log.info(
+        "startup.begin",
+        env=settings.env,
+        version=__version__,
+        sentry=sentry_enabled,
+    )
 
     # DB 연결 사전 검증. 실패해도 startup 자체는 통과시키고 /readyz 가 unready 보고.
     # (12-Factor: 외부 의존성 일시 단절이 컨테이너 재시작 사유가 되지 않도록)

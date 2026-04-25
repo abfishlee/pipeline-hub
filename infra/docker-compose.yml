@@ -121,6 +121,40 @@ services:
       retries: 6
 
   # ----------------------------------------------------------------------
+  # 로그 집계 (Loki + Promtail) — Phase 2.2.9
+  # ----------------------------------------------------------------------
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: dp_loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yml"]
+    ports:
+      - "${LOKI_HOST_PORT:-3100}:3100"
+    volumes:
+      - ./loki/config.yml:/etc/loki/config.yml:ro
+      - loki_data:/var/loki
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    container_name: dp_promtail
+    restart: unless-stopped
+    depends_on:
+      loki:
+        condition: service_healthy
+    command: ["-config.file=/etc/promtail/promtail.yml"]
+    volumes:
+      - ./loki/promtail.yml:/etc/promtail/promtail.yml:ro
+      # docker socket 으로 다른 컨테이너 stdout 발견.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail_positions:/tmp
+
+  # ----------------------------------------------------------------------
   # Worker — Phase 2.2.1 (outbox), Phase 2.2.4 (ocr)
   # ----------------------------------------------------------------------
   # 로컬 개발 시 backend 는 호스트(uvicorn --reload)로 띄우고, 워커는
@@ -375,3 +409,5 @@ volumes:
   minio_data:
   prometheus_data:
   grafana_data:
+  loki_data:
+  promtail_positions:

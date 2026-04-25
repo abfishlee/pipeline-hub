@@ -56,6 +56,9 @@ dependencies = [
   # DB-to-DB 증분 수집 (Phase 2.2.7) — 외부 MySQL 소스 지원.
   # PostgreSQL 은 이미 psycopg 의존. SQLAlchemy 가 dialect 자동 매칭.
   "pymysql>=1.1,<2",
+
+  # Sentry (Phase 2.2.9) — 오류 자동 보고. DSN 비어 있으면 no-op.
+  "sentry-sdk[fastapi]>=2.18,<3",
 ]
 
 [dependency-groups]

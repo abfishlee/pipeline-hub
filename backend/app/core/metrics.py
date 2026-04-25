@@ -196,6 +196,29 @@ crawler_fetch_duration_seconds = Histogram(
     buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
 )
 
+# ---------------------------------------------------------------------------
+# 큐 / 백로그 (Phase 2.2.9 관제 고도화)
+# ---------------------------------------------------------------------------
+# `run.event_outbox` 의 PENDING row 수 — 30s 이상 0 보다 크면 publisher 가 멈춘 신호.
+outbox_pending_total = Gauge(
+    "outbox_pending_total",
+    "run.event_outbox 에서 status='PENDING' 인 row 수.",
+)
+
+# Redis Streams 의 `<prefix>:<topic>` 별 XLEN (소비자 group ack 와 무관한 단순 길이).
+# group lag 정밀 추적은 XINFO GROUPS 가 필요하나, 1차 신호로는 stream 길이로 충분.
+dramatiq_queue_lag_seconds = Gauge(
+    "dramatiq_queue_lag_seconds",
+    "Redis Streams 토픽 별 길이 — 미소비/미정리 메시지 누적 추정.",
+    labelnames=("topic",),
+)
+
+# `run.dead_letter` 중 replayed_at IS NULL — 운영 재처리가 필요한 건수.
+dead_letter_pending_total = Gauge(
+    "dead_letter_pending_total",
+    "운영자 재처리 대기 중인 dead_letter row 수 (replayed_at IS NULL).",
+)
+
 
 # ---------------------------------------------------------------------------
 # HTTP 미들웨어
@@ -265,6 +288,8 @@ __all__ = [
     "db_incremental_lag_seconds",
     "db_incremental_pulled_total",
     "db_pool_in_use",
+    "dead_letter_pending_total",
+    "dramatiq_queue_lag_seconds",
     "http_request_duration_seconds",
     "http_requests_total",
     "hyperclova_embedding_duration_seconds",
@@ -275,6 +300,7 @@ __all__ = [
     "ocr_confidence",
     "ocr_duration_seconds",
     "ocr_requests_total",
+    "outbox_pending_total",
     "price_fact_inserts_total",
     "price_fact_observed_to_inserted_seconds",
     "standardization_confidence",

@@ -230,15 +230,31 @@
 
 ### 2.2.9 관제 고도화 [W7]
 
-- [ ] Loki 도입 (docker-compose + promtail)
-- [ ] 로그 라벨: `env, service, request_id, source_code, pipeline_run_id`
-- [ ] Grafana "Pipeline Runtime" 대시보드:
-  - OCR 처리량/실패율/엔진별 latency
-  - Outbox backlog, Redis Streams lag
-  - DLQ 증가 알람
-  - 표준화 confidence 분포
-- [ ] Sentry 통합 (FastAPI + Dramatiq actor)
-- [ ] SLO 정의: 수집→mart 반영 p95 < 60초
+**기반 (이번 commit) — Loki + Promtail + Sentry + 백로그 게이지 + Runtime 대시보드**
+- [x] `docker-compose` 에 `grafana/loki:3.3.2` (single-binary) + `grafana/promtail:3.3.2` 추가 (`/var/run/docker.sock:ro` 마운트로 컨테이너 stdout 자동 수집) ✅ 2026-04-25
+- [x] `infra/loki/config.yml` — filesystem chunks (`/var/loki`), retention 7d, ingestion rate 8MB/s, schema v13/tsdb, compactor retention 자동 ✅ 2026-04-25
+- [x] `infra/loki/promtail.yml` — `dp_*` 컨테이너만 필터, `service`(컨테이너명)/`env=local`/`stream` 라벨 + structlog JSON pipeline_stages 로 `level/event/source_code/request_id/pipeline_run_id/event_id/timestamp` 추출 ✅ 2026-04-25
+- [x] `infra/grafana/provisioning/datasources/loki.yml` — Grafana 자동 등록 + derivedFields 로 `request_id` 클릭 점프 ✅ 2026-04-25
+- [x] `app/core/sentry.py::configure_sentry(settings)` + `main.py` lifespan 시작 시 호출. DSN 빈 값이면 no-op. FastAPI/Starlette/SQLAlchemy integration. `before_send` PII 스크럽 (`Authorization`/`Cookie`/`X-OCR-SECRET`/`X-API-Key`/`X-NCP-CLOVASTUDIO-API-KEY` 헤더 + `password`/`secret`/`api_key`/`token`/`dsn`/`access_key` body 키 → `[Filtered]`, 대소문자 무관, 중첩 dict 재귀) ✅ 2026-04-25
+- [x] Settings — `sentry_dsn`(SecretStr), `sentry_env`, `sentry_sample_rate`(0.1), `sentry_traces_sample_rate`(0.0). `.env`/`.env.example` 동기화. `pyproject` 에 `sentry-sdk[fastapi]>=2.18` ✅ 2026-04-25
+- [x] 백로그 메트릭 ✅ 2026-04-25
+  - `outbox_pending_total` Gauge — `run.event_outbox WHERE status='PENDING'` count
+  - `dead_letter_pending_total` Gauge — `run.dead_letter WHERE replayed_at IS NULL` count
+  - `dramatiq_queue_lag_seconds{topic}` Gauge — Redis Streams `<prefix>:<topic>` 별 XLEN
+  - `outbox_publisher.publish_outbox_batch` 가 매 호출 마지막에 일괄 갱신 (publish 시점이 정확)
+- [x] `infra/grafana/dashboards/runtime.json` — Phase 2 Runtime 대시보드 신규 (10 패널) ✅ 2026-04-25
+  - Workers throughput (OCR / 표준화 outcome / price_fact outcome / db_incremental + crawler)
+  - 단계별 latency p95 (ocr / embedding / observed→price_fact / crawler)
+  - 백로그 stat (Outbox PENDING / Dead Letter 미처리 / Streams 길이)
+  - Loki 로그 패널 2종 (worker stdout / 에러·경고 전 서비스)
+- [x] 단위 테스트 `tests/test_sentry_scrubbing.py` (6건) — 헤더/body/extra/case-insensitive/no-request/string-body 6개 케이스 ✅ 2026-04-25
+
+**다음 sub-phase 로 분리**
+- [ ] Sentry Release / Source Map 자동 업로드 — Phase 4 NKS GitOps
+- [ ] DLQ 운영 도구 (수동 replay UI / replayed_at 마킹) — Phase 3 어드민 화면
+- [ ] Alertmanager 룰 (5xx_rate > 1% / outbox_pending > 1000 / ocr 월예산 80%) — Phase 4 NKS
+- [ ] Streams group lag 정밀 추적 (`XINFO GROUPS` PEL count) — 현재 XLEN 기반 추정
+- [ ] SLO 정의 문서화 (수집→mart p95 < 60s) → Grafana SLO 패널 — `docs/ops/MONITORING.md` 후속 갱신
 
 ### 2.2.10 Frontend 추가 [W7~W8]
 
