@@ -1,0 +1,68 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { Toaster } from "sonner";
+import { useMe } from "@/api/auth";
+import { Layout } from "@/components/Layout";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { DashboardPage } from "@/pages/DashboardPage";
+import { JobsPage } from "@/pages/JobsPage";
+import { LoginPage } from "@/pages/LoginPage";
+import { RawObjectsPage } from "@/pages/RawObjectsPage";
+import { SourcesPage } from "@/pages/SourcesPage";
+import { UsersPage } from "@/pages/UsersPage";
+import { useAuthStore } from "@/store/auth";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 5_000,
+    },
+  },
+});
+
+function MeBootstrapper() {
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const user = useAuthStore((s) => s.user);
+  // 토큰은 있지만 user 정보가 없을 때만 /me 조회.
+  const me = useMe(!!accessToken && !user);
+  useEffect(() => {
+    if (me.error) {
+      // 토큰이 만료되었거나 무효 — apiClient 가 401 시 자동 로그아웃.
+    }
+  }, [me.error]);
+  return null;
+}
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <MeBootstrapper />
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+
+          <Route element={<ProtectedRoute />}>
+            <Route element={<Layout />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="/sources" element={<SourcesPage />} />
+              <Route path="/jobs" element={<JobsPage />} />
+              <Route path="/raw-objects" element={<RawObjectsPage />} />
+            </Route>
+          </Route>
+
+          <Route element={<ProtectedRoute requireRole="ADMIN" />}>
+            <Route element={<Layout />}>
+              <Route path="/users" element={<UsersPage />} />
+            </Route>
+          </Route>
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+      <Toaster position="top-right" richColors closeButton />
+    </QueryClientProvider>
+  );
+}
