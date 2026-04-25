@@ -218,9 +218,50 @@ class SqlQueryVersion(Base):
     query: Mapped[SqlQuery] = relationship(back_populates="versions", foreign_keys=[sql_query_id])
 
 
+class PipelineRelease(Base):
+    """DRAFT → PUBLISHED 전환 이력 (Phase 3.2.6).
+
+    PUBLISHED 전환 시 1행 INSERT — 해당 시점의 그래프 스냅샷 + 이전 PUBLISHED 와의 diff
+    요약을 보존. 원본 DRAFT 가 이후 수정되거나 삭제돼도 release 이력은 불변.
+    """
+
+    __tablename__ = "pipeline_release"
+    __table_args__ = (
+        UniqueConstraint("workflow_name", "version_no", name="uq_pipeline_release_name_version"),
+        {"schema": "wf"},
+    )
+
+    release_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    workflow_name: Mapped[str] = mapped_column(Text, nullable=False)
+    version_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_workflow_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("wf.workflow_definition.workflow_id", ondelete="SET NULL"),
+    )
+    released_workflow_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("wf.workflow_definition.workflow_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    released_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("ctl.app_user.user_id"))
+    released_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    change_summary: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    nodes_snapshot: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+    edges_snapshot: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
+
+
 __all__ = [
     "EdgeDefinition",
     "NodeDefinition",
+    "PipelineRelease",
     "SqlQuery",
     "SqlQueryVersion",
     "WorkflowDefinition",

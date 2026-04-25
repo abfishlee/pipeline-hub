@@ -328,11 +328,20 @@ function DesignerInner() {
       return;
     }
     try {
-      await transition.mutateAsync({
+      // Phase 3.2.6: 응답이 새 PUBLISHED 워크플로 + release 정보 동봉.
+      const result = await transition.mutateAsync({
         workflowId: editingWorkflowId,
         status: "PUBLISHED",
       });
-      toast.success("PUBLISHED 처리 완료");
+      const pub = result.published_workflow;
+      const rel = result.release;
+      if (pub && rel) {
+        toast.success(`v${pub.version} 배포 완료 (release #${rel.release_id})`);
+        // 새 PUBLISHED 워크플로 화면으로 이동 — 사용자가 그 위에서 실행 가능.
+        navigate(`/pipelines/designer/${pub.workflow_id}`);
+      } else {
+        toast.success("배포 완료");
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "전환 실패");
     }
@@ -344,7 +353,9 @@ function DesignerInner() {
       return;
     }
     if (detail.data?.status !== "PUBLISHED") {
-      toast.error("PUBLISHED 워크플로만 실행 가능합니다.");
+      toast.error(
+        "PUBLISHED 워크플로만 실행 가능합니다. (DRAFT 면 PUBLISH 후 자동으로 새 워크플로 화면으로 이동합니다)",
+      );
       return;
     }
     try {

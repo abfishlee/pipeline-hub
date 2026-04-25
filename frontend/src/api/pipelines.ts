@@ -185,6 +185,35 @@ export function useUpdateWorkflow() {
   });
 }
 
+// Phase 3.2.6: 응답이 단순 WorkflowOut 이 아니라 transition 메타로 확장됨.
+export interface PipelineReleaseOut {
+  release_id: number;
+  workflow_name: string;
+  version_no: number;
+  source_workflow_id: number | null;
+  released_workflow_id: number;
+  released_by: number | null;
+  released_at: string;
+  change_summary: {
+    added?: string[];
+    removed?: string[];
+    changed?: string[];
+    edges_added?: string[];
+    edges_removed?: string[];
+  };
+}
+
+export interface PipelineReleaseDetail extends PipelineReleaseOut {
+  nodes_snapshot: Array<Record<string, unknown>>;
+  edges_snapshot: Array<Record<string, unknown>>;
+}
+
+export interface WorkflowStatusTransitionOut {
+  workflow: WorkflowOut;
+  published_workflow: WorkflowOut | null;
+  release: PipelineReleaseOut | null;
+}
+
 export function useTransitionWorkflowStatus() {
   const qc = useQueryClient();
   return useMutation({
@@ -195,16 +224,70 @@ export function useTransitionWorkflowStatus() {
       workflowId: number;
       status: "PUBLISHED" | "ARCHIVED";
     }) =>
-      apiRequest<WorkflowOut>(`/v1/pipelines/${workflowId}/status`, {
-        method: "PATCH",
-        body: { status },
-      }),
+      apiRequest<WorkflowStatusTransitionOut>(
+        `/v1/pipelines/${workflowId}/status`,
+        { method: "PATCH", body: { status } },
+      ),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({
         queryKey: ["pipelines", "workflows", vars.workflowId],
       });
       qc.invalidateQueries({ queryKey: ["pipelines", "workflows"] });
+      qc.invalidateQueries({ queryKey: ["pipelines", "releases"] });
     },
+  });
+}
+
+export function usePipelineReleases(name?: string | null) {
+  return useQuery({
+    queryKey: ["pipelines", "releases", name ?? null],
+    queryFn: () =>
+      apiRequest<PipelineReleaseOut[]>("/v1/pipelines/releases", {
+        params: { name: name ?? undefined, limit: 200 },
+      }),
+  });
+}
+
+export function usePipelineReleaseDetail(releaseId: number | null) {
+  return useQuery({
+    queryKey: ["pipelines", "releases", "detail", releaseId],
+    enabled: releaseId != null,
+    queryFn: () =>
+      apiRequest<PipelineReleaseDetail>(`/v1/pipelines/releases/${releaseId}`),
+  });
+}
+
+export interface NodeChangeOut {
+  node_key: string;
+  node_type: string | null;
+  config_before: Record<string, unknown> | null;
+  config_after: Record<string, unknown> | null;
+}
+export interface EdgeChangeOut {
+  from_node_key: string;
+  to_node_key: string;
+}
+export interface WorkflowDiffOut {
+  before_workflow_id: number;
+  after_workflow_id: number;
+  nodes_added: NodeChangeOut[];
+  nodes_removed: NodeChangeOut[];
+  nodes_changed: NodeChangeOut[];
+  edges_added: EdgeChangeOut[];
+  edges_removed: EdgeChangeOut[];
+}
+
+export function useWorkflowDiff(
+  workflowId: number | null,
+  againstId: number | null,
+) {
+  return useQuery({
+    queryKey: ["pipelines", "diff", workflowId, againstId],
+    enabled: workflowId != null && againstId != null,
+    queryFn: () =>
+      apiRequest<WorkflowDiffOut>(`/v1/pipelines/${workflowId}/diff`, {
+        params: { against: againstId! },
+      }),
   });
 }
 

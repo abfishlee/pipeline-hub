@@ -133,19 +133,76 @@ class PipelineRunDetail(PipelineRunOut):
     node_runs: list[NodeRunOut] = Field(default_factory=list)
 
 
+# ---------------------------------------------------------------------------
+# Release / Diff (Phase 3.2.6)
+# ---------------------------------------------------------------------------
+class PipelineReleaseOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    release_id: int
+    workflow_name: str
+    version_no: int
+    source_workflow_id: int | None
+    released_workflow_id: int
+    released_by: int | None
+    released_at: datetime
+    change_summary: dict[str, Any]
+
+
+class PipelineReleaseDetail(PipelineReleaseOut):
+    nodes_snapshot: list[dict[str, Any]] = Field(default_factory=list)
+    edges_snapshot: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class WorkflowStatusTransitionOut(BaseModel):
+    """PATCH /status 의 응답 — PUBLISHED 시 새 워크플로/release 정보를 함께 반환."""
+
+    workflow: WorkflowOut
+    published_workflow: WorkflowOut | None = None
+    release: PipelineReleaseOut | None = None
+
+
+class NodeChangeOut(BaseModel):
+    node_key: str
+    node_type: str | None = None
+    config_before: dict[str, Any] | None = None
+    config_after: dict[str, Any] | None = None
+
+
+class EdgeChangeOut(BaseModel):
+    from_node_key: str
+    to_node_key: str
+
+
+class WorkflowDiffOut(BaseModel):
+    before_workflow_id: int
+    after_workflow_id: int
+    nodes_added: list[NodeChangeOut] = Field(default_factory=list)
+    nodes_removed: list[NodeChangeOut] = Field(default_factory=list)
+    nodes_changed: list[NodeChangeOut] = Field(default_factory=list)
+    edges_added: list[EdgeChangeOut] = Field(default_factory=list)
+    edges_removed: list[EdgeChangeOut] = Field(default_factory=list)
+
+
 __all__ = [
+    "EdgeChangeOut",
     "EdgeIn",
     "EdgeOut",
+    "NodeChangeOut",
     "NodeIn",
     "NodeOut",
     "NodeRunOut",
     "NodeType",
+    "PipelineReleaseDetail",
+    "PipelineReleaseOut",
     "PipelineRunDetail",
     "PipelineRunOut",
     "WorkflowCreate",
     "WorkflowDetail",
+    "WorkflowDiffOut",
     "WorkflowOut",
     "WorkflowPatch",
     "WorkflowStatus",
+    "WorkflowStatusTransitionOut",
     "WorkflowStatusUpdate",
 ]

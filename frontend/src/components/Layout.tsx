@@ -5,6 +5,7 @@ import {
   Database,
   FileBox,
   Gauge,
+  GitBranch,
   ListChecks,
   LogOut,
   Server,
@@ -44,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: Workflow,
     approverOk: true,
   },
+  { to: "/pipelines/releases", label: "배포 이력", icon: GitBranch },
   { to: "/sql-studio", label: "SQL Studio", icon: Sigma, operatorOk: true },
   { to: "/crowd-tasks", label: "검수 큐", icon: ClipboardCheck, reviewerOk: true },
   { to: "/dead-letters", label: "Dead Letter", icon: AlertTriangle, adminOnly: true },
@@ -144,6 +146,7 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/pipelines/runs/")) return "파이프라인 실행 상세";
   if (pathname.startsWith("/pipelines/runs")) return "파이프라인 실행 이력";
   if (pathname.startsWith("/pipelines/designer")) return "Visual ETL Designer";
+  if (pathname.startsWith("/pipelines/releases")) return "배포 이력";
   if (pathname.startsWith("/sql-studio")) return "SQL Studio";
   if (pathname.startsWith("/crowd-tasks")) return "검수 큐";
   if (pathname.startsWith("/dead-letters")) return "Dead Letter";

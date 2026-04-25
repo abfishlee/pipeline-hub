@@ -122,18 +122,24 @@ def test_create_workflow_in_draft_then_publish(
     )
     assert patch.status_code == 200, patch.text
 
-    # PUBLISH 전이.
+    # PUBLISH 전이 — Phase 3.2.6: 새 PUBLISHED 워크플로 row 생성됨.
     pub = it_client.patch(
         f"/v1/pipelines/{workflow_id}/status",
         json={"status": "PUBLISHED"},
         headers=admin_auth,
     )
-    assert pub.status_code == 200
-    assert pub.json()["status"] == "PUBLISHED"
+    assert pub.status_code == 200, pub.text
+    body = pub.json()
+    assert body["workflow"]["status"] == "DRAFT"  # 원본은 DRAFT 유지
+    assert body["published_workflow"]["status"] == "PUBLISHED"
+    assert body["published_workflow"]["version"] >= 2  # version_no 증가
+    assert body["release"] is not None
+    cleanup_workflows.append(int(body["published_workflow"]["workflow_id"]))
 
-    # PUBLISHED 상태에서 PATCH 시도 → 4xx
+    # PUBLISHED 워크플로 PATCH 시도 → 4xx
+    published_id = int(body["published_workflow"]["workflow_id"])
     bad = it_client.patch(
-        f"/v1/pipelines/{workflow_id}",
+        f"/v1/pipelines/{published_id}",
         json={"description": "should fail"},
         headers=admin_auth,
     )
@@ -167,16 +173,19 @@ def test_cycle_workflow_rejected_at_start(
     workflow_id = int(r.json()["workflow_id"])
     cleanup_workflows.append(workflow_id)
 
-    # PUBLISH 까지는 통과 (메타 검증만 — cycle 검출은 실행 시점).
+    # PUBLISH 까지는 통과 (메타 검증만 — cycle 검출은 실행 시점). Phase 3.2.6 부터
+    # PUBLISH 는 새 워크플로 row 를 만들고, run 트리거는 그 새 ID 로 실행해야 함.
     pub = it_client.patch(
         f"/v1/pipelines/{workflow_id}/status",
         json={"status": "PUBLISHED"},
         headers=admin_auth,
     )
     assert pub.status_code == 200
+    published_id = int(pub.json()["published_workflow"]["workflow_id"])
+    cleanup_workflows.append(published_id)
 
     # 실행 트리거 → cycle 검출 → 422
-    run = it_client.post(f"/v1/pipelines/{workflow_id}/runs", headers=admin_auth)
+    run = it_client.post(f"/v1/pipelines/{published_id}/runs", headers=admin_auth)
     assert run.status_code in (400, 422), run.text
 
 
@@ -192,19 +201,21 @@ def test_topology_progresses_when_nodes_succeed(
 ) -> None:
     workflow_id = _create_three_noop_workflow(it_client, admin_auth, rand_suffix)
     cleanup_workflows.append(workflow_id)
-    # PUBLISH
+    # PUBLISH — Phase 3.2.6: published_workflow 의 새 ID 로 후속 실행.
     pub = it_client.patch(
         f"/v1/pipelines/{workflow_id}/status",
         json={"status": "PUBLISHED"},
         headers=admin_auth,
     )
     assert pub.status_code == 200
+    published_id = int(pub.json()["published_workflow"]["workflow_id"])
+    cleanup_workflows.append(published_id)
 
     # PUBSUB 구독 — 노드 상태 이벤트 수집.
     pubsub = _redis_or_skip.pubsub()
 
     # API 로 실행 트리거.
-    run = it_client.post(f"/v1/pipelines/{workflow_id}/runs", headers=admin_auth)
+    run = it_client.post(f"/v1/pipelines/{published_id}/runs", headers=admin_auth)
     assert run.status_code == 202, run.text
     pipeline_run_id = int(run.json()["pipeline_run_id"])
     pubsub.subscribe(f"pipeline:{pipeline_run_id}")
@@ -295,18 +306,20 @@ def test_cancel_pipeline_run_marks_all_nonterminal_as_cancelled(
 ) -> None:
     workflow_id = _create_three_noop_workflow(it_client, admin_auth, rand_suffix)
     cleanup_workflows.append(workflow_id)
-    it_client.patch(
+    pub = it_client.patch(
         f"/v1/pipelines/{workflow_id}/status",
         json={"status": "PUBLISHED"},
         headers=admin_auth,
     )
+    published_id = int(pub.json()["published_workflow"]["workflow_id"])
+    cleanup_workflows.append(published_id)
 
-    # 도메인 직접 — start 만 호출.
+    # 도메인 직접 — start 만 호출. PUBLISHED 워크플로 ID 로.
     sm = get_sync_sessionmaker()
     with sm() as session:
         started = start_pipeline_run(
             session,
-            workflow_id=workflow_id,
+            workflow_id=published_id,
             triggered_by_user_id=1,
         )
         session.commit()

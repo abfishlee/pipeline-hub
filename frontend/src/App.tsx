@@ -11,6 +11,7 @@ import { DeadLetterQueue } from "@/pages/DeadLetterQueue";
 import { JobsPage } from "@/pages/JobsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PipelineDesigner } from "@/pages/PipelineDesigner";
+import { PipelineReleases } from "@/pages/PipelineReleases";
 import { PipelineRunDetail } from "@/pages/PipelineRunDetail";
 import { PipelineRunsList } from "@/pages/PipelineRunsList";
 import { SqlStudio } from "@/pages/SqlStudio";
@@ -62,6 +63,7 @@ export default function App() {
                 path="/pipelines/runs/:runId"
                 element={<PipelineRunDetail />}
               />
+              <Route path="/pipelines/releases" element={<PipelineReleases />} />
               <Route path="/runtime" element={<RuntimeMonitor />} />
             </Route>
           </Route>
