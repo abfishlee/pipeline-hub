@@ -413,6 +413,7 @@ dependencies = [
     { name = "redis" },
     { name = "sentry-sdk", extra = ["fastapi"] },
     { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "sqlglot" },
     { name = "structlog" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -449,6 +450,7 @@ requires-dist = [
     { name = "redis", specifier = ">=5.2,<7" },
     { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.18,<3" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.35,<2.1" },
+    { name = "sqlglot", specifier = ">=25,<27" },
     { name = "structlog", specifier = ">=24.4,<25" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32,<0.33" },
 ]
@@ -1322,6 +1324,15 @@ wheels = [
 [package.optional-dependencies]
 asyncio = [
     { name = "greenlet" },
+]
+
+[[package]]
+name = "sqlglot"
+version = "26.33.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/25/9d/fcd59b4612d5ad1e2257c67c478107f073b19e1097d3bfde2fb517884416/sqlglot-26.33.0.tar.gz", hash = "sha256:2817278779fa51d6def43aa0d70690b93a25c83eb18ec97130fdaf707abc0d73", size = 5353340, upload-time = "2025-07-01T13:09:06.311Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/31/8d/f1d9cb5b18e06aa45689fbeaaea6ebab66d5f01d1e65029a8f7657c06be5/sqlglot-26.33.0-py3-none-any.whl", hash = "sha256:031cee20c0c796a83d26d079a47fdce667604df430598c7eabfa4e4dfd147033", size = 477610, upload-time = "2025-07-01T13:09:03.926Z" },
 ]
 
 [[package]]

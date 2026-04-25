@@ -59,6 +59,10 @@ dependencies = [
 
   # Sentry (Phase 2.2.9) — 오류 자동 보고. DSN 비어 있으면 no-op.
   "sentry-sdk[fastapi]>=2.18,<3",
+
+  # SQL 정적 분석 (Phase 3.2.2 SQL_TRANSFORM 노드 + 3.2.4 SQL Studio) —
+  # AST 분석으로 schema 화이트리스트 + 위험 함수 차단.
+  "sqlglot>=25,<27",
 ]
 
 [dependency-groups]
