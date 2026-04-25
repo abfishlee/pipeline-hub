@@ -70,11 +70,25 @@ def _table_refs(ast: exp.Expression) -> list[exp.Table]:
     return list(ast.find_all(exp.Table))
 
 
-def _check_schemas(tables: Iterable[exp.Table]) -> None:
+def _cte_names(ast: exp.Expression) -> set[str]:
+    """`WITH foo AS (...)` 의 alias 들을 모은다. 본 ref 는 schema 없이도 통과."""
+    out: set[str] = set()
+    for cte in ast.find_all(exp.CTE):
+        alias = cte.alias_or_name
+        if alias:
+            out.add(alias.lower())
+    return out
+
+
+def _check_schemas(tables: Iterable[exp.Table], *, cte_names: set[str]) -> None:
     for t in tables:
         schema_obj = t.args.get("db")
         schema = schema_obj.name if schema_obj is not None else None
         if not schema:
+            # CTE alias 참조는 통과 — 본문은 이미 다른 Table 로 검증되었거나
+            # 통째로 sandbox 내 임시 결과.
+            if t.name and t.name.lower() in cte_names:
+                continue
             raise SqlValidationError(
                 f"unqualified table reference '{t.name}' — must use schema.table "
                 f"(allowed: {sorted(ALLOWED_SCHEMAS)})"
@@ -136,13 +150,17 @@ def validate(sql: str) -> tuple[exp.Expression, set[str]]:
     tables = _table_refs(ast)
     if not tables:
         raise SqlValidationError("no FROM clause / table reference")
-    _check_schemas(tables)
+    cte_names = _cte_names(ast)
+    _check_schemas(tables, cte_names=cte_names)
     _check_functions(ast)
 
     referenced: set[str] = set()
     for t in tables:
         db_obj = t.args.get("db")
         schema = (db_obj.name if db_obj is not None else "") or ""
+        # CTE alias 본 ref 는 referenced_tables 에 포함하지 않는다 (외부 자산이 아님).
+        if not schema and t.name and t.name.lower() in cte_names:
+            continue
         referenced.add(f"{schema}.{t.name}".lstrip("."))
     return ast, referenced
 

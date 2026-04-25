@@ -1,0 +1,103 @@
+# 온라인 쇼핑몰 크롤링 → mart.product_price 파이프라인.
+#
+# 시나리오: docs/04_DOMAIN_MODEL.md 4.6 의 "크롤링 (쿠팡/마컬)" 채널.
+# Crawler worker (Phase 2.2.8) 가 정해진 URL 셋을 순회하며 HTML 을 raw 에 적재 →
+# stg.daily_prices 로 1차 파싱 → 본 파이프라인이 표준화 + dedup + mart 적재.
+#
+# 크롤링 특성상 동일 sku 가 여러 페이지에 노출 → DEDUP 후 LOAD_MASTER. 가격 분포가 비대칭
+# 이라 outlier 검사를 LOAD_MASTER 전에 둔다.
+#
+# 노드 종속성:
+#   extract_crawl → dq_check_parsed → sql_normalize_units → dq_check_price_outliers →
+#   dedup_sku_url → load_master → notify_slack
+#
+# 매시간 정각 — 가격 변동 추적이 빨라야 함.
+name: online_crawl__coupang_hourly
+description: 쿠팡 크롤링 결과 → 단위 정규화 → 이상치 검사 → mart.product_price UPSERT (시배치).
+schedule_cron: "0 * * * *"
+nodes:
+  - node_key: extract_crawl
+    node_type: SOURCE_API
+    config_json:
+      source_code: COUPANG_CRAWL
+      limit: 2000
+      include_payload: false
+    position: { x: 0, y: 0 }
+
+  - node_key: dq_check_parsed
+    node_type: DQ_CHECK
+    config_json:
+      input_table: stg.daily_prices
+      severity: ERROR
+      assertions:
+        - { kind: row_count_min, min: 1 }
+        - { kind: null_pct_max, column: sku, max_pct: 1.0 }
+        - { kind: null_pct_max, column: price, max_pct: 0.0 }
+    position: { x: 220, y: 0 }
+
+  - node_key: sql_normalize_units
+    node_type: SQL_TRANSFORM
+    config_json:
+      sql: |-
+        SELECT
+          sku                            AS retailer_product_code,
+          'COUPANG'                      AS retailer_code,
+          price::numeric(12,2)           AS price,
+          captured_at,
+          weight_g,
+          CASE
+            WHEN sale_unit_norm IN ('kg','g','개','봉','박스','묶음','L','ml')
+              THEN sale_unit_norm
+            ELSE '개'
+          END                            AS sale_unit_norm
+        FROM stg.daily_prices
+        WHERE captured_at >= now() - interval '2 hour'
+    position: { x: 440, y: 0 }
+
+  - node_key: dq_check_price_outliers
+    node_type: DQ_CHECK
+    config_json:
+      input_table: stg.daily_prices
+      severity: BLOCK
+      assertions:
+        - kind: custom_sql
+          sql: "SELECT COUNT(*)::int FROM stg.daily_prices WHERE price <= 0"
+          expect: 0
+        - kind: custom_sql
+          sql: "SELECT COUNT(*)::int FROM stg.daily_prices WHERE price > 50000000"
+          expect: 0
+    position: { x: 660, y: 0 }
+
+  - node_key: dedup_sku_url
+    node_type: DEDUP
+    config_json:
+      input_table: stg.daily_prices
+      key_columns: [sku, captured_at]
+      keep: last
+    position: { x: 880, y: 0 }
+
+  - node_key: load_master
+    node_type: LOAD_MASTER
+    config_json:
+      source_table: stg.daily_prices
+      target_table: mart.product_price
+      key_columns: [retailer_code, retailer_product_code, captured_at]
+    position: { x: 1100, y: 0 }
+
+  - node_key: notify_slack
+    node_type: NOTIFY
+    config_json:
+      channel: slack
+      target: "#data-pipeline"
+      level: INFO
+      subject: "[online_crawl__coupang_hourly] 시배치 완료"
+      body: "COUPANG_CRAWL → mart.product_price UPSERT 완료."
+    position: { x: 1320, y: 0 }
+
+edges:
+  - { from_node_key: extract_crawl,            to_node_key: dq_check_parsed }
+  - { from_node_key: dq_check_parsed,          to_node_key: sql_normalize_units }
+  - { from_node_key: sql_normalize_units,      to_node_key: dq_check_price_outliers }
+  - { from_node_key: dq_check_price_outliers,  to_node_key: dedup_sku_url }
+  - { from_node_key: dedup_sku_url,            to_node_key: load_master }
+  - { from_node_key: load_master,              to_node_key: notify_slack }

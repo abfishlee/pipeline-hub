@@ -1,0 +1,96 @@
+# 소비자 영수증 OCR → mart.product_price 파이프라인.
+#
+# 시나리오: docs/04_DOMAIN_MODEL.md 4.6 의 "소비자 영수증 OCR" 채널 (RECEIPT_IMAGE).
+# 영수증 이미지가 raw 에 적재되면 (Phase 2.2.4 OCR 도메인이 자동 처리) 가공된 구조화 row 가
+# stg.receipt_lines 에 쌓인다. 본 파이프라인은 그 stg 테이블을 받아 표준화 → mart UPSERT.
+#
+# OCR 자체는 별도 worker 가 처리 (ocr_pipeline) — Phase 4 본 파이프라인 위에 OCR 노드 종류가
+# 추가될 예정. Phase 3 한정으로는 stg.receipt_lines 가 이미 채워진 상태를 가정.
+#
+# 노드 종속성:
+#   extract_receipt → dq_check_required → sql_mask_personal → dedup_receipt_line →
+#   dq_check_outliers → load_master → notify_slack
+#
+# 매일 02:00 UTC (한국 11:00) — 전날 영수증 누적 처리.
+name: receipt_ocr__consumer_daily
+description: 소비자 영수증 OCR 결과 → 개인정보 마스킹 → mart.product_price UPSERT (일배치).
+schedule_cron: "0 2 * * *"
+nodes:
+  - node_key: extract_receipt
+    node_type: SOURCE_API
+    config_json:
+      source_code: RECEIPT_OCR
+      limit: 10000
+    position: { x: 0, y: 0 }
+
+  - node_key: dq_check_required
+    node_type: DQ_CHECK
+    config_json:
+      input_table: stg.daily_prices
+      severity: ERROR
+      assertions:
+        - { kind: row_count_min, min: 1 }
+        - { kind: null_pct_max, column: store_name, max_pct: 5.0 }
+        - { kind: null_pct_max, column: price, max_pct: 0.0 }
+    position: { x: 220, y: 0 }
+
+  - node_key: sql_mask_personal
+    node_type: SQL_TRANSFORM
+    config_json:
+      sql: |-
+        SELECT
+          regexp_replace(store_name, '\\s+', ' ', 'g') AS retailer_code,
+          UPPER(TRIM(item_name))         AS retailer_product_code,
+          price::numeric(12,2)           AS price,
+          captured_at,
+          weight_g,
+          sale_unit_norm
+        FROM stg.daily_prices
+        WHERE captured_at >= now() - interval '1 day'
+    position: { x: 440, y: 0 }
+
+  - node_key: dedup_receipt_line
+    node_type: DEDUP
+    config_json:
+      input_table: stg.daily_prices
+      key_columns: [retailer_product_code, captured_at, price]
+      keep: first
+    position: { x: 660, y: 0 }
+
+  - node_key: dq_check_outliers
+    node_type: DQ_CHECK
+    config_json:
+      input_table: stg.daily_prices
+      severity: WARN
+      assertions:
+        - kind: custom_sql
+          sql: "SELECT COUNT(*)::int FROM stg.daily_prices WHERE price < 0 OR price > 10000000"
+          expect: 0
+    position: { x: 880, y: -80 }
+
+  - node_key: load_master
+    node_type: LOAD_MASTER
+    config_json:
+      source_table: stg.daily_prices
+      target_table: mart.product_price
+      key_columns: [retailer_product_code, captured_at]
+    position: { x: 880, y: 80 }
+
+  - node_key: notify_slack
+    node_type: NOTIFY
+    config_json:
+      channel: slack
+      target: "#data-pipeline"
+      level: INFO
+      subject: "[receipt_ocr__consumer_daily] 영수증 일배치 완료"
+      body: "RECEIPT_OCR → mart.product_price UPSERT 완료."
+    position: { x: 1100, y: 0 }
+
+edges:
+  - { from_node_key: extract_receipt,     to_node_key: dq_check_required }
+  - { from_node_key: dq_check_required,   to_node_key: sql_mask_personal }
+  - { from_node_key: sql_mask_personal,   to_node_key: dedup_receipt_line }
+  - { from_node_key: dedup_receipt_line,  to_node_key: dq_check_outliers }
+  - { from_node_key: dedup_receipt_line,  to_node_key: load_master }
+  - { from_node_key: dq_check_outliers,   to_node_key: load_master }
+  - { from_node_key: load_master,         to_node_key: notify_slack }

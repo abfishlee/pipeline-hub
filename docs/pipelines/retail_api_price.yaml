@@ -1,0 +1,95 @@
+# 유통사 POS API → mart.product_price 표준 파이프라인.
+#
+# 시나리오: docs/04_DOMAIN_MODEL.md 4.6 의 "유통사 POS API" 채널.
+# 매일 새벽 05:00 (UTC) 에 EMART_API source 의 raw_object 신규 row 를 읽어 표준화 후
+# mart.product_price 로 UPSERT 하고 Slack 으로 결과 통보.
+#
+# 노드 종속성 (DAG):
+#   extract_emart_api  →  dq_check_extract  →  sql_normalize  →  dq_check_normalized
+#                                                             →  dedup_business_key
+#                                                             →  load_master  →  notify_slack
+#
+# 멱등성: SOURCE_API 는 since_partition_date 로 중복 회수 방지, DEDUP 는 (sku, captured_at)
+# 기준, LOAD_MASTER 는 ON CONFLICT UPSERT.
+name: retail_api_price__emart
+description: 이마트 POS API → 표준화 → mart.product_price UPSERT (일배치).
+schedule_cron: "0 5 * * *"  # UTC 매일 05:00 (한국 시간 14:00).
+nodes:
+  - node_key: extract_emart_api
+    node_type: SOURCE_API
+    config_json:
+      source_code: EMART_API
+      limit: 5000
+      include_payload: true
+    position: { x: 0, y: 0 }
+
+  - node_key: dq_check_extract
+    node_type: DQ_CHECK
+    config_json:
+      input_table: stg.daily_prices
+      severity: ERROR
+      assertions:
+        - { kind: row_count_min, min: 1 }
+        - { kind: null_pct_max, column: sku, max_pct: 0.0 }
+        - { kind: null_pct_max, column: price, max_pct: 0.0 }
+    position: { x: 220, y: 0 }
+
+  - node_key: sql_normalize
+    node_type: SQL_TRANSFORM
+    config_json:
+      sql: |-
+        SELECT
+          sku                            AS retailer_product_code,
+          UPPER(TRIM(retailer_code))     AS retailer_code,
+          store_code,
+          price::numeric(12,2)           AS price,
+          captured_at,
+          weight_g,
+          sale_unit_norm
+        FROM stg.daily_prices
+        WHERE captured_at >= now() - interval '1 day'
+    position: { x: 440, y: 0 }
+
+  - node_key: dq_check_normalized
+    node_type: DQ_CHECK
+    config_json:
+      input_table: stg.daily_prices
+      severity: WARN
+      assertions:
+        - { kind: unique_columns, columns: [sku, captured_at] }
+    position: { x: 660, y: -80 }
+
+  - node_key: dedup_business_key
+    node_type: DEDUP
+    config_json:
+      input_table: stg.daily_prices
+      key_columns: [sku, captured_at]
+      keep: last
+    position: { x: 660, y: 80 }
+
+  - node_key: load_master
+    node_type: LOAD_MASTER
+    config_json:
+      source_table: stg.daily_prices
+      target_table: mart.product_price
+      key_columns: [retailer_product_code, captured_at]
+    position: { x: 880, y: 0 }
+
+  - node_key: notify_slack
+    node_type: NOTIFY
+    config_json:
+      channel: slack
+      target: "#data-pipeline"
+      level: INFO
+      subject: "[retail_api_price__emart] 일배치 완료"
+      body: "EMART_API → mart.product_price UPSERT 완료. 행 수는 LOAD_MASTER 출력 참조."
+    position: { x: 1100, y: 0 }
+
+edges:
+  - { from_node_key: extract_emart_api,    to_node_key: dq_check_extract }
+  - { from_node_key: dq_check_extract,     to_node_key: sql_normalize }
+  - { from_node_key: sql_normalize,        to_node_key: dq_check_normalized }
+  - { from_node_key: sql_normalize,        to_node_key: dedup_business_key }
+  - { from_node_key: dq_check_normalized,  to_node_key: load_master }
+  - { from_node_key: dedup_business_key,   to_node_key: load_master }
+  - { from_node_key: load_master,          to_node_key: notify_slack }
