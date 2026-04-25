@@ -25,6 +25,7 @@ from app.api.v1 import auth as auth_router
 from app.api.v1 import crowd as crowd_router
 from app.api.v1 import dead_letters as dl_router
 from app.api.v1 import ingest as ingest_router
+from app.api.v1 import internal as internal_router
 from app.api.v1 import jobs as jobs_router
 from app.api.v1 import pipelines as pipelines_router
 from app.api.v1 import raw as raw_router
@@ -215,6 +216,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(raw_router.router)
     app.include_router(crowd_router.router)
     app.include_router(dl_router.router)
+    # Phase 4.0.4 — internal_router 가 pipelines_router 보다 먼저 등록되어야 함:
+    # POST /v1/pipelines/internal/runs 가 pipelines 의 POST /{workflow_id}/runs 보다
+    # 먼저 매칭돼야 JWT dep 가 안 발화한다 (workflow_id="internal" 로 잘못 해석되는 것 방지).
+    app.include_router(internal_router.router)
     app.include_router(pipelines_router.router)
     app.include_router(sse_router.router)
     app.include_router(sql_studio_router.router)

@@ -196,3 +196,78 @@ Airflow metadata DB 는 별도 — `postgresql+psycopg2://app:app@postgres:5432/
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Phase 4.0.4 — `system_scheduled_pipelines` DAG
+
+**목적**: `wf.workflow_definition` 의 `schedule_enabled=TRUE` PUBLISHED 워크플로를
+매분 polling 해 cron 표현식이 발화한 분 안에 도래하면 backend 의 internal trigger
+endpoint 를 호출.
+
+### 구성
+
+| 컴포넌트 | 위치 | 책임 |
+|---|---|---|
+| DAG | `infra/airflow/dags/scheduled_pipelines.py` | 매분 (`*/1 * * * *`) polling |
+| Operator helper | `infra/airflow/plugins/operators/start_pipeline_op.py` | httpx + token 헤더로 `POST /v1/pipelines/internal/runs` |
+| Backend endpoint | `backend/app/api/v1/internal.py` | X-Internal-Token 검증 + 멱등 trigger |
+| Compose overlay | `infra/docker-compose.airflow.override.yml` | Airflow Variable / Connection 주입 |
+
+### 권한 흐름
+
+```
+Airflow worker
+   │ X-Internal-Token: <Variable BACKEND_INTERNAL_TOKEN>
+   ▼
+backend /v1/pipelines/internal/runs
+   ├─ token 검증 (Settings.airflow_internal_token 비교)
+   ├─ workflow.status == PUBLISHED 확인
+   ├─ (workflow_id, today) RUNNING 이면 같은 ID 반환 (created=False)
+   └─ 신규 → start_pipeline_run + actor enqueue (created=True)
+```
+
+내부 endpoint 라 사용자 JWT 검증을 거치지 않는다. **외부 노출 절대 금지** — nginx 단에서
+`location ~ /v1/pipelines/internal { deny all; }` 로 차단 권장.
+
+### 기동 (로컬)
+
+```bash
+# 1. .env 의 APP_AIRFLOW_INTERNAL_TOKEN 채우기
+echo 'APP_AIRFLOW_INTERNAL_TOKEN=$(python -c "import secrets; print(secrets.token_hex(32))")' >> .env
+
+# 2. backend 재기동 (token 적용)
+docker compose -f infra/docker-compose.yml --env-file .env restart  # 또는 systemctl restart datapipeline-backend
+
+# 3. Airflow stack + Phase 4 overlay 기동
+docker compose \
+  -f infra/docker-compose.yml \
+  -f infra/docker-compose.airflow.override.yml \
+  --env-file .env \
+  up -d airflow-init airflow-webserver airflow-scheduler
+
+# 4. Web UI 접속 (http://localhost:8080) → DAGs → system_scheduled_pipelines unpause
+```
+
+### 디버깅
+
+| 증상 | 진단 |
+|---|---|
+| DAG 가 every minute 발화 안 함 | scheduler 로그 (`docker logs dp_airflow_scheduler`) — DAG parse 에러 확인 |
+| 발화는 하는데 trigger 안 됨 | Airflow Variable `BACKEND_INTERNAL_TOKEN` 확인 (UI → Admin → Variables) |
+| 401 응답 | token 불일치. backend 의 `APP_AIRFLOW_INTERNAL_TOKEN` 과 Airflow Variable `BACKEND_INTERNAL_TOKEN` 같은지 |
+| 503 응답 | backend 에 token 미설정 — `.env` 확인 후 backend 재기동 |
+| 422 응답 | workflow 가 PUBLISHED 아니거나 cycle/노드 0개 — Designer 화면에서 확인 |
+| 로컬에서 backend 미연결 | overlay 의 `extra_hosts: host.docker.internal:host-gateway` 적용 확인 |
+
+### 멱등성 검증
+
+같은 분에 cron 이 두 번 발화해도 pipeline_run 은 1개만 생성:
+
+```bash
+docker exec dp_postgres psql -U app -d datapipeline -c \
+  "SELECT pipeline_run_id, workflow_id, run_date, status \
+     FROM run.pipeline_run \
+    WHERE workflow_id = <PUB_ID> AND run_date = current_date;"
+# → row 1개만 보여야 함 (cron polling 1분 안에 두 번 호출돼도 멱등)
+```

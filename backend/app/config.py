@@ -108,6 +108,11 @@ class Settings(BaseSettings):
     crawler_timeout_sec: float = 15.0
     crawler_respect_robots: bool = True
 
+    # ---- Airflow integration (Phase 4.0.4) ----
+    # Airflow scheduled_pipelines DAG 가 backend 의 internal endpoint 를 호출할 때 헤더에
+    # 동봉. 비어 있으면 internal endpoint 가 503 (개발 환경에서 cron 자동 실행 비활성).
+    airflow_internal_token: SecretStr = SecretStr("")
+
     # ---- Sentry (Phase 2.2.9) — DSN 비어 있으면 init skip ----
     sentry_dsn: SecretStr = SecretStr("")
     # 환경 라벨 (env 와 분리). prod 만 보내고 싶을 때 sample_rate 0 으로 끌 수도 있음.

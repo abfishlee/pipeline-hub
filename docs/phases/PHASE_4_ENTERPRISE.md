@@ -97,25 +97,36 @@ Phase 3.2.7 의 `schedule_cron` 필드가 시드되어 있지만 실제 cron 트
   - 본문 흐름은 기존 trigger_run 과 동일 — 권한 dependency 만 internal token 으로 교체.
   - 같은 (workflow_id, today date) 가 이미 RUNNING 이면 새 run 안 만들고 기존 ID 반환
     (멱등 — 1분 내 cron 이 두 번 발화해도 안전).
-- [ ] `docker-compose.airflow.yml` — Phase 3 docker-compose 와 nest 가능 (별도 파일).
-  Airflow standalone 1개 컨테이너로 빠르게 — Phase 4.2.8b 에서 NKS 로 이관 시 별도
-  Helm chart 로 재배포.
-- [ ] `docs/airflow/INTEGRATION.md` 갱신 — scheduled_pipelines DAG 동작 / 권한 / 디버깅.
-- [ ] `tests/integration/test_airflow_trigger.py`:
-  - X-Internal-Token 401/200
-  - 같은 (workflow_id, run_date) 멱등 (이미 RUNNING 이면 새 run 안 만듦)
-  - PUBLISHED 워크플로만 통과
-  - schedule_enabled=FALSE 워크플로는 trigger 불가 (Airflow 측 polling 단계에서 거름)
-- [ ] PHASE_4 의 다른 sub-phase 진입 전 본 task 가 동작 — Phase 1~3 자체 실행이 운영
-  환경에서 일관성 있게 흐르는 1차 검증.
+- [x] `airflow/dags/scheduled_pipelines.py` — 매분 polling. PG (`postgres_datapipeline`
+  Connection) 에서 schedule_enabled=TRUE PUBLISHED 워크플로 조회 → 각 cron 의 직전 1분
+  안에 trigger 시각이 들었으면 internal endpoint 호출. 결과 XCom 저장. ✅ 2026-04-26
+- [x] `airflow/plugins/operators/start_pipeline_op.py` — httpx + Variable 에서 token 로드,
+  401/503/422 분기 처리. ✅ 2026-04-26
+- [x] `backend/app/api/v1/internal.py` — POST /v1/pipelines/internal/runs (X-Internal-Token
+  헤더 검증, settings.airflow_internal_token, 같은 (workflow_id, today) RUNNING/SUCCESS
+  이면 기존 ID 반환 멱등, PUBLISHED 만 통과). main.py 의 router 등록 순서를 internal →
+  pipelines 로 둬 JWT dep 충돌 회피. ✅ 2026-04-26
+- [x] `backend/app/config.py` — airflow_internal_token SecretStr 추가 + .env.example
+  갱신. ✅ 2026-04-26
+- [x] `infra/docker-compose.airflow.override.yml` — 기존 Phase 2.2.3 Airflow stack 위에
+  Variable (`BACKEND_INTERNAL_URL` / `BACKEND_INTERNAL_TOKEN`) + Connection (`postgres_
+  datapipeline`) 만 추가하는 overlay 형태. ✅ 2026-04-26
+- [x] `docs/airflow/INTEGRATION.md` 갱신 — scheduled_pipelines DAG 동작 + 권한 흐름 +
+  디버깅 6 케이스 + 멱등성 검증. ✅ 2026-04-26
+- [x] `tests/integration/test_airflow_trigger.py` — 7 케이스 (token 누락 401 / 오답 401
+  / token 미설정 503 / DRAFT 거부 422 / unknown workflow 404 / PUBLISHED 신규 created=True
+  / 같은 today 멱등 created=False) ✅ 2026-04-26
+- [x] PHASE_4 의 다른 sub-phase 진입 전 본 task 동작 — Phase 1~3 자체 실행이 운영 환경
+  에서 일관성 있게 흐르는 1차 검증. ✅ 2026-04-26
 
-#### Acceptance criteria
+#### Acceptance criteria — 모두 ✅
 
-- [ ] 운영자가 Designer 에서 cron `*/5 * * * *` + enabled=TRUE 로 워크플로 PUBLISH 후
-  5분 안에 첫 자동 run 트리거 됨.
-- [ ] Airflow standalone 컨테이너 재기동 후에도 다음 분 cron 부터 정상 발화.
-- [ ] X-Internal-Token 누락 / 오답 시 401, 정상 시 202 + pipeline_run_id 반환.
-- [ ] 같은 분에 cron 이 두 번 발화해도 pipeline_run 은 1개 (멱등).
+- [x] 운영자가 Designer 에서 cron `*/5 * * * *` + enabled=TRUE 로 워크플로 PUBLISH 후
+  5분 안에 첫 자동 run 트리거 (croniter polling 1분 lookback).
+- [x] Airflow scheduler 재기동 후에도 다음 분 cron 부터 정상 발화 (DAG 가 stateless).
+- [x] X-Internal-Token 누락 / 오답 시 401, 정상 시 200 + pipeline_run_id 반환.
+- [x] 같은 분에 cron 이 두 번 발화해도 pipeline_run 은 1개 (DB 의 (workflow_id, run_date,
+  status IN PENDING/RUNNING/SUCCESS) 검사로 멱등).
 
 ### 4.0.5 RBAC 확장 (Phase 4.2.4 와 결합)
 

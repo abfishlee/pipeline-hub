@@ -1,0 +1,41 @@
+# Phase 4.0.4 overlay — 기존 docker-compose.yml 위에 얹어 Airflow 에 backend internal
+# trigger 에 필요한 Connection / Variable 을 추가한다.
+#
+# 사용:
+#   docker compose -f infra/docker-compose.yml \
+#                  -f infra/docker-compose.airflow.override.yml \
+#                  --env-file .env up -d
+#
+# 추가하는 것:
+#   - Connection `postgres_datapipeline` — backend 와 같은 PG 의 read-only alias
+#     (DAG 에서 schedule_enabled=TRUE PUBLISHED 워크플로 조회용)
+#   - Variable `BACKEND_INTERNAL_URL`     — http://host.docker.internal:8000 (로컬)
+#                                            또는 운영 환경 backend host
+#   - Variable `BACKEND_INTERNAL_TOKEN`   — backend Settings.airflow_internal_token 와 동일
+#
+# 운영 환경 (NKS) 에선 본 overlay 대신 Helm chart 의 ExternalSecrets / ConfigMap
+# 으로 같은 값을 주입 (Phase 4.2.8b 의 NKS 이관에서 처리).
+
+x-airflow-bootstrap-env: &airflow-bootstrap-env
+  AIRFLOW_VAR_BACKEND_INTERNAL_URL: ${AIRFLOW_BACKEND_INTERNAL_URL:-http://host.docker.internal:8000}
+  AIRFLOW_VAR_BACKEND_INTERNAL_TOKEN: ${APP_AIRFLOW_INTERNAL_TOKEN:-}
+  AIRFLOW_CONN_POSTGRES_DATAPIPELINE: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-datapipeline}
+
+services:
+  airflow-init:
+    environment:
+      <<: *airflow-bootstrap-env
+
+  airflow-webserver:
+    environment:
+      <<: *airflow-bootstrap-env
+    extra_hosts:
+      # 로컬 dev — Airflow 컨테이너에서 호스트의 backend (port 8000/8001) 호출.
+      # Linux 에선 host-gateway, Windows/Mac Docker Desktop 은 자동 매핑.
+      - "host.docker.internal:host-gateway"
+
+  airflow-scheduler:
+    environment:
+      <<: *airflow-bootstrap-env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
