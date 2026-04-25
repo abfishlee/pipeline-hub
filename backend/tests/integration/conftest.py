@@ -210,10 +210,9 @@ def rand_source_code(rand_suffix: str) -> str:
 
 @pytest.fixture
 def cleanup_sources(integration_settings: Settings) -> Iterator[list[str]]:
-    """생성된 source_code 를 테스트 종료 시 삭제.
+    """생성된 source_code 및 관련 raw 이력 삭제 (Phase 1.2.7 이상 대응).
 
-    NOTE: data_source 는 다른 테이블에서 FK 로 참조될 수 있어 (raw_object 등),
-    참조 row 가 있으면 삭제 실패 → 테스트는 자기 source_id 의 raw 이력을 만들지 않는다.
+    순서: event_outbox → content_hash_index → raw_object → ingest_job → data_source.
     """
     to_delete: list[str] = []
     yield to_delete
@@ -224,6 +223,83 @@ def cleanup_sources(integration_settings: Settings) -> Iterator[list[str]]:
         conn.cursor() as cur,
     ):
         cur.execute(
+            "SELECT source_id FROM ctl.data_source WHERE source_code = ANY(%s)",
+            (to_delete,),
+        )
+        source_ids = [r[0] for r in cur.fetchall()]
+        if source_ids:
+            cur.execute(
+                """
+                DELETE FROM run.event_outbox
+                 WHERE aggregate_type = 'raw_object'
+                   AND aggregate_id IN (
+                        SELECT raw_object_id::text FROM raw.raw_object
+                         WHERE source_id = ANY(%s)
+                   )
+                """,
+                (source_ids,),
+            )
+            cur.execute(
+                "DELETE FROM raw.content_hash_index WHERE source_id = ANY(%s)",
+                (source_ids,),
+            )
+            cur.execute(
+                "DELETE FROM raw.raw_object WHERE source_id = ANY(%s)",
+                (source_ids,),
+            )
+            cur.execute(
+                "DELETE FROM run.ingest_job WHERE source_id = ANY(%s)",
+                (source_ids,),
+            )
+        cur.execute(
             "DELETE FROM ctl.data_source WHERE source_code = ANY(%s)",
             (to_delete,),
         )
+
+
+# ---------------------------------------------------------------------------
+# Ingest test 지원
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def active_source(
+    it_client: TestClient,
+    admin_auth: dict[str, str],
+    rand_source_code: str,
+    cleanup_sources: list[str],
+) -> dict[str, object]:
+    """수집 테스트용 활성 source. 테스트 종료 시 raw 이력과 함께 정리."""
+    r = it_client.post(
+        "/v1/sources",
+        json={
+            "source_code": rand_source_code,
+            "source_name": "ingest test source",
+            "source_type": "API",
+        },
+        headers=admin_auth,
+    )
+    assert r.status_code == 201, r.text
+    cleanup_sources.append(rand_source_code)
+    return r.json()
+
+
+@pytest.fixture
+def inactive_source(
+    it_client: TestClient,
+    admin_auth: dict[str, str],
+    rand_source_code: str,
+    cleanup_sources: list[str],
+) -> dict[str, object]:
+    """비활성 source — ingest 시도 시 403 을 유발해야 함."""
+    r = it_client.post(
+        "/v1/sources",
+        json={
+            "source_code": rand_source_code,
+            "source_name": "inactive ingest test",
+            "source_type": "API",
+            "is_active": False,
+        },
+        headers=admin_auth,
+    )
+    assert r.status_code == 201
+    cleanup_sources.append(rand_source_code)
+    return r.json()

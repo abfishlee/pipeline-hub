@@ -48,8 +48,8 @@ def _do_run_migrations(connection: Connection) -> None:
         compare_type=True,
         compare_server_default=True,
         # 모든 스키마 마이그레이션 통과시키되, 시스템 schema 는 제외.
-        include_object=lambda obj, name, type_, reflected, compare_to: not (
-            type_ == "schema" and name in ("public", "information_schema")
+        include_object=lambda obj, name, type_, reflected, compare_to: (
+            not (type_ == "schema" and name in ("public", "information_schema"))
         ),
     )
     with context.begin_transaction():

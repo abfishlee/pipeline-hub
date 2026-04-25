@@ -22,6 +22,7 @@ from starlette.responses import Response
 
 from app import __version__
 from app.api.v1 import auth as auth_router
+from app.api.v1 import ingest as ingest_router
 from app.api.v1 import sources as sources_router
 from app.api.v1 import users as users_router
 from app.config import Settings, get_settings
@@ -183,6 +184,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router.router)
     app.include_router(users_router.router)
     app.include_router(sources_router.router)
+    app.include_router(ingest_router.router)
 
     return app
 

@@ -162,7 +162,10 @@ def upgrade() -> None:
             server_default=sa.text("'{}'::text[]"),
         ),
         sa.Column(
-            "rate_limit_per_min", sa.Integer, nullable=False, server_default=sa.text("60")
+            "rate_limit_per_min",
+            sa.Integer,
+            nullable=False,
+            server_default=sa.text("60"),
         ),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default=sa.true()),
         sa.Column(

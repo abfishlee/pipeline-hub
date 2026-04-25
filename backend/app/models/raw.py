@@ -58,7 +58,9 @@ class RawObject(Base):
     job_id: Mapped[int | None] = mapped_column(BigInteger)  # FK to run.ingest_job (after 0004)
     object_type: Mapped[str] = mapped_column(Text, nullable=False)
     object_uri: Mapped[str | None] = mapped_column(Text)
-    payload_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # none_as_null=True : Python None → SQL NULL (기본값은 JSON 'null' 리터럴 저장).
+    # 대용량 body 가 Object Storage 로 빠졌을 때 payload_json 은 진짜 NULL 이어야 함.
+    payload_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
     content_hash: Mapped[str] = mapped_column(Text, nullable=False)
     idempotency_key: Mapped[str | None] = mapped_column(Text)
     received_at: Mapped[datetime] = mapped_column(

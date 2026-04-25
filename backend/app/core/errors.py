@@ -59,12 +59,20 @@ class RateLimitedError(DomainError):
     code = "RATE_LIMITED"
 
 
+class PayloadTooLargeError(DomainError):
+    """요청 본문이 엔드포인트 제한을 초과 (예: 영수증 10MB 초과)."""
+
+    http_status = 413
+    code = "PAYLOAD_TOO_LARGE"
+
+
 __all__ = [
     "AuthenticationError",
     "ConflictError",
     "DomainError",
     "IntegrationError",
     "NotFoundError",
+    "PayloadTooLargeError",
     "PermissionError",
     "RateLimitedError",
     "ValidationError",

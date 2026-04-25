@@ -9,6 +9,8 @@ dependencies = [
   # HTTP framework
   "fastapi>=0.115,<0.116",
   "uvicorn[standard]>=0.32,<0.33",
+  # multipart/form-data 파싱 — /v1/ingest/{file,receipt} UploadFile 에 필수.
+  "python-multipart>=0.0.17,<0.1",
 
   # Settings / validation
   "pydantic>=2.9,<3",
