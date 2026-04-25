@@ -9,6 +9,7 @@ import {
   LogOut,
   Server,
   Users,
+  Workflow,
 } from "lucide-react";
 import { type PropsWithChildren } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
@@ -31,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/sources", label: "데이터 소스", icon: Database },
   { to: "/jobs", label: "수집 작업", icon: ListChecks },
   { to: "/raw-objects", label: "원천 데이터", icon: FileBox },
+  { to: "/pipelines/runs", label: "파이프라인 실행", icon: Workflow },
   { to: "/crowd-tasks", label: "검수 큐", icon: ClipboardCheck, reviewerOk: true },
   { to: "/dead-letters", label: "Dead Letter", icon: AlertTriangle, adminOnly: true },
   { to: "/runtime", label: "Runtime 모니터", icon: Activity },
@@ -122,6 +124,8 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/sources")) return "데이터 소스";
   if (pathname.startsWith("/jobs")) return "수집 작업";
   if (pathname.startsWith("/raw-objects")) return "원천 데이터";
+  if (pathname.startsWith("/pipelines/runs/")) return "파이프라인 실행 상세";
+  if (pathname.startsWith("/pipelines/runs")) return "파이프라인 실행 이력";
   if (pathname.startsWith("/crowd-tasks")) return "검수 큐";
   if (pathname.startsWith("/dead-letters")) return "Dead Letter";
   if (pathname.startsWith("/runtime")) return "Runtime 모니터";

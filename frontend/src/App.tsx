@@ -10,6 +10,8 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { DeadLetterQueue } from "@/pages/DeadLetterQueue";
 import { JobsPage } from "@/pages/JobsPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { PipelineRunDetail } from "@/pages/PipelineRunDetail";
+import { PipelineRunsList } from "@/pages/PipelineRunsList";
 import { RawObjectsPage } from "@/pages/RawObjectsPage";
 import { RuntimeMonitor } from "@/pages/RuntimeMonitor";
 import { SourcesPage } from "@/pages/SourcesPage";
@@ -53,6 +55,11 @@ export default function App() {
               <Route path="/sources" element={<SourcesPage />} />
               <Route path="/jobs" element={<JobsPage />} />
               <Route path="/raw-objects" element={<RawObjectsPage />} />
+              <Route path="/pipelines/runs" element={<PipelineRunsList />} />
+              <Route
+                path="/pipelines/runs/:runId"
+                element={<PipelineRunDetail />}
+              />
               <Route path="/runtime" element={<RuntimeMonitor />} />
             </Route>
           </Route>

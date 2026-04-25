@@ -29,6 +29,7 @@ from app.api.v1 import jobs as jobs_router
 from app.api.v1 import pipelines as pipelines_router
 from app.api.v1 import raw as raw_router
 from app.api.v1 import sources as sources_router
+from app.api.v1 import sse as sse_router
 from app.api.v1 import users as users_router
 from app.config import Settings, get_settings
 from app.core.access_log import AccessLogMiddleware
@@ -214,6 +215,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(crowd_router.router)
     app.include_router(dl_router.router)
     app.include_router(pipelines_router.router)
+    app.include_router(sse_router.router)
 
     return app
 
