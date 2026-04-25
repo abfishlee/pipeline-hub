@@ -28,8 +28,10 @@ from app.api.v1 import raw as raw_router
 from app.api.v1 import sources as sources_router
 from app.api.v1 import users as users_router
 from app.config import Settings, get_settings
+from app.core.access_log import AccessLogMiddleware
 from app.core.errors import DomainError
 from app.core.logging import configure_logging, get_logger
+from app.core.metrics import HttpMetricsMiddleware, metrics_response_body
 from app.core.request_context import set_request_id
 from app.db import session as db_session
 from app.integrations import object_storage as object_storage_module
@@ -115,8 +117,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
 
-    # --- Middleware (순서 중요: 바깥 → 안쪽) ---
-    app.add_middleware(RequestIdMiddleware)
+    # --- Middleware (순서 중요: 바깥 → 안쪽 적용) ---
+    # add_middleware 는 stack 처럼 동작 — 마지막에 add 한 게 가장 바깥 (요청 처리 시 먼저).
+    # 처리 순서: RequestId → CORS → AccessLog → HttpMetrics → 라우터.
+    app.add_middleware(HttpMetricsMiddleware)
+    app.add_middleware(AccessLogMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
@@ -125,6 +130,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
         expose_headers=[REQUEST_ID_HEADER],
     )
+    app.add_middleware(RequestIdMiddleware)
 
     # --- Exception handlers ---
     @app.exception_handler(DomainError)
@@ -181,6 +187,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "version": __version__,
             "docs": "/docs",
         }
+
+    @app.get("/metrics", tags=["health"], include_in_schema=False)
+    async def metrics() -> Response:
+        """Prometheus exposition. 인증 없음 — 내부 scrape 전용 (NetworkPolicy 로 격리)."""
+        body, content_type = metrics_response_body()
+        return Response(content=body, media_type=content_type)
 
     # --- v1 라우터 ---
     app.include_router(auth_router.router)

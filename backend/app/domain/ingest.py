@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings
 from app.core import errors as app_errors
+from app.core import metrics
 from app.core.hashing import (
     content_hash_of_json,
     normalize_idempotency_key,
@@ -41,6 +42,29 @@ class IngestOutcome:
 
     response: IngestResponse
     created: bool  # True → API 201, False → 200 (dedup)
+
+
+def _record_metrics(
+    *,
+    source_code: str,
+    kind: str,
+    created: bool,
+    size_bytes: int,
+) -> None:
+    """수집 결과 메트릭 카운터 갱신.
+
+    - 항상 ingest_requests_total{status=created|dedup} +1
+    - dedup 일 때 ingest_dedup_total +1
+    - 신규(created)일 때 ingest_bytes_total += size
+    """
+    status_label = "created" if created else "dedup"
+    metrics.ingest_requests_total.labels(
+        source_code=source_code, kind=kind, status=status_label
+    ).inc()
+    if not created:
+        metrics.ingest_dedup_total.labels(source_code=source_code, kind=kind).inc()
+    if created and size_bytes > 0:
+        metrics.ingest_bytes_total.labels(source_code=source_code, kind=kind).inc(size_bytes)
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +190,7 @@ async def ingest_api(
         idempotency_key=idempotency_key,
     )
     if existing is not None:
+        _record_metrics(source_code=source.source_code, kind="api", created=False, size_bytes=0)
         return IngestOutcome(response=_existing_to_response(existing), created=False)
 
     # inline 여부 결정 — canonical JSON 재계산 대신 길이만 측정.
@@ -202,6 +227,13 @@ async def ingest_api(
         ingest_parameters={"size_bytes": len(canonical_bytes)},
     )
     await session.commit()
+
+    _record_metrics(
+        source_code=source.source_code,
+        kind="api",
+        created=True,
+        size_bytes=len(canonical_bytes),
+    )
 
     return IngestOutcome(
         response=IngestResponse(
@@ -246,6 +278,7 @@ async def ingest_file(
         idempotency_key=idempotency_key,
     )
     if existing is not None:
+        _record_metrics(source_code=source.source_code, kind="file", created=False, size_bytes=0)
         return IngestOutcome(response=_existing_to_response(existing), created=False)
 
     # 파일 확장자 추출 (없으면 bin).
@@ -281,6 +314,13 @@ async def ingest_file(
         },
     )
     await session.commit()
+
+    _record_metrics(
+        source_code=source.source_code,
+        kind="file",
+        created=True,
+        size_bytes=len(content),
+    )
 
     return IngestOutcome(
         response=IngestResponse(
@@ -331,6 +371,12 @@ async def ingest_receipt(
         idempotency_key=idempotency_key,
     )
     if existing is not None:
+        _record_metrics(
+            source_code=source.source_code,
+            kind="receipt",
+            created=False,
+            size_bytes=0,
+        )
         return IngestOutcome(response=_existing_to_response(existing), created=False)
 
     ext = "pdf" if content_type == "application/pdf" else "jpg"
@@ -362,6 +408,13 @@ async def ingest_receipt(
         },
     )
     await session.commit()
+
+    _record_metrics(
+        source_code=source.source_code,
+        kind="receipt",
+        created=True,
+        size_bytes=len(content),
+    )
 
     return IngestOutcome(
         response=IngestResponse(
