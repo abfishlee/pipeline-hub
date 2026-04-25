@@ -232,7 +232,39 @@ class RedisStreamConsumer:
             self._client.close()
 
 
+# ---------------------------------------------------------------------------
+# Pub/Sub (Phase 3.2.1 — pipeline 노드 상태 실시간 SSE)
+# ---------------------------------------------------------------------------
+class RedisPubSub:
+    """Redis PUBLISH 래퍼 — Streams 와 별개 채널 (히스토리 없는 broadcast).
+
+    Phase 3.2.1 노드 상태 전이를 SSE 로 즉시 프론트에 흘리기 위한 채널. 히스토리는
+    `run.node_run` 에 영속화되므로 PUB/SUB 메시지 유실은 실행 정합성에 영향 없음.
+    """
+
+    def __init__(self, client: redis.Redis) -> None:
+        self._client = client
+
+    @classmethod
+    def from_settings(cls, settings: Settings | None = None) -> RedisPubSub:
+        s = settings or get_settings()
+        return cls(redis.Redis.from_url(s.redis_url, decode_responses=True))
+
+    def publish(self, channel: str, payload: Mapping[str, Any]) -> int:
+        body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str)
+        result = self._client.publish(channel, body)
+        return int(result) if isinstance(result, int | str) else 0
+
+    async def apublish(self, channel: str, payload: Mapping[str, Any]) -> int:
+        return await asyncio.to_thread(self.publish, channel, payload)
+
+    def close(self) -> None:
+        with contextlib.suppress(Exception):
+            self._client.close()
+
+
 __all__ = [
+    "RedisPubSub",
     "RedisStreamConsumer",
     "RedisStreamPublisher",
     "StreamMessage",

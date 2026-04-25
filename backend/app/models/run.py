@@ -14,7 +14,9 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
+    PrimaryKeyConstraint,
     Text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -152,4 +154,87 @@ class CrowdTask(Base):
     reviewed_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("ctl.app_user.user_id"))
 
 
-__all__ = ["CrowdTask", "DeadLetter", "EventOutbox", "IngestJob", "ProcessedEvent"]
+class PipelineRun(Base):
+    """Visual ETL Designer 워크플로의 1회 실행 — RANGE 파티션 by run_date.
+
+    Phase 3.2.1. 노드 실행 이력은 `NodeRun`.
+    """
+
+    __tablename__ = "pipeline_run"
+    __table_args__ = (
+        PrimaryKeyConstraint("pipeline_run_id", "run_date", name="pk_pipeline_run"),
+        CheckConstraint(
+            "status IN ('PENDING','RUNNING','SUCCESS','FAILED','CANCELLED')",
+            name="ck_pipeline_run_status",
+        ),
+        {
+            "schema": "run",
+            "postgresql_partition_by": "RANGE (run_date)",
+        },
+    )
+
+    pipeline_run_id: Mapped[int] = mapped_column(BigInteger, autoincrement=True)
+    workflow_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("wf.workflow_definition.workflow_id"), nullable=False
+    )
+    run_date: Mapped[date] = mapped_column(Date, nullable=False, server_default=func.current_date())
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="PENDING")
+    triggered_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("ctl.app_user.user_id"))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class NodeRun(Base):
+    """파이프라인 1실행의 노드 단위 실행 이력 — 상태머신 PENDING/READY/RUNNING/
+    SUCCESS/FAILED/SKIPPED/CANCELLED.
+
+    `pipeline_run` 의 합성 PK 로 인해 FK 도 합성 (pipeline_run_id, run_date).
+    """
+
+    __tablename__ = "node_run"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["pipeline_run_id", "run_date"],
+            ["run.pipeline_run.pipeline_run_id", "run.pipeline_run.run_date"],
+            ondelete="CASCADE",
+            name="fk_node_run_pipeline",
+        ),
+        CheckConstraint(
+            "status IN ('PENDING','READY','RUNNING','SUCCESS','FAILED','SKIPPED','CANCELLED')",
+            name="ck_node_run_status",
+        ),
+        {"schema": "run"},
+    )
+
+    node_run_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    pipeline_run_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    run_date: Mapped[date] = mapped_column(Date, nullable=False)
+    node_definition_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("wf.node_definition.node_id"), nullable=False
+    )
+    node_key: Mapped[str] = mapped_column(Text, nullable=False)
+    node_type: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="PENDING")
+    attempt_no: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    output_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+__all__ = [
+    "CrowdTask",
+    "DeadLetter",
+    "EventOutbox",
+    "IngestJob",
+    "NodeRun",
+    "PipelineRun",
+    "ProcessedEvent",
+]

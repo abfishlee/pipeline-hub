@@ -197,6 +197,27 @@ crawler_fetch_duration_seconds = Histogram(
 )
 
 # ---------------------------------------------------------------------------
+# Pipeline Runtime (Phase 3.2.1)
+# ---------------------------------------------------------------------------
+pipeline_runs_total = Counter(
+    "pipeline_runs_total",
+    "Pipeline 실행 수 (status=PENDING/RUNNING/SUCCESS/FAILED/CANCELLED).",
+    labelnames=("status",),
+)
+
+pipeline_node_runs_total = Counter(
+    "pipeline_node_runs_total",
+    "노드 실행 수 (node_type 별 status 분포).",
+    labelnames=("node_type", "status"),
+)
+
+pipeline_run_duration_seconds = Histogram(
+    "pipeline_run_duration_seconds",
+    "Pipeline 1회 실행 시작→종료 시간(초).",
+    buckets=(0.1, 0.5, 1.0, 5.0, 30.0, 60.0, 300.0, 1800.0, 3600.0, 14400.0),
+)
+
+# ---------------------------------------------------------------------------
 # 큐 / 백로그 (Phase 2.2.9 관제 고도화)
 # ---------------------------------------------------------------------------
 # `run.event_outbox` 의 PENDING row 수 — 30s 이상 0 보다 크면 publisher 가 멈춘 신호.
@@ -301,6 +322,9 @@ __all__ = [
     "ocr_duration_seconds",
     "ocr_requests_total",
     "outbox_pending_total",
+    "pipeline_node_runs_total",
+    "pipeline_run_duration_seconds",
+    "pipeline_runs_total",
     "price_fact_inserts_total",
     "price_fact_observed_to_inserted_seconds",
     "standardization_confidence",

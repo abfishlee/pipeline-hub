@@ -26,6 +26,7 @@ from app.api.v1 import crowd as crowd_router
 from app.api.v1 import dead_letters as dl_router
 from app.api.v1 import ingest as ingest_router
 from app.api.v1 import jobs as jobs_router
+from app.api.v1 import pipelines as pipelines_router
 from app.api.v1 import raw as raw_router
 from app.api.v1 import sources as sources_router
 from app.api.v1 import users as users_router
@@ -212,6 +213,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(raw_router.router)
     app.include_router(crowd_router.router)
     app.include_router(dl_router.router)
+    app.include_router(pipelines_router.router)
 
     return app
 

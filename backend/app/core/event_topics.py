@@ -30,6 +30,7 @@ class EventTopic(StrEnum):
     STAGING = "staging"
     PRICE_FACT = "price_fact"
     CRAWLER_PAGE = "crawler_page"
+    PIPELINE_NODE_STATE = "pipeline_node_state"
 
 
 class StreamEnvelope(BaseModel):
@@ -113,6 +114,25 @@ class StagingReadyPayload(BaseModel):
     crowd_task_count: int = 0  # 매핑 미달로 발급된 crowd_task 수.
 
 
+class PipelineNodeStateChangedPayload(BaseModel):
+    """`pipeline.node.state.changed` 이벤트 — Phase 3.2.1 노드 상태 전이.
+
+    SSE bridge 가 같은 payload 를 그대로 프론트로 전송 (Phase 3.2.1.x SSE 후속).
+    """
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    pipeline_run_id: int
+    run_date: str
+    workflow_id: int
+    node_run_id: int
+    node_key: str
+    node_type: str
+    status: str
+    attempt_no: int = 0
+    error_message: str | None = None
+
+
 class CrawlerPageFetchedPayload(BaseModel):
     """`crawler.page.fetched` 이벤트 — Phase 2.2.8 크롤러 결과.
 
@@ -176,6 +196,7 @@ __all__ = [
     "CrowdTaskCreatedPayload",
     "EventTopic",
     "OcrCompletedPayload",
+    "PipelineNodeStateChangedPayload",
     "PriceFactReadyPayload",
     "RawObjectCreatedPayload",
     "StagingReadyPayload",

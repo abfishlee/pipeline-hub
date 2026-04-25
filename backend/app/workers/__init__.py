@@ -156,6 +156,7 @@ from app.workers import (  # noqa: E402
     db_incremental_worker,
     ocr_worker,
     outbox_publisher,
+    pipeline_node_worker,
     price_fact_worker,
     transform_worker,
 )
@@ -168,6 +169,7 @@ __all__ = [
     "ocr_worker",
     "outbox_publisher",
     "pipeline_actor",
+    "pipeline_node_worker",
     "price_fact_worker",
     "transform_worker",
 ]
