@@ -22,6 +22,8 @@ from starlette.responses import Response
 
 from app import __version__
 from app.api.v1 import auth as auth_router
+from app.api.v1 import crowd as crowd_router
+from app.api.v1 import dead_letters as dl_router
 from app.api.v1 import ingest as ingest_router
 from app.api.v1 import jobs as jobs_router
 from app.api.v1 import raw as raw_router
@@ -208,6 +210,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ingest_router.router)
     app.include_router(jobs_router.router)
     app.include_router(raw_router.router)
+    app.include_router(crowd_router.router)
+    app.include_router(dl_router.router)
 
     return app
 

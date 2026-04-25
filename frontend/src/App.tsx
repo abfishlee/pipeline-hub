@@ -5,10 +5,13 @@ import { Toaster } from "sonner";
 import { useMe } from "@/api/auth";
 import { Layout } from "@/components/Layout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { CrowdTaskQueue } from "@/pages/CrowdTaskQueue";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { DeadLetterQueue } from "@/pages/DeadLetterQueue";
 import { JobsPage } from "@/pages/JobsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { RawObjectsPage } from "@/pages/RawObjectsPage";
+import { RuntimeMonitor } from "@/pages/RuntimeMonitor";
 import { SourcesPage } from "@/pages/SourcesPage";
 import { UsersPage } from "@/pages/UsersPage";
 import { useAuthStore } from "@/store/auth";
@@ -50,12 +53,24 @@ export default function App() {
               <Route path="/sources" element={<SourcesPage />} />
               <Route path="/jobs" element={<JobsPage />} />
               <Route path="/raw-objects" element={<RawObjectsPage />} />
+              <Route path="/runtime" element={<RuntimeMonitor />} />
+            </Route>
+          </Route>
+
+          <Route
+            element={
+              <ProtectedRoute requireAnyRole={["ADMIN", "REVIEWER", "APPROVER"]} />
+            }
+          >
+            <Route element={<Layout />}>
+              <Route path="/crowd-tasks" element={<CrowdTaskQueue />} />
             </Route>
           </Route>
 
           <Route element={<ProtectedRoute requireRole="ADMIN" />}>
             <Route element={<Layout />}>
               <Route path="/users" element={<UsersPage />} />
+              <Route path="/dead-letters" element={<DeadLetterQueue />} />
             </Route>
           </Route>
 

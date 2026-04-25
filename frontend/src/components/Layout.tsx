@@ -1,4 +1,7 @@
 import {
+  Activity,
+  AlertTriangle,
+  ClipboardCheck,
   Database,
   FileBox,
   Gauge,
@@ -20,6 +23,7 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
+  reviewerOk?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -27,12 +31,18 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/sources", label: "데이터 소스", icon: Database },
   { to: "/jobs", label: "수집 작업", icon: ListChecks },
   { to: "/raw-objects", label: "원천 데이터", icon: FileBox },
+  { to: "/crowd-tasks", label: "검수 큐", icon: ClipboardCheck, reviewerOk: true },
+  { to: "/dead-letters", label: "Dead Letter", icon: AlertTriangle, adminOnly: true },
+  { to: "/runtime", label: "Runtime 모니터", icon: Activity },
   { to: "/users", label: "사용자 관리", icon: Users, adminOnly: true },
 ];
 
 export function Layout(_: PropsWithChildren) {
   const user = useAuthStore((s) => s.user);
   const isAdmin = !!user?.roles.includes("ADMIN");
+  const isReviewer =
+    isAdmin ||
+    !!user?.roles.some((r) => r === "REVIEWER" || r === "APPROVER");
   const logout = useLogout();
   const location = useLocation();
 
@@ -47,7 +57,11 @@ export function Layout(_: PropsWithChildren) {
           </Link>
         </div>
         <nav className="flex-1 space-y-1 p-2">
-          {NAV_ITEMS.filter((it) => !it.adminOnly || isAdmin).map((item) => (
+          {NAV_ITEMS.filter((it) => {
+            if (it.adminOnly) return isAdmin;
+            if (it.reviewerOk) return isReviewer;
+            return true;
+          }).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -108,6 +122,9 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/sources")) return "데이터 소스";
   if (pathname.startsWith("/jobs")) return "수집 작업";
   if (pathname.startsWith("/raw-objects")) return "원천 데이터";
+  if (pathname.startsWith("/crowd-tasks")) return "검수 큐";
+  if (pathname.startsWith("/dead-letters")) return "Dead Letter";
+  if (pathname.startsWith("/runtime")) return "Runtime 모니터";
   if (pathname.startsWith("/users")) return "사용자 관리";
   return "";
 }

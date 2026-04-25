@@ -258,10 +258,25 @@
 
 ### 2.2.10 Frontend 추가 [W7~W8]
 
-- [ ] "OCR 결과 검수" 페이지 — 원본 이미지 + 추출 라인 대조, 신뢰도 표시
-- [ ] "크롤러 관리" 페이지 — 실행/중지, 최근 페이지 목록
-- [ ] 대시보드 고도화 — 파이프라인 단계별 건수 sankey (간단 버전)
-- [ ] "크라우드 작업함" 리스트(열람 only, 처리는 Phase 4)
+**기반 (이번 commit) — 운영자 화면 3종 + 백엔드 API 2종 + Sidebar 통합**
+- [x] Backend `app/api/v1/crowd.py` — `GET /v1/crowd-tasks?status=&reason=&limit=&offset=` (ADMIN/REVIEWER/APPROVER), `GET /{id}` (raw_object payload + ocr_results 병합), `PATCH /{id}/status` (PENDING→{REVIEWING,APPROVED,REJECTED} / REVIEWING→{APPROVED,REJECTED} 전이 검증, reviewed_at/reviewed_by 자동) ✅ 2026-04-25
+- [x] Backend `app/api/v1/dead_letters.py` — `GET /v1/dead-letters?replayed=false&origin=&limit=&offset=` (ADMIN), `POST /{id}/replay` (`broker.actors[origin].send_with_options(args, kwargs)` + `replayed_at`/`replayed_by` 마킹, 미등록 actor / 이미 처리된 row 는 422) ✅ 2026-04-25
+- [x] `app/schemas/{crowd,dead_letters}.py` + `app/repositories/{crowd,dead_letters}.py` + `main.py` 라우터 등록 ✅ 2026-04-25
+- [x] Frontend `pages/CrowdTaskQueue.tsx` — status 탭(PENDING/REVIEWING/APPROVED/REJECTED) + reason 필터(ocr/std/price_fact_low/price_fact_sample) + 좌측 표 / 우측 상세 패널 (raw_object payload 미리보기, ocr_result 텍스트, 승인/반려 placeholder 버튼 — toast "Phase 4 정식 검수 도입 시 활성화") ✅ 2026-04-25
+- [x] Frontend `pages/DeadLetterQueue.tsx` — origin 필터 + 재처리 토글 + 표 + 상세 Dialog (error_message / payload / stack_trace) + Replay 버튼 ✅ 2026-04-25
+- [x] Frontend `pages/RuntimeMonitor.tsx` — Grafana iframe (`d/pipeline-hub-runtime` / `d/pipeline-hub-core` 전환) + Grafana base URL 입력 + 새 창 링크 + 인증 안내 ✅ 2026-04-25
+- [x] Frontend `api/{crowd,dead_letters}.ts` — TanStack Query hooks (`useCrowdTasks/Detail/UpdateStatus`, `useDeadLetters/ReplayDeadLetter`) ✅ 2026-04-25
+- [x] `Layout.tsx` Sidebar — "검수 큐"(REVIEWER+) / "Dead Letter"(ADMIN) / "Runtime 모니터"(전체) 메뉴 추가. `App.tsx` Route 등록. `ProtectedRoute` 에 `requireAnyRole` prop 추가 (ADMIN/REVIEWER/APPROVER 다중 허용) ✅ 2026-04-25
+- [x] 통합 테스트 ✅ 2026-04-25
+  - `tests/integration/test_crowd_api.py` (5건) — list filter / detail / 정상 전이 / 잘못된 전이 4xx / VIEWER 차단 403
+  - `tests/integration/test_dead_letters_api.py` (6건) — replayed 기본 미포함 / replayed=true 포함 / 등록된 actor replay → 마킹 + send_with_options 호출 / 미등록 actor 4xx / 재처리 row 4xx / VIEWER 차단
+
+**다음 sub-phase 로 분리 (Phase 3 또는 운영팀 합류 후)**
+- [ ] "OCR 결과 검수" 풀 페이지 — 원본 이미지 + 추출 라인 대조 (현재 Crowd Detail 패널이 텍스트만 노출)
+- [ ] "크롤러 관리" 페이지 — 실행/중지 + 최근 페이지 목록 (현재는 raw_objects 와 통합 노출)
+- [ ] 파이프라인 단계별 sankey (raw → ocr → 표준화 → price_fact → daily_agg)
+- [ ] Crowd 승인/반려가 실제 비즈니스 로직(상품 매핑 확정, price_fact 재반영) 에 연결 — Phase 4 정식 Crowd 검수 모듈
+- [ ] DLQ 일괄 replay (체크박스 + bulk 작업)
 
 ---
 
