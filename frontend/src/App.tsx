@@ -13,6 +13,7 @@ import { LoginPage } from "@/pages/LoginPage";
 import { PipelineDesigner } from "@/pages/PipelineDesigner";
 import { PipelineRunDetail } from "@/pages/PipelineRunDetail";
 import { PipelineRunsList } from "@/pages/PipelineRunsList";
+import { SqlStudio } from "@/pages/SqlStudio";
 import { RawObjectsPage } from "@/pages/RawObjectsPage";
 import { RuntimeMonitor } from "@/pages/RuntimeMonitor";
 import { SourcesPage } from "@/pages/SourcesPage";
@@ -84,6 +85,16 @@ export default function App() {
                 path="/pipelines/designer/:workflowId"
                 element={<PipelineDesigner />}
               />
+            </Route>
+          </Route>
+
+          <Route
+            element={
+              <ProtectedRoute requireAnyRole={["ADMIN", "APPROVER", "OPERATOR"]} />
+            }
+          >
+            <Route element={<Layout />}>
+              <Route path="/sql-studio" element={<SqlStudio />} />
             </Route>
           </Route>
 

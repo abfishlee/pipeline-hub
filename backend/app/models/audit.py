@@ -52,7 +52,7 @@ class SqlExecutionLog(Base):
     __tablename__ = "sql_execution_log"
     __table_args__ = (
         CheckConstraint(
-            "execution_kind IN ('PREVIEW','SANDBOX','APPROVED','SCHEDULED')",
+            "execution_kind IN ('VALIDATE','PREVIEW','EXPLAIN','SANDBOX','APPROVED','SCHEDULED')",
             name="ck_sql_execution_log_kind",
         ),
         CheckConstraint(
@@ -79,6 +79,10 @@ class SqlExecutionLog(Base):
     row_count: Mapped[int | None] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(Text, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text)
+    sql_query_version_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("wf.sql_query_version.sql_query_version_id"),
+    )
 
 
 class DownloadLog(Base):

@@ -1,6 +1,10 @@
-"""wf schema ORM — Visual ETL Designer 의 워크플로 정의 (Phase 3.2.1).
+"""wf schema ORM — Visual ETL Designer 의 워크플로 정의 (Phase 3.2.1+).
 
 실행 이력은 `run.pipeline_run` / `run.node_run` (`app/models/run.py`).
+
+Phase 3.2.5 추가:
+  - SqlQuery / SqlQueryVersion — SQL Studio 의 자산 + 라이프사이클 (DRAFT → PENDING →
+    APPROVED/REJECTED/SUPERSEDED). 승인된 SQL 만 `SQL_TRANSFORM` 노드 config 로 재사용.
 """
 
 from __future__ import annotations
@@ -120,4 +124,104 @@ class EdgeDefinition(Base):
     workflow: Mapped[WorkflowDefinition] = relationship(back_populates="edges")
 
 
-__all__ = ["EdgeDefinition", "NodeDefinition", "WorkflowDefinition"]
+class SqlQuery(Base):
+    """SQL Studio 자산 — 사용자가 이름 붙인 SQL 자원의 메타.
+
+    실제 SQL 본문은 `SqlQueryVersion` 에. `current_version_id` 는 가장 최근 APPROVED
+    버전을 가리키는 캐시 (SUPERSEDED 정책상 항상 최신만 유효).
+    """
+
+    __tablename__ = "sql_query"
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_sql_query_name"),
+        {"schema": "wf"},
+    )
+
+    sql_query_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    owner_user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("ctl.app_user.user_id"), nullable=False
+    )
+    # 후행 FK — sql_query_version 이 먼저 생성된 뒤 alter 로 거는 형태.
+    # SQLAlchemy 의 metadata create_all 에서 양쪽 자기참조 사이클을 풀기 위해
+    # use_alter + name 을 ForeignKey 인자로 직접 부여 (mapped_column 에는 없음).
+    current_version_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey(
+            "wf.sql_query_version.sql_query_version_id",
+            ondelete="SET NULL",
+            use_alter=True,
+            name="fk_sql_query_current_version",
+        ),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    versions: Mapped[list[SqlQueryVersion]] = relationship(
+        back_populates="query",
+        cascade="all, delete-orphan",
+        foreign_keys="SqlQueryVersion.sql_query_id",
+    )
+
+
+class SqlQueryVersion(Base):
+    """SQL 본문의 한 버전.
+
+    상태머신:
+      DRAFT       — 작성자가 자유롭게 수정 가능 (저장 시 새 row 가 아니라 기존 row update).
+      PENDING     — submit 후 검토 대기. APPROVER 의 결재 대상.
+      APPROVED    — 승인됨. SQL_TRANSFORM 노드에 연결 가능. 동일 query 의 이전 APPROVED
+                    버전은 자동 SUPERSEDED 로 marking.
+      REJECTED    — 반려됨. 새 DRAFT 버전을 만들어 재제출해야 함.
+      SUPERSEDED  — 더 새로운 APPROVED 버전이 등장하여 비활성.
+    """
+
+    __tablename__ = "sql_query_version"
+    __table_args__ = (
+        UniqueConstraint("sql_query_id", "version_no", name="uq_sql_query_version_no"),
+        CheckConstraint(
+            "status IN ('DRAFT','PENDING','APPROVED','REJECTED','SUPERSEDED')",
+            name="ck_sql_query_version_status",
+        ),
+        {"schema": "wf"},
+    )
+
+    sql_query_version_id: Mapped[int] = mapped_column(
+        BigInteger, primary_key=True, autoincrement=True
+    )
+    sql_query_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey("wf.sql_query.sql_query_id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    sql_text: Mapped[str] = mapped_column(Text, nullable=False)
+    referenced_tables: Mapped[list[str]] = mapped_column(JSONB, nullable=False, server_default="[]")
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="DRAFT")
+    parent_version_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("wf.sql_query_version.sql_query_version_id")
+    )
+    submitted_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("ctl.app_user.user_id"))
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("ctl.app_user.user_id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    review_comment: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    query: Mapped[SqlQuery] = relationship(back_populates="versions", foreign_keys=[sql_query_id])
+
+
+__all__ = [
+    "EdgeDefinition",
+    "NodeDefinition",
+    "SqlQuery",
+    "SqlQueryVersion",
+    "WorkflowDefinition",
+]
