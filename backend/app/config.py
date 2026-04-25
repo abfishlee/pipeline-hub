@@ -53,6 +53,16 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://app:app@localhost:5432/datapipeline"
     redis_url: str = "redis://localhost:6379/0"
 
+    # ---- Worker (Phase 2.2.1~) ----
+    # Redis Streams 토픽 prefix — 실제 stream key 는 `<prefix>:<aggregate_type>`.
+    redis_streams_prefix: str = "dp:events"
+    # Dramatiq 큐 prefix — actor 큐 이름은 `<prefix>:<queue>`.
+    dramatiq_queue_prefix: str = "dp"
+    # outbox publisher 1회 배치 크기 (DB UPDATE 단위).
+    outbox_batch_size: int = 200
+    # 영구 실패 판정 max attempts (이 값 이상이면 dead_letter 로 이동).
+    outbox_max_attempts: int = 5
+
     # ---- Object Storage ----
     os_endpoint: str = "http://localhost:9000"
     os_access_key: SecretStr = SecretStr("minioadmin")

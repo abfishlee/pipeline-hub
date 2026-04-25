@@ -31,6 +31,12 @@ help:
 	@echo "  make db-revision M='msg'  - 빈 revision 생성"
 	@echo "  make db-reset       - 볼륨 초기화 + 재마이그레이션 (위험)"
 	@echo ""
+	@echo "Worker (Phase 2.2.1+):"
+	@echo "  make worker-up      - worker-outbox 컨테이너 빌드+기동"
+	@echo "  make worker-down    - worker-outbox 종료"
+	@echo "  make worker-logs    - worker-outbox 실시간 로그"
+	@echo "  make worker-local   - 로컬(uv)에서 dramatiq 직접 실행 (디버깅)"
+	@echo ""
 	@echo "처음이라면:"
 	@echo "  1) cp .env.example .env"
 	@echo "  2) make dev-up"
@@ -120,3 +126,28 @@ db-reset: dev-reset
 	@sleep 5
 	$(MAKE) db-migrate
 	@echo "🔥  DB 초기화 + 마이그레이션 재적용 완료"
+
+# ============================================================================
+# Worker (Dramatiq) — Phase 2.2.1
+# ============================================================================
+# 로컬 개발 시 backend 는 호스트 uvicorn, worker 는 컨테이너 패턴.
+# 코드 변경 후 반영하려면 `make worker-up` (build 포함).
+
+DRAMATIQ_LOCAL := cd backend && python -m uv run --python /c/Users/fishlee/AppData/Local/Microsoft/WindowsApps/python.exe python -m dramatiq
+
+.PHONY: worker-up
+worker-up: .env
+	$(COMPOSE) up -d --build worker-outbox
+	@echo "✅  worker-outbox 기동"
+
+.PHONY: worker-down
+worker-down:
+	$(COMPOSE) stop worker-outbox
+
+.PHONY: worker-logs
+worker-logs:
+	$(COMPOSE) logs -f worker-outbox
+
+.PHONY: worker-local
+worker-local: .env
+	$(DRAMATIQ_LOCAL) app.workers --processes 1 --threads 4

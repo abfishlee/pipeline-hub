@@ -35,13 +35,18 @@
 
 ### 2.2.1 Worker 기반 [W1~W2]
 
-- [ ] `backend/app/workers/__init__.py` — Dramatiq broker 설정 (Redis)
-- [ ] 공통 actor 데코레이터: 재시도 정책, timeout, DLQ 훅
-- [ ] `app/workers/outbox_publisher.py` — outbox PENDING을 Redis Streams로 발행
-- [ ] 각 actor는 `domain/` 함수만 호출 (얇게 유지)
-- [ ] 로컬 실행: `uv run dramatiq app.workers`
-- [ ] `docker-compose`에 worker 서비스 추가 (`worker-ocr`, `worker-transform`, `worker-crawler`)
-- [ ] DLQ 테스트: 의도적 실패 → `run.dead_letter` 기록 확인
+- [x] `backend/app/workers/__init__.py` — Dramatiq RedisBroker 설정 (`APP_REDIS_URL`, queue prefix `dp:`) ✅ 2026-04-25
+- [x] 공통 `pipeline_actor` 데코레이터: max_retries=3, exponential backoff(1s→30s), time_limit=60s, DLQ 훅 ✅ 2026-04-25
+- [x] `app/workers/outbox_publisher.py` — `publish_outbox_batch` actor (얇음 — domain 함수만 호출) ✅ 2026-04-25
+- [x] `app/domain/outbox.py` — `publish_pending_events` (SELECT FOR UPDATE SKIP LOCKED → XADD → status=PUBLISHED, 실패 시 attempt_no++ / max 도달 FAILED) ✅ 2026-04-25
+- [x] `app/core/events.py` — Redis Streams XADD wrapper (sync + asyncio.to_thread async) ✅ 2026-04-25
+- [x] `app/db/sync_session.py` — Worker 전용 sync SQLAlchemy session (psycopg sync, 같은 ORM 모델 공유) ✅ 2026-04-25
+- [x] 로컬 실행: `make worker-local` 또는 `uv run dramatiq app.workers --processes 1 --threads 4` ✅ 2026-04-25
+- [x] `docker-compose` 에 `worker-outbox` 서비스 추가 (backend 이미지 재사용, `tini` PID 1) ✅ 2026-04-25 — `worker-ocr` / `worker-transform` / `worker-crawler` 는 2.2.3~2.2.5 에서 추가
+- [x] `DeadLetterMiddleware` — retries == max_retries 시 `run.dead_letter` INSERT (origin / args / kwargs / message_id / stack_trace 8KB cap) ✅ 2026-04-25
+- [x] 통합 테스트 ✅ 2026-04-25
+  - `tests/integration/test_outbox_publisher.py` — 실 PG + 실 Redis 시드 3건 → drain → `XLEN=3`, `status=PUBLISHED`. 실패 stub → attempt 증가 + max 도달 시 `FAILED`
+  - `tests/integration/test_dlq.py` — StubBroker 환경에서 `after_process_message` 직접 호출 → `run.dead_letter` INSERT 검증 + retries 잔여/성공 시 미적재 회귀
 
 ### 2.2.2 이벤트 버스 [W2]
 
