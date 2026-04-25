@@ -21,6 +21,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 
 from app import __version__
+from app.api.v1 import auth as auth_router
+from app.api.v1 import users as users_router
 from app.config import Settings, get_settings
 from app.core.errors import DomainError
 from app.core.logging import configure_logging, get_logger
@@ -159,6 +161,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "version": __version__,
             "docs": "/docs",
         }
+
+    # --- v1 라우터 ---
+    app.include_router(auth_router.router)
+    app.include_router(users_router.router)
 
     return app
 
