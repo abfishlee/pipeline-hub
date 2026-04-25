@@ -5,12 +5,13 @@ docs/03_DATA_MODEL.md 3.7 정합. pipeline_run / node_run 은 wf 와 함께 Phas
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -116,4 +117,39 @@ class DeadLetter(Base):
     replayed_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("ctl.app_user.user_id"))
 
 
-__all__ = ["DeadLetter", "EventOutbox", "IngestJob", "ProcessedEvent"]
+class CrowdTask(Base):
+    """OCR confidence 미달 등 사람 검수가 필요한 작업 큐.
+
+    Phase 2.2.4 placeholder — Phase 4 에서 정식 Crowd 검수 UI/스키마 도입 시 컬럼
+    보강. 그때까진 운영자가 수동으로 PENDING 큐를 처리.
+    """
+
+    __tablename__ = "crowd_task"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PENDING','REVIEWING','APPROVED','REJECTED')",
+            name="ck_crowd_task_status",
+        ),
+        CheckConstraint(
+            "length(reason) BETWEEN 1 AND 200",
+            name="ck_crowd_task_reason",
+        ),
+        {"schema": "run"},
+    )
+
+    crowd_task_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    raw_object_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    partition_date: Mapped[date] = mapped_column(Date, nullable=False)
+    ocr_result_id: Mapped[int | None] = mapped_column(BigInteger)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="PENDING")
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
+    assigned_to: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("ctl.app_user.user_id"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("ctl.app_user.user_id"))
+
+
+__all__ = ["CrowdTask", "DeadLetter", "EventOutbox", "IngestJob", "ProcessedEvent"]

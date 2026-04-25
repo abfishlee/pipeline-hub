@@ -121,30 +121,27 @@ services:
       retries: 6
 
   # ----------------------------------------------------------------------
-  # Worker — Phase 2.2.1
+  # Worker — Phase 2.2.1 (outbox), Phase 2.2.4 (ocr)
   # ----------------------------------------------------------------------
   # 로컬 개발 시 backend 는 호스트(uvicorn --reload)로 띄우고, 워커는
   # 컨테이너에서 띄우는 것이 일반 패턴. 운영(NKS)은 backend / worker 별도 Deployment.
   # 코드 변경 시 reload 가 필요하면 `--build` 로 다시 빌드.
-  worker-outbox:
+  x-worker-common: &worker-common
     build:
       context: ../backend
       dockerfile: Dockerfile
-    container_name: dp_worker_outbox
     restart: unless-stopped
-    depends_on:
+    depends_on: &worker-common-deps
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    environment:
+    environment: &worker-common-env
       # 컨테이너 내부에서는 서비스 이름으로 접근.
       APP_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-datapipeline}
       APP_REDIS_URL: redis://redis:6379/0
       APP_LOG_JSON: "true"
       APP_LOG_LEVEL: "INFO"
-    # uvicorn 대신 dramatiq CLI. tini 가 PID 1 (Dockerfile ENTRYPOINT) 그대로 사용.
-    command: ["dramatiq", "app.workers", "--processes", "1", "--threads", "4"]
     healthcheck:
       # dramatiq CLI 자체 healthcheck 미제공 — 프로세스 존재 확인만.
       test: ["CMD-SHELL", "pgrep -f 'dramatiq app.workers' >/dev/null"]
@@ -152,6 +149,28 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+
+  worker-outbox:
+    <<: *worker-common
+    container_name: dp_worker_outbox
+    # uvicorn 대신 dramatiq CLI. tini 가 PID 1 (Dockerfile ENTRYPOINT) 그대로 사용.
+    # `--queues outbox` 로 outbox actor 만 소비.
+    command:
+      ["dramatiq", "app.workers", "--processes", "1", "--threads", "4", "--queues", "outbox"]
+
+  worker-ocr:
+    <<: *worker-common
+    container_name: dp_worker_ocr
+    environment:
+      <<: *worker-common-env
+      APP_CLOVA_OCR_URL: ${APP_CLOVA_OCR_URL:-}
+      APP_CLOVA_OCR_SECRET: ${APP_CLOVA_OCR_SECRET:-}
+      APP_UPSTAGE_OCR_URL: ${APP_UPSTAGE_OCR_URL:-https://api.upstage.ai}
+      APP_UPSTAGE_API_KEY: ${APP_UPSTAGE_API_KEY:-}
+      APP_OCR_CONFIDENCE_THRESHOLD: ${APP_OCR_CONFIDENCE_THRESHOLD:-0.85}
+      # OCR 워커는 외부 API 호출이라 더 많은 동시성.
+    command:
+      ["dramatiq", "app.workers", "--processes", "1", "--threads", "8", "--queues", "ocr"]
 
   grafana:
     image: grafana/grafana:11.3.0

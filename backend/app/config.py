@@ -83,6 +83,13 @@ class Settings(BaseSettings):
     clova_ocr_secret: SecretStr = SecretStr("")
     hyperclova_api_key: SecretStr = SecretStr("")
 
+    # ---- Upstage Document OCR (Phase 2.2.4 폴백) ----
+    upstage_ocr_url: str = "https://api.upstage.ai"
+    upstage_api_key: SecretStr = SecretStr("")
+
+    # ---- OCR 정책 ----
+    ocr_confidence_threshold: float = 0.85
+
     # ---- 계산 프로퍼티 ----
     @property
     def cors_origin_list(self) -> list[str]:

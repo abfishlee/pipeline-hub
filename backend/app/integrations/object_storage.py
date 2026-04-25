@@ -51,6 +51,8 @@ class ObjectStorage(Protocol):
 
     async def presigned_get(self, key: str, expires_sec: int = 300) -> str: ...
 
+    async def get_bytes(self, key: str) -> bytes: ...
+
     def object_uri(self, key: str) -> str: ...
 
     async def exists(self, key: str) -> bool: ...
@@ -242,6 +244,23 @@ class S3CompatibleStorage:
             )
 
         return await asyncio.to_thread(_gen)
+
+    async def get_bytes(self, key: str) -> bytes:
+        """단일 GET — OCR 워커에서 영수증 bytes 직접 다운로드용. 큰 객체는 stream API 권장."""
+
+        def _get() -> bytes:
+            try:
+                resp = self._client.get_object(Bucket=self._bucket, Key=key)
+                body: Any = resp["Body"]
+                data = body.read()
+                # botocore 의 StreamingBody.close 는 idempotent.
+                with contextlib.suppress(Exception):
+                    body.close()
+                return bytes(data)
+            except ClientError as exc:
+                raise IntegrationError(f"object_storage.get_bytes failed: {exc}") from exc
+
+        return await asyncio.to_thread(_get)
 
     # ----- state -----
     async def exists(self, key: str) -> bool:

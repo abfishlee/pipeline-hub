@@ -24,6 +24,8 @@ class EventTopic(StrEnum):
     """
 
     RAW_OBJECT = "raw_object"
+    OCR_RESULT = "ocr_result"
+    CROWD_TASK = "crowd_task"
 
 
 class StreamEnvelope(BaseModel):
@@ -60,6 +62,35 @@ class RawObjectCreatedPayload(BaseModel):
     bytes_size: int = 0
 
 
+class OcrCompletedPayload(BaseModel):
+    """`ocr.completed` 이벤트의 payload — Phase 2.2.4 OCR 파이프라인 결과."""
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    raw_object_id: int
+    partition_date: str
+    ocr_result_ids: list[int]
+    page_count: int
+    avg_confidence: float
+    provider: str  # 'clova' | 'upstage'
+    engine_version: str | None = None
+    duration_ms: int = 0
+    crowd_task_id: int | None = None  # < 0.85 시 함께 발급된 placeholder.
+
+
+class CrowdTaskCreatedPayload(BaseModel):
+    """`crowd.task.created` 이벤트의 payload — Phase 2.2.4 검수 placeholder."""
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    crowd_task_id: int
+    raw_object_id: int
+    partition_date: str
+    ocr_result_id: int | None = None
+    reason: str
+    status: str = "PENDING"
+
+
 def parse_message(fields: dict[str, str]) -> StreamEnvelope:
     """Stream message fields → 타입화 envelope.
 
@@ -85,7 +116,9 @@ def parse_message(fields: dict[str, str]) -> StreamEnvelope:
 
 
 __all__ = [
+    "CrowdTaskCreatedPayload",
     "EventTopic",
+    "OcrCompletedPayload",
     "RawObjectCreatedPayload",
     "StreamEnvelope",
     "parse_message",

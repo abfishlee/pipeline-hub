@@ -102,19 +102,32 @@
 
 ### 2.2.4 OCR 파이프라인 [W3~W4]
 
-- [ ] `app/integrations/clova_ocr.py` — NCP CLOVA OCR 클라이언트
-  - 영수증 모드, 일반 문서 모드 분리
-  - 재시도 + 타임아웃
-- [ ] `app/integrations/upstage_ocr.py` — 폴백
-- [ ] `app/domain/ocr.py` — 이미지 전처리(회전/크롭), 엔진 호출, 결과 정규화
-- [ ] Dramatiq actor: `ocr.process(raw_object_id, partition_date)`
-  - raw → 이미지 로드 → CLOVA 호출 → `raw.ocr_result` 저장
-  - confidence < 0.85 → `wf.crowd_task(OCR_REVIEW)` 생성
-- [ ] 영수증 파서:
-  - 매장명/일시/품목별 라인 추출
-  - 개인정보(카드번호/회원번호) 마스킹
-  - `stg.price_observation` 로 변환
-- [ ] 테스트: 고정 샘플 이미지 10종 회귀 테스트
+**기반 (이번 commit) — 이미지 → ocr_result + crowd_task placeholder + outbox**
+- [x] `app/integrations/ocr/types.py` — `OcrProvider` Protocol + `OcrPage`/`OcrResponse` ✅ 2026-04-25
+- [x] `app/integrations/ocr/circuit_breaker.py` — in-memory 회로차단(5fail / 30s cooldown / half-open) ✅ 2026-04-25
+- [x] `app/integrations/clova/client.py` — NCP CLOVA OCR Document V2 (httpx.AsyncClient, X-OCR-SECRET 헤더, base64 image, retry 3회 + 4xx 즉시 실패) ✅ 2026-04-25
+- [x] `app/integrations/upstage/client.py` — Upstage Document OCR 폴백 (multipart/form-data, retry 2회) ✅ 2026-04-25
+- [x] `app/domain/ocr.py::process_receipt` — Object Storage 다운로드 → provider 폴백 시도 → `raw.ocr_result` per-page INSERT → confidence ≥ threshold 면 `ocr.completed` outbox, 미달이면 `run.crowd_task` placeholder + `crowd.task.created` outbox. `raw_object.status=PROCESSED` ✅ 2026-04-25
+- [x] `app/workers/ocr_worker.py::process_ocr_event` actor (queue=ocr, max_retries=3, time_limit=120s) — `consume_idempotent(consumer_name="ocr-worker")` 로 멱등 ✅ 2026-04-25
+- [x] Migration `0011_crowd_task` — `run.crowd_task` (PENDING/REVIEWING/APPROVED/REJECTED, BRIN created_at, partial idx PENDING) + `CrowdTask` ORM ✅ 2026-04-25
+- [x] `event_topics`: `EventTopic.OCR_RESULT` / `CROWD_TASK` + `OcrCompletedPayload` / `CrowdTaskCreatedPayload` ✅ 2026-04-25
+- [x] 메트릭 — `ocr_requests_total{provider,status}`, `ocr_duration_seconds{provider}`, `ocr_confidence{provider}`, `crowd_task_created_total{reason}` ✅ 2026-04-25
+- [x] Settings — `clova_ocr_url/secret`, `upstage_ocr_url/upstage_api_key`, `ocr_confidence_threshold` (.env / .env.example) ✅ 2026-04-25
+- [x] `docker-compose` `worker-ocr` 서비스 추가 (queue=ocr, threads=8) — `x-worker-common` 앵커 공유 ✅ 2026-04-25
+- [x] `ObjectStorage.get_bytes(key)` — 영수증 다운로드 어댑터 ✅ 2026-04-25
+- [x] 단위 테스트 `tests/test_clova_signed_request.py` — httpx.MockTransport 기반 ✅ 2026-04-25
+  - 헤더 X-OCR-SECRET / Content-Type, 본문 JSON shape, base64 image, lang=ko 검증
+  - 4xx → 영구 실패 (재시도 X), 5xx → 재시도 후 성공, breaker 5회 후 OPEN 시 즉시 OcrError
+- [x] 통합 테스트 `tests/integration/test_ocr_pipeline.py` ✅ 2026-04-25
+  - 0.95 confidence → `ocr.completed` 단일 outbox + crowd_task 미발급
+  - 0.50 confidence → ocr_result + crowd_task PENDING + 두 종 outbox
+  - CLOVA 실패 stub → Upstage 폴백 성공 (provider="upstage")
+
+**다음 sub-phase 로 분리 (2.2.4.x 또는 2.2.5)**
+- [ ] 영수증 전처리 (회전/크롭/디스큐) — Phase 2.2.4.1
+- [ ] 영수증 파서 (매장명/일시/품목 라인 추출, 카드번호 마스킹) → `stg.price_observation` 변환 — Phase 2.2.4.2 (Upstage Information Extraction or HyperCLOVA)
+- [ ] 정식 검수 워크플로 (`run.crowd_task` REVIEWING → APPROVED 전이) — Phase 4 정식 Crowd
+- [ ] 고정 샘플 영수증 10종 회귀 — 샘플 확보 후 (`tests/fixtures/receipts/`)
 
 ### 2.2.5 표준화 파이프라인 [W4~W5]
 

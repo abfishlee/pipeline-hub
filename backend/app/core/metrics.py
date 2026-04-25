@@ -95,6 +95,36 @@ ingest_bytes_total = Counter(
     labelnames=("source_code", "kind"),
 )
 
+# ---------------------------------------------------------------------------
+# OCR (Phase 2.2.4)
+# ---------------------------------------------------------------------------
+ocr_requests_total = Counter(
+    "ocr_requests_total",
+    "OCR provider 호출 수 (status=success/failure/circuit_open).",
+    labelnames=("provider", "status"),
+)
+
+ocr_duration_seconds = Histogram(
+    "ocr_duration_seconds",
+    "OCR provider 1회 호출 소요 시간(초).",
+    labelnames=("provider",),
+    # 영수증 OCR 특성 — 0.1s ~ 30s 분포에 맞춤.
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 15.0, 30.0),
+)
+
+ocr_confidence = Histogram(
+    "ocr_confidence",
+    "OCR 결과의 페이지 평균 confidence 분포 (0.0 ~ 1.0).",
+    labelnames=("provider",),
+    buckets=(0.5, 0.7, 0.8, 0.85, 0.9, 0.95, 0.99),
+)
+
+crowd_task_created_total = Counter(
+    "crowd_task_created_total",
+    "OCR confidence 미달로 검수 큐에 적재된 작업 수.",
+    labelnames=("reason",),
+)
+
 
 # ---------------------------------------------------------------------------
 # HTTP 미들웨어
@@ -158,6 +188,7 @@ def metrics_response_body(registry: CollectorRegistry = REGISTRY) -> tuple[bytes
 __all__ = [
     "CONTENT_TYPE_LATEST",
     "HttpMetricsMiddleware",
+    "crowd_task_created_total",
     "db_pool_in_use",
     "http_request_duration_seconds",
     "http_requests_total",
@@ -165,6 +196,9 @@ __all__ = [
     "ingest_dedup_total",
     "ingest_requests_total",
     "metrics_response_body",
+    "ocr_confidence",
+    "ocr_duration_seconds",
+    "ocr_requests_total",
 ]
 
 
