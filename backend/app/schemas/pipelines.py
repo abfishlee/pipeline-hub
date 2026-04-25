@@ -90,6 +90,9 @@ class WorkflowOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     published_at: datetime | None
+    # Phase 3.2.7
+    schedule_cron: str | None = None
+    schedule_enabled: bool = False
 
 
 class WorkflowDetail(WorkflowOut):
@@ -184,7 +187,40 @@ class WorkflowDiffOut(BaseModel):
     edges_removed: list[EdgeChangeOut] = Field(default_factory=list)
 
 
+# ---------------------------------------------------------------------------
+# Schedule / Backfill / Restart (Phase 3.2.7)
+# ---------------------------------------------------------------------------
+class ScheduleUpdate(BaseModel):
+    cron: str | None = Field(default=None, max_length=200)
+    enabled: bool = False
+
+
+class BackfillRequest(BaseModel):
+    """`[start_date, end_date]` 양 끝 포함."""
+
+    start_date: date
+    end_date: date
+
+
+class BackfillResponse(BaseModel):
+    pipeline_run_ids: list[int]
+    run_dates: list[date]
+
+
+class RestartRequest(BaseModel):
+    from_node_key: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class RestartResponse(BaseModel):
+    new_pipeline_run_id: int
+    new_run_date: date
+    ready_node_run_ids: list[int]
+    seeded_success_node_keys: list[str]
+
+
 __all__ = [
+    "BackfillRequest",
+    "BackfillResponse",
     "EdgeChangeOut",
     "EdgeIn",
     "EdgeOut",
@@ -197,6 +233,9 @@ __all__ = [
     "PipelineReleaseOut",
     "PipelineRunDetail",
     "PipelineRunOut",
+    "RestartRequest",
+    "RestartResponse",
+    "ScheduleUpdate",
     "WorkflowCreate",
     "WorkflowDetail",
     "WorkflowDiffOut",

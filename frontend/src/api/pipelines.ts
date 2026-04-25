@@ -37,6 +37,9 @@ export interface WorkflowOut {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  // Phase 3.2.7
+  schedule_cron: string | null;
+  schedule_enabled: boolean;
 }
 
 export interface WorkflowDetail extends WorkflowOut {
@@ -297,6 +300,114 @@ export function useTriggerRun() {
     mutationFn: (workflowId: number) =>
       apiRequest<PipelineRunDetail>(`/v1/pipelines/${workflowId}/runs`, {
         method: "POST",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pipelines", "runs"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Schedule / Backfill / Restart / Search (Phase 3.2.7)
+// ---------------------------------------------------------------------------
+export function useUpdateSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      workflowId,
+      cron,
+      enabled,
+    }: {
+      workflowId: number;
+      cron: string | null;
+      enabled: boolean;
+    }) =>
+      apiRequest<WorkflowOut>(`/v1/pipelines/${workflowId}/schedule`, {
+        method: "PATCH",
+        body: { cron, enabled },
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["pipelines", "workflows", vars.workflowId],
+      });
+      qc.invalidateQueries({ queryKey: ["pipelines", "workflows"] });
+    },
+  });
+}
+
+export interface BackfillResponse {
+  pipeline_run_ids: number[];
+  run_dates: string[];
+}
+
+export function useBackfill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      workflowId,
+      start_date,
+      end_date,
+    }: {
+      workflowId: number;
+      start_date: string;
+      end_date: string;
+    }) =>
+      apiRequest<BackfillResponse>(`/v1/pipelines/${workflowId}/backfill`, {
+        method: "POST",
+        body: { start_date, end_date },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pipelines", "runs"] });
+    },
+  });
+}
+
+export interface RunSearchParams {
+  workflow_id?: number | null;
+  status?: PipelineRunStatus | null;
+  from?: string | null; // YYYY-MM-DD
+  to?: string | null;
+  limit?: number;
+  offset?: number;
+}
+
+export function useSearchRuns(params: RunSearchParams = {}) {
+  return useQuery({
+    queryKey: ["pipelines", "runs", "search", params],
+    queryFn: () =>
+      apiRequest<PipelineRunOut[]>("/v1/pipelines/runs", {
+        params: {
+          workflow_id: params.workflow_id ?? undefined,
+          status: params.status ?? undefined,
+          from: params.from ?? undefined,
+          to: params.to ?? undefined,
+          limit: params.limit ?? 100,
+          offset: params.offset ?? 0,
+        },
+      }),
+  });
+}
+
+export interface RestartResponse {
+  new_pipeline_run_id: number;
+  new_run_date: string;
+  ready_node_run_ids: number[];
+  seeded_success_node_keys: string[];
+}
+
+export function useRestartRun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      runId,
+      from_node_key,
+    }: {
+      runId: number;
+      from_node_key?: string | null;
+    }) =>
+      apiRequest<RestartResponse>(`/v1/pipelines/runs/${runId}/restart`, {
+        method: "POST",
+        body: { from_node_key: from_node_key ?? null },
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pipelines", "runs"] });

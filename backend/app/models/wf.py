@@ -14,6 +14,7 @@ from typing import Any
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -54,6 +55,9 @@ class WorkflowDefinition(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Phase 3.2.7 — 배치 스케줄 메타. cron 표현식은 5-field UTC 기준.
+    schedule_cron: Mapped[str | None] = mapped_column(Text)
+    schedule_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
     nodes: Mapped[list[NodeDefinition]] = relationship(
         back_populates="workflow", cascade="all, delete-orphan"

@@ -1,10 +1,13 @@
-"""HTTP 경계 — `/v1/pipelines` (Visual ETL Designer 워크플로 CRUD + 실행 + 배포).
+"""HTTP 경계 — `/v1/pipelines` (Visual ETL Designer 워크플로 CRUD + 실행 + 배포 + 스케줄).
 
 Phase 3.2.1 Pipeline Runtime. 실행 트리거는 sync session 으로 도메인 호출
 (start_pipeline_run 이 즉시 entry node 들을 enqueue). 노드 실행은 dramatiq actor.
 
 Phase 3.2.6 추가: PATCH /status PUBLISHED 가 단순 status 변경 → 새 PUBLISHED 워크플로
 복제 + version 자동 증가 + release 이력 적재 + diff 반환으로 격상.
+
+Phase 3.2.7 추가: 스케줄 메타 (cron / enabled), Backfill (날짜 범위 → 일자별 run),
+runs 검색 (status/기간/workflow), 재실행 (전체 또는 특정 노드부터).
 
 권한: ADMIN / APPROVER (워크플로 PUBLISH/실행 권한이 mart 쓰기와 동등). 조회는 OPERATOR
 이상 허용.
@@ -14,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from datetime import date
 from typing import Annotated, TypeVar
 
 from fastapi import APIRouter, Depends, Query
@@ -25,9 +29,12 @@ from app.db.sync_session import get_sync_sessionmaker
 from app.deps import CurrentUserDep, SessionDep, require_roles
 from app.domain import pipeline_release as release_domain
 from app.domain import pipeline_runtime as runtime
+from app.domain import pipeline_schedule as schedule_domain
 from app.models.wf import EdgeDefinition, NodeDefinition, WorkflowDefinition
 from app.repositories import pipelines as pipelines_repo
 from app.schemas.pipelines import (
+    BackfillRequest,
+    BackfillResponse,
     EdgeChangeOut,
     EdgeOut,
     NodeChangeOut,
@@ -36,6 +43,10 @@ from app.schemas.pipelines import (
     PipelineReleaseDetail,
     PipelineReleaseOut,
     PipelineRunDetail,
+    PipelineRunOut,
+    RestartRequest,
+    RestartResponse,
+    ScheduleUpdate,
     WorkflowCreate,
     WorkflowDetail,
     WorkflowDiffOut,
@@ -127,6 +138,32 @@ async def get_release(
 
     rel = await _in_sync_session(_do)
     return PipelineReleaseDetail.model_validate(rel)
+
+
+# Phase 3.2.7 — `/runs` 검색 라우트는 `/{workflow_id}` 보다 먼저 등록 필요
+# (그렇지 않으면 "runs" 가 int 변환 시도 → 422 충돌).
+@router.get("/runs", response_model=list[PipelineRunOut])
+async def search_runs(
+    workflow_id: Annotated[int | None, Query(ge=1)] = None,
+    status: Annotated[str | None, Query(min_length=1, max_length=32)] = None,
+    from_date: Annotated[date | None, Query(alias="from")] = None,
+    to_date: Annotated[date | None, Query(alias="to")] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[PipelineRunOut]:
+    """status / 기간 / workflow 별 실행 이력 검색."""
+    rows = await _in_sync_session(
+        lambda s: schedule_domain.search_runs(
+            s,
+            workflow_id=workflow_id,
+            status=status,
+            from_date=from_date,
+            to_date=to_date,
+            limit=limit,
+            offset=offset,
+        )
+    )
+    return [PipelineRunOut.model_validate(r) for r in rows]
 
 
 @router.get("/{workflow_id}", response_model=WorkflowDetail)
@@ -373,6 +410,112 @@ async def trigger_run(
         error_message=pr.error_message,
         created_at=pr.created_at,
         node_runs=[NodeRunOut.model_validate(n) for n in node_runs],
+    )
+
+
+# ---------------------------------------------------------------------------
+# Schedule / Backfill / Restart / Runs Search (Phase 3.2.7)
+# ---------------------------------------------------------------------------
+@router.patch(
+    "/{workflow_id}/schedule",
+    response_model=WorkflowOut,
+    dependencies=[Depends(require_roles("ADMIN", "APPROVER"))],
+)
+async def update_schedule(
+    workflow_id: int,
+    body: ScheduleUpdate,
+) -> WorkflowOut:
+    """cron 표현식 갱신 + 활성/비활성 토글. cron 비우면 자동 비활성화."""
+    workflow = await _in_sync_session(
+        lambda s: schedule_domain.set_schedule(
+            s, workflow_id=workflow_id, cron=body.cron, enabled=body.enabled
+        )
+    )
+    return WorkflowOut.model_validate(workflow)
+
+
+@router.post(
+    "/{workflow_id}/backfill",
+    response_model=BackfillResponse,
+    status_code=202,
+    dependencies=[Depends(require_roles("ADMIN", "APPROVER"))],
+)
+async def backfill_workflow(
+    user: CurrentUserDep,
+    workflow_id: int,
+    body: BackfillRequest,
+) -> BackfillResponse:
+    """`[start_date, end_date]` 각 일자에 대해 PENDING pipeline_run 생성.
+
+    이미 같은 (workflow_id, run_date) 가 있으면 그 ID 반환 (멱등). actor enqueue 는
+    호출 후 백그라운드에서 시도 — 워커가 없으면 PENDING 으로 남는다.
+    """
+    try:
+        result = await _in_sync_session(
+            lambda s: schedule_domain.backfill(
+                s,
+                workflow_id=workflow_id,
+                start_date=body.start_date,
+                end_date=body.end_date,
+                triggered_by_user_id=user.user_id,
+            )
+        )
+    except ValueError as exc:
+        raise app_errors.ValidationError(str(exc)) from exc
+
+    return BackfillResponse(
+        pipeline_run_ids=result.pipeline_run_ids,
+        run_dates=result.run_dates,
+    )
+
+
+@router.post(
+    "/runs/{pipeline_run_id}/restart",
+    response_model=RestartResponse,
+    status_code=202,
+    dependencies=[Depends(require_roles("ADMIN", "APPROVER"))],
+)
+async def restart_run(
+    user: CurrentUserDep,
+    pipeline_run_id: int,
+    body: RestartRequest,
+) -> RestartResponse:
+    """기존 run 의 그래프를 새 run 으로 복제.
+
+    `from_node_key` 가 지정되면 해당 노드의 ancestors 는 SUCCESS 로 시드, 그 노드 자체는
+    READY. 미지정 시 entry 노드들이 READY (= start_pipeline_run 동등).
+
+    응답으로 새 pipeline_run_id 반환 + 워커 actor enqueue 는 백그라운드 시도.
+    """
+
+    def _do(s: Session) -> schedule_domain.RestartResult:
+        return schedule_domain.restart_run(
+            s,
+            pipeline_run_id=pipeline_run_id,
+            from_node_key=body.from_node_key,
+            triggered_by_user_id=user.user_id,
+        )
+
+    result = await _in_sync_session(_do)
+
+    # entry 또는 from_node 들을 actor 로 enqueue (broker 미가동 시에도 API 는 200).
+    try:
+        from app.workers.pipeline_node_worker import process_node_event
+
+        for node_run_id in result.ready_node_run_ids:
+            process_node_event.send(
+                event_id=f"node-run-{node_run_id}-attempt-1",
+                node_run_id=node_run_id,
+                run_date_iso=result.new_run_date.isoformat(),
+            )
+    except Exception:
+        pass
+
+    return RestartResponse(
+        new_pipeline_run_id=result.new_pipeline_run_id,
+        new_run_date=result.new_run_date,
+        ready_node_run_ids=list(result.ready_node_run_ids),
+        seeded_success_node_keys=list(result.seeded_success_node_keys),
     )
 
 

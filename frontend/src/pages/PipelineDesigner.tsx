@@ -15,7 +15,7 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Loader2, PlayCircle, Save, Send } from "lucide-react";
+import { CalendarRange, Clock, Loader2, PlayCircle, Save, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -23,9 +23,11 @@ import {
   type EdgeIn,
   type NodeIn,
   type NodeType,
+  useBackfill,
   useCreateWorkflow,
   useTransitionWorkflowStatus,
   useTriggerRun,
+  useUpdateSchedule,
   useUpdateWorkflow,
   useWorkflowDetail,
 } from "@/api/pipelines";
@@ -95,6 +97,13 @@ function DesignerInner() {
   const update = useUpdateWorkflow();
   const transition = useTransitionWorkflowStatus();
   const trigger = useTriggerRun();
+  const updateSchedule = useUpdateSchedule();
+  const backfill = useBackfill();
+  const [showBackfill, setShowBackfill] = useState(false);
+  const [backfillStart, setBackfillStart] = useState("");
+  const [backfillEnd, setBackfillEnd] = useState("");
+  const [cronDraft, setCronDraft] = useState("");
+  const [scheduleEnabledDraft, setScheduleEnabledDraft] = useState(false);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -110,6 +119,8 @@ function DesignerInner() {
     const wf = detail.data;
     setName(wf.name);
     setDescription(wf.description ?? "");
+    setCronDraft(wf.schedule_cron ?? "");
+    setScheduleEnabledDraft(wf.schedule_enabled);
     const nodeKeyById = new Map<number, string>();
     const flowNodes: DesignerFlowNode[] = wf.nodes.map((n) => {
       nodeKeyById.set(n.node_id, n.node_key);
@@ -347,6 +358,42 @@ function DesignerInner() {
     }
   };
 
+  const handleSaveSchedule = async () => {
+    if (!editingWorkflowId) {
+      toast.error("먼저 저장해 주세요.");
+      return;
+    }
+    try {
+      await updateSchedule.mutateAsync({
+        workflowId: editingWorkflowId,
+        cron: cronDraft.trim() || null,
+        enabled: scheduleEnabledDraft && !!cronDraft.trim(),
+      });
+      toast.success("스케줄 저장됨");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "스케줄 저장 실패");
+    }
+  };
+
+  const handleBackfill = async () => {
+    if (!editingWorkflowId) return;
+    if (!backfillStart || !backfillEnd) {
+      toast.error("시작/종료 날짜를 선택해 주세요.");
+      return;
+    }
+    try {
+      const res = await backfill.mutateAsync({
+        workflowId: editingWorkflowId,
+        start_date: backfillStart,
+        end_date: backfillEnd,
+      });
+      toast.success(`Backfill 적재됨 — run ${res.pipeline_run_ids.length}개`);
+      setShowBackfill(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Backfill 실패");
+    }
+  };
+
   const handleRun = async () => {
     if (!editingWorkflowId) {
       toast.error("먼저 저장 후 PUBLISH 해주세요.");
@@ -435,6 +482,79 @@ function DesignerInner() {
             <p className="basis-full text-xs text-amber-700">
               ※ {status} 워크플로는 편집할 수 없습니다. 새 버전을 생성해 주세요.
             </p>
+          )}
+
+          {/* Phase 3.2.7 — 스케줄 + Backfill 행. PUBLISHED 워크플로에서만 의미. */}
+          {editingWorkflowId && status === "PUBLISHED" && (
+            <div className="basis-full flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs">
+              <Clock className="h-3 w-3 text-muted-foreground" />
+              <span className="text-muted-foreground">cron (UTC, 5필드):</span>
+              <Input
+                value={cronDraft}
+                onChange={(e) => setCronDraft(e.target.value)}
+                placeholder="0 5 * * *"
+                className="h-8 w-40 font-mono text-xs"
+              />
+              <label className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={scheduleEnabledDraft}
+                  onChange={(e) => setScheduleEnabledDraft(e.target.checked)}
+                  disabled={!cronDraft.trim()}
+                />
+                <span>활성</span>
+              </label>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSaveSchedule}
+                disabled={updateSchedule.isPending}
+              >
+                스케줄 저장
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowBackfill((v) => !v)}
+              >
+                <CalendarRange className="h-3 w-3" />
+                Backfill
+              </Button>
+              {detail.data?.schedule_cron && (
+                <span className="text-muted-foreground">
+                  현재: <code>{detail.data.schedule_cron}</code> · {detail.data.schedule_enabled ? "ON" : "OFF"}
+                </span>
+              )}
+            </div>
+          )}
+
+          {showBackfill && editingWorkflowId && status === "PUBLISHED" && (
+            <div className="basis-full flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs">
+              <span className="text-amber-800">
+                Backfill — 시작/종료 날짜의 모든 일자에 대해 PENDING run 을 생성합니다.
+              </span>
+              <Input
+                type="date"
+                value={backfillStart}
+                onChange={(e) => setBackfillStart(e.target.value)}
+                className="h-8 w-36 text-xs"
+              />
+              <span>→</span>
+              <Input
+                type="date"
+                value={backfillEnd}
+                onChange={(e) => setBackfillEnd(e.target.value)}
+                className="h-8 w-36 text-xs"
+              />
+              <Button
+                size="sm"
+                onClick={handleBackfill}
+                disabled={backfill.isPending || !backfillStart || !backfillEnd}
+              >
+                {backfill.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                실행
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

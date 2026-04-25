@@ -7,18 +7,23 @@ import {
   ReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { RefreshCw, RotateCcw } from "lucide-react";
 import { useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
 import {
   type NodeRunStatus,
   usePipelineRun,
+  useRestartRun,
   useWorkflowDetail,
 } from "@/api/pipelines";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { usePipelineRunSSE } from "@/hooks/usePipelineRunSSE";
 import { cn } from "@/lib/cn";
 import { formatDateTime } from "@/lib/format";
+import { useAuthStore } from "@/store/auth";
 
 const STATUS_STYLE: Record<NodeRunStatus, { bg: string; border: string; text: string }> = {
   PENDING: {
@@ -64,6 +69,29 @@ export function PipelineRunDetail() {
   const run = usePipelineRun(runId);
   const workflow = useWorkflowDetail(run.data?.workflow_id ?? null);
   const sse = usePipelineRunSSE(runId);
+  const restart = useRestartRun();
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const canRestart =
+    !!user?.roles.some((r) => r === "ADMIN" || r === "APPROVER");
+
+  const doRestart = async (fromNodeKey?: string) => {
+    if (!runId) return;
+    try {
+      const res = await restart.mutateAsync({
+        runId,
+        from_node_key: fromNodeKey ?? null,
+      });
+      toast.success(
+        fromNodeKey
+          ? `'${fromNodeKey}' 부터 재실행 — new run #${res.new_pipeline_run_id}`
+          : `재실행 시작 — new run #${res.new_pipeline_run_id}`,
+      );
+      navigate(`/pipelines/runs/${res.new_pipeline_run_id}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "재실행 실패");
+    }
+  };
 
   // node_definition_id → 최신 node_run status 매핑
   const nodeStatusByDef = useMemo(() => {
@@ -143,6 +171,17 @@ export function PipelineRunDetail() {
                 ● {sse.connected ? "SSE 실시간" : "SSE 미연결"}
                 {sse.errorCount > 0 && ` (오류 ${sse.errorCount})`}
               </span>
+              {canRestart && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => doRestart()}
+                  disabled={restart.isPending}
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  처음부터 재실행
+                </Button>
+              )}
             </>
           )}
         </CardContent>
@@ -185,6 +224,18 @@ export function PipelineRunDetail() {
                     <span className="font-mono font-semibold">{nr.node_key}</span>
                     <span className="text-muted-foreground">{nr.node_type}</span>
                     <span className={cn("ml-auto font-medium", s.text)}>{nr.status}</span>
+                    {canRestart && (nr.status === "FAILED" || nr.status === "SUCCESS") && (
+                      <button
+                        type="button"
+                        onClick={() => doRestart(nr.node_key)}
+                        disabled={restart.isPending}
+                        className="inline-flex items-center gap-1 rounded-md border border-input px-2 py-0.5 text-[10px] hover:bg-accent"
+                        title="이 노드부터 재실행 (이전 노드는 SUCCESS 로 시드)"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        이 노드부터
+                      </button>
+                    )}
                   </div>
                   {nr.error_message && (
                     <div className="mt-1 text-rose-700">{nr.error_message}</div>

@@ -1,12 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
 import { Pencil, Plus } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { apiRequest } from "@/api/client";
 import {
-  type PipelineRunOut,
   type PipelineRunStatus,
   type WorkflowStatus,
+  useSearchRuns,
   useWorkflows,
 } from "@/api/pipelines";
 import { Badge } from "@/components/ui/badge";
@@ -31,22 +29,27 @@ const WORKFLOW_BADGE: Record<WorkflowStatus, "default" | "muted" | "destructive"
   ARCHIVED: "destructive",
 };
 
-function useRecentRuns(workflowId: number | null) {
-  return useQuery({
-    queryKey: ["pipelines", "recent-runs", workflowId],
-    queryFn: () =>
-      apiRequest<PipelineRunOut[]>(`/v1/pipelines/runs`, {
-        // 백엔드에 list 엔드포인트가 아직 없는 경우, 단일 GET 으로 fallback.
-        // Phase 3.2.3 한정 — 단일 조회만 노출. 후속 sub-phase 에서 list API 추가.
-      }).catch(() => [] as PipelineRunOut[]),
-    enabled: workflowId == null, // 단일 workflow detail 진입 시는 비활성.
-  });
-}
+const STATUS_OPTIONS: PipelineRunStatus[] = [
+  "PENDING",
+  "RUNNING",
+  "SUCCESS",
+  "FAILED",
+  "CANCELLED",
+];
 
 export function PipelineRunsList() {
   const workflows = useWorkflows({ limit: 100 });
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<number | null>(null);
-  const runs = useRecentRuns(selectedWorkflowId);
+  const [statusFilter, setStatusFilter] = useState<PipelineRunStatus | "">("");
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const runs = useSearchRuns({
+    workflow_id: selectedWorkflowId,
+    status: statusFilter || null,
+    from: fromDate || null,
+    to: toDate || null,
+    limit: 200,
+  });
   const user = useAuthStore((s) => s.user);
   const canDesign =
     !!user?.roles.some((r) => r === "ADMIN" || r === "APPROVER");
@@ -129,14 +132,14 @@ export function PipelineRunsList() {
       </Card>
 
       <Card>
-        <CardContent className="flex flex-wrap items-center gap-3 p-4">
-          <span className="text-sm text-muted-foreground">실행 이력 필터:</span>
+        <CardContent className="flex flex-wrap items-center gap-3 p-4 text-sm">
+          <span className="text-muted-foreground">workflow:</span>
           <select
             value={selectedWorkflowId ?? ""}
             onChange={(e) =>
               setSelectedWorkflowId(e.target.value ? Number(e.target.value) : null)
             }
-            className="flex h-10 rounded-md border border-input bg-background px-3 text-sm"
+            className="flex h-9 rounded-md border border-input bg-background px-3 text-sm"
           >
             <option value="">(전체)</option>
             {workflows.data?.map((w) => (
@@ -145,10 +148,47 @@ export function PipelineRunsList() {
               </option>
             ))}
           </select>
-          <p className="basis-full text-xs text-muted-foreground">
-            ※ Phase 3.2.3 한정 — runs 목록 API 는 후속 sub-phase 에서 정식 도입. 현재는
-            workflow 상세에서 진입한 단일 run 만 실시간 갱신.
-          </p>
+          <span className="text-muted-foreground">status:</span>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as PipelineRunStatus | "")}
+            className="flex h-9 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">(전체)</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <span className="text-muted-foreground">기간:</span>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-2 text-xs"
+          />
+          <span>→</span>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-2 text-xs"
+          />
+          {(selectedWorkflowId || statusFilter || fromDate || toDate) && (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline"
+              onClick={() => {
+                setSelectedWorkflowId(null);
+                setStatusFilter("");
+                setFromDate("");
+                setToDate("");
+              }}
+            >
+              필터 초기화
+            </button>
+          )}
         </CardContent>
       </Card>
 
