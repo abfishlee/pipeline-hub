@@ -417,6 +417,43 @@ pipeline.node.state.changed
 dead.letter
 ```
 
+### 2.9.1 Redis Streams 토픽 (Phase 2.2.2~)
+
+`run.event_outbox` 의 행이 outbox publisher 에 의해 Redis Streams 로 옮겨진 형태.
+**stream key = `<APP_REDIS_STREAMS_PREFIX>:<aggregate_type>`** (기본 prefix `dp:events`).
+**consumer group = `<worker_type>-<env>`** (예: `outbox-local`, `ocr-prod`) — 같은 토픽을
+여러 worker_type 이 fan-out 으로 받음. 같은 worker_type 의 다중 인스턴스는 group 을
+공유하고 redis 가 자동 분산.
+
+| Stream key | 발행자 | 소비자 (worker_type) | 도입 Phase | 페이로드 모델 |
+|---|---|---|---|---|
+| `dp:events:raw_object` | `outbox_publisher` (Phase 2.2.1) | `transform`, `ocr`, `standardization` | 2.2.2 | `RawObjectCreatedPayload` (`app/core/event_topics.py`) |
+| `dp:events:ocr_result` | `worker-ocr` (Phase 2.2.4) | `standardization`, `crowd` | 2.2.4 | TBD — `OcrCompletedPayload` |
+| `dp:events:standardization_result` | `worker-standardization` (Phase 2.2.5) | `transform` | 2.2.5 | TBD — `StandardizationCompletedPayload` |
+| `dp:events:crawler_page` | `worker-crawler` (Phase 2.2.6) | `transform` | 2.2.6 | TBD |
+| `dp:events:pipeline_node_state` | `pipeline-runtime` (Phase 3.x) | SSE bridge → 프론트 | 3.x | TBD |
+
+**Streams message fields** (모든 토픽 공통):
+
+| field | 타입 | 비고 |
+|---|---|---|
+| `event_id` | string | `run.event_outbox.event_id` 그대로. processed_event 마킹 키. |
+| `aggregate_type` | string | stream key 의 suffix 와 같음 (예: `raw_object`). |
+| `aggregate_id` | string | 도메인 식별자 (예: `<raw_object_id>:<partition_date>`). |
+| `event_type` | string | `<aggregate_type>.<verb>` 규칙 (예: `raw_object.created`). |
+| `occurred_at` | ISO-8601 | 발행 시각. |
+| `payload` | JSON string | 토픽별 typed model — `parse_message()` 로 deserialize. |
+
+**Idempotency** — at-least-once 라 같은 `event_id` 재배달 가능. 다운스트림은
+`run.processed_event` 의 `(event_id, consumer_name)` 마킹으로 멱등 처리
+(`app/domain/idempotent_consume.py::consume_idempotent`). 운영자 수동 replay 는
+`reset_processed_marker(event_id, consumer_name)` 후 XCLAIM 또는 단일 XADD 재발행.
+
+**Crash 복구** — consumer 가 read 후 ack 전 죽으면 메시지가 PEL(pending entries
+list) 에 남는다. 살아 있는 consumer 가 `RedisStreamConsumer.claim_stale(min_idle_ms=...)`
+(`XAUTOCLAIM`) 으로 인계받아 처리. 표준 idle 임계는 worker_type 별로 정의
+(예: ocr=120s, transform=30s).
+
 ## 2.10 환경 분리
 
 | 환경 | 목적 | DB | Object Storage |

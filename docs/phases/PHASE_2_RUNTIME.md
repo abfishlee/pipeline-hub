@@ -50,10 +50,16 @@
 
 ### 2.2.2 이벤트 버스 [W2]
 
-- [ ] Redis Streams 토픽 정의 (문서: `docs/02_ARCHITECTURE.md` 2.9)
-- [ ] Consumer Group 이름 규칙: `<worker_type>-<env>`
-- [ ] `XADD` / `XREADGROUP` / `XACK` 래퍼 (`app/core/events.py`)
-- [ ] Idempotent consumer: `run.processed_event` 체크 후 처리
+- [x] Redis Streams 토픽 정의 — `docs/02_ARCHITECTURE.md` 2.9.1 표 + `app/core/event_topics.py` (`EventTopic.RAW_OBJECT`, `RawObjectCreatedPayload`, `StreamEnvelope`, `parse_message`) ✅ 2026-04-25
+- [x] Consumer Group 이름 규칙 `<worker_type>-<env>` — `consumer_group_name(worker_type, env)` helper ✅ 2026-04-25
+- [x] `RedisStreamConsumer` — `ensure_group`(BUSYGROUP suppress + MKSTREAM), `read`(XREADGROUP, `>` vs `0` for pending replay), `ack`(XACK), `pending_count`(XPENDING), `claim_stale`(XAUTOCLAIM) ✅ 2026-04-25
+- [x] Idempotent consumer — `consume_idempotent(session, event_id, consumer_name, handler)`: `INSERT ... ON CONFLICT DO NOTHING` 으로 (event_id, consumer_name) 마킹 → 신규면 handler 실행 + commit, 기존이면 skip + rollback ✅ 2026-04-25
+- [x] Migration 0010 — `run.processed_event` PK 를 `(event_id, consumer_name)` 합성으로 변경 (multi-consumer fan-out 지원) ✅ 2026-04-25
+- [x] 통합 테스트 ✅ 2026-04-25
+  - `tests/integration/test_event_bus.py::test_idempotent_consume_skips_on_redelivery` — XADD → XREADGROUP → 처리 + 재배달 시 handler skip
+  - `::test_two_consumers_same_event_distinct_markers` — 같은 event_id 를 ocr/transform 두 consumer 가 각자 마킹 (합성 PK 회귀)
+  - `::test_claim_stale_transfers_pending_to_alive_consumer` — A 가 read 후 ack 안 함 → B 가 XAUTOCLAIM 으로 인계
+  - `::test_reset_processed_marker_allows_reprocessing` — 운영자 replay 도구
 
 ### 2.2.3 Apache Airflow 도입 [W2~W3] ★학습 과제
 

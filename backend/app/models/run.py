@@ -83,13 +83,18 @@ class EventOutbox(Base):
 
 
 class ProcessedEvent(Base):
-    """Idempotent consumer marker — 같은 event_id 중복 처리 방지."""
+    """Idempotent consumer marker — (event_id, consumer_name) 단위 처리 기록.
+
+    같은 outbox event 를 여러 consumer 가 각자 처리하는 fan-out 패턴 (raw_object.created
+    → ocr / transform / crawler) 에서 consumer 별로 독립 마킹. Phase 2.2.2 migration 0010
+    에서 PK 를 합성으로 변경.
+    """
 
     __tablename__ = "processed_event"
     __table_args__ = {"schema": "run"}
 
     event_id: Mapped[str] = mapped_column(Text, primary_key=True)
-    consumer_name: Mapped[str] = mapped_column(Text, nullable=False)
+    consumer_name: Mapped[str] = mapped_column(Text, primary_key=True)
     processed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
