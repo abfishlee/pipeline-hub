@@ -5,28 +5,35 @@
 - **Phase 4 (NKS 이관 + Public API + Crowd 정식 + CDC)** 는 운영팀과 함께 수행 (9월 이후).
 
 ## ✅ 지금 진행 중
-**Phase 2 — Pipeline Runtime (Worker + OCR + 표준화)**
-- 시작: 2026-06-01 (예정 — Phase 1 1.2.11 까지 종료, 2026-04-25 ~ 2026-04-25 1일 만에 압축 완료)
-- 목표 완료: 2026-07-11 (**6주**)
-- 참조: [PHASE_2_RUNTIME.md](./PHASE_2_RUNTIME.md)
+**Phase 3 — Visual ETL Designer + SQL Studio (핵심만)**
+- 시작: 2026-07-13 (예정 — Phase 2 가 같은 날(2026-04-25) 2.2.1 → 2.2.10 + 2.6 마무리까지 종료)
+- 목표 완료: 2026-08-29 (**7주**)
+- 참조: [PHASE_3_VISUAL_ETL.md](./PHASE_3_VISUAL_ETL.md)
 
-> Phase 1 은 5주 예산이었으나 사용자 + Claude 협업으로 같은 날(2026-04-25) 1.2.1 → 1.2.11 까지 일관 commit 흐름으로 종료. 일정 4주 단축분은 Phase 3 압축 부담 완화에 사용.
+> Phase 1·2 모두 같은 날(2026-04-25) 끝나, 일정 13주(5+6+2주 여유) 가 Phase 3 운영 안정화/문서화에 흡수됨. 2026-09-01 운영팀 합류 데드라인까지 4개월 이상 마진.
 
-### Phase 2 진입 조건 (모두 충족 — 2026-04-25)
-- ✅ Phase 1 DoD 7종 모두 충족 (수집 API 3종, 스키마 6 schema, MinIO, Web Portal, /metrics, CI, NKS Ready 8계명)
-- ✅ Outbox PENDING 행이 정상 적재 (Phase 1.2.7) — Phase 2 publisher 가 소비할 데이터 대기 중
-- ✅ Prometheus + Grafana 로컬 기동 (Phase 1.2.10) — Worker/OCR 메트릭이 추가될 자리 마련
-- ✅ ADR 0001~0003 기록 (드라이버 듀얼 / Object Storage / Outbox+content_hash)
+### Phase 3 진입 조건 (모두 충족 — 2026-04-25)
+- ✅ Phase 2 DoD 7종 모두 충족 (Worker 5종 / OCR + Upstage / 표준화 + pgvector / price_fact 4단계 게이트 / DB-to-DB + Crawler / Loki + Sentry / 운영자 화면)
+- ✅ outbox publisher + Streams consumer + idempotent_consume 흐름 검증 — Phase 3 Pipeline Runtime 노드들도 이 위에 얹는다
+- ✅ `run.event_outbox` 토픽 6종(raw_object/ocr_result/crowd_task/staging/price_fact/crawler_page) — Phase 3 의 새 토픽(`pipeline.run.*`, `pipeline.node.state.changed`)도 같은 prefix 로 추가
+- ✅ ADR 0001~0006 기록 (드라이버 듀얼 / Object Storage / Outbox+content_hash / Outbox 트리거 전략 / 표준화 3단계 / Crowd placeholder)
 
-### Phase 2 대상 모듈 (신규 생성)
+### Phase 3 대상 모듈 (신규 생성)
 | 위치 | 책임 |
 |---|---|
-| `backend/app/workers/` | Dramatiq broker + actor (`outbox_publisher`, `ocr`, `transform`, `crawler`) |
-| `backend/app/integrations/clova/` | CLOVA OCR API 클라이언트 (서킷브레이커, retry) |
-| `backend/app/integrations/upstage/` | Upstage 폴백 OCR 클라이언트 |
-| `backend/app/domain/standardization.py` | pg_trgm + pgvector + HyperCLOVA 임베딩 표준화 |
-| `airflow/dags/` | 시스템 DAG 5종 (`daily_agg`, `monthly_partition`, `hourly_outbox`, `daily_archive`, `ingest_db_incremental`) |
-| `infra/docker-compose.yml` | `worker-*`, `airflow-*`, `loki`, `promtail` 서비스 추가 |
+| `migrations/versions/0015_workflow_definition.py` | `wf.workflow_definition`, `wf.node_definition`, `wf.edge_definition` (Visual ETL DAG 메타) |
+| `migrations/versions/0016_pipeline_run.py` | `run.pipeline_run`, `run.node_run` (실행 이력 — partitioned by run_date) |
+| `migrations/versions/0017_sql_studio.py` | `wf.sql_query`, `wf.sql_query_version`, `wf.sql_run` (SQL Studio 승인 플로우) |
+| `backend/app/models/wf.py` | workflow / pipeline / node ORM |
+| `backend/app/domain/pipeline_runtime.py` | 자체 DAG 실행기 (위상 정렬 + 노드별 actor 디스패치 + node_run 상태 갱신) |
+| `backend/app/domain/nodes/` | 노드 6종 구현 — `source_api.py`, `sql_transform.py`, `dq_check.py`, `dedup.py`, `load_master.py`, `notify.py` |
+| `backend/app/api/v1/pipelines.py` | `/v1/pipelines` CRUD + 실행/취소/상태 조회 + SSE 노드 상태 stream |
+| `backend/app/api/v1/sql_studio.py` | `/v1/sql-studio/queries` (sqlglot 검증 + sandbox 실행 + 승인 후 mart 반영) |
+| `backend/app/integrations/sqlglot_validator.py` | SQL AST 분석 (참조 테이블 / 위험 패턴 / 함수 화이트리스트) |
+| `frontend/src/pages/PipelineDesigner.tsx` | React Flow 캔버스 (노드 조립 → 검증 → 저장) |
+| `frontend/src/pages/SqlStudio.tsx` | 에디터 + 검증 결과 + 승인 플로우 |
+| `frontend/src/pages/PipelineRunDetail.tsx` | 노드 상태 SSE 실시간 갱신 (Phase 1.2.9 와 동일 SSE 채널) |
+| `infra/airflow/dags/pipeline_runtime_bridge.py` | Pipeline 의 SCHEDULED 트리거를 Airflow DAG 으로 동기화 (Phase 2.2.3 chassis 위) |
 
 ---
 
@@ -54,14 +61,19 @@
 - [x] CI (lint+test+typecheck) — Phase 1.2.1
 - [x] **NKS Ready 8계명** 이미지 준수 — Phase 1.2.2 Dockerfile
 
-### Phase 2 (6주) DoD
-- Dramatiq worker 3종 (OCR / transform / crawler)
-- **Apache Airflow 2.9+ 정식 도입** (LocalExecutor)
-- 시스템 DAG 5종 (`daily_agg`, `monthly_partition`, `hourly_outbox`, `daily_archive`, `ingest_db_incremental`)
-- CLOVA OCR 연동 + confidence 게이트 (≥0.85 자동, 미만 crowd_task)
-- 상품 표준화 (pg_trgm + pgvector + HyperCLOVA 임베딩)
-- `stg.price_observation` → `mart.price_fact` 실시간 반영 < 60초
-- 관제 고도화 (Loki + Sentry)
+### Phase 2 (6주) DoD — ✅ 2026-04-25 완료
+- [x] Dramatiq worker 5종 (outbox / ocr / transform / price_fact / db_incremental + crawler) — Phase 2.2.1, 2.2.4~2.2.8
+- [x] **Apache Airflow 2.10 LocalExecutor** chassis (init / webserver / scheduler) — Phase 2.2.3 (시스템 DAG 5종은 후속)
+- [x] CLOVA OCR + Upstage 폴백 + confidence 게이트 (≥0.85 자동, 미만 crowd_task placeholder) — Phase 2.2.4
+- [x] 상품 표준화 3단계 (pg_trgm 0.7 → HyperCLOVA 임베딩 0.85 → crowd) + pgvector(1536) IVFFLAT — Phase 2.2.5
+- [x] `stg.price_observation` → `mart.price_fact` 자동 반영 + confidence 4단계 게이트(insert/sampled/held/skipped) — Phase 2.2.6
+- [x] DB-to-DB 증분 수집 (PostgreSQL/MySQL + watermark JSONB) — Phase 2.2.7
+- [x] httpx 정적 HTML 크롤러 + robots.txt + content_hash dedup — Phase 2.2.8
+- [x] 관제 고도화 — Loki + Promtail (structlog JSON 라벨링) + Sentry (PII 스크럽) + Runtime 대시보드 + 백로그 Gauge — Phase 2.2.9
+- [x] 운영자 화면 — Crowd 검수 큐 + Dead Letter replay + Runtime 모니터 — Phase 2.2.10
+- [x] event_outbox publisher 가 Redis Streams 로 이송 + Consumer Group fan-out + idempotent consume — Phase 2.2.1, 2.2.2
+
+운영팀 9월 합류 시 즉시 시연 가능: `docs/dev/PHASE_2_E2E.md`.
 
 ### Phase 3 (7주) 압축 DoD — **핵심만**
 - Pipeline Runtime (자체 DAG 실행기)

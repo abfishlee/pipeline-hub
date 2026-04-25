@@ -295,20 +295,39 @@
 
 ## 2.4 Phase 2 비기능 기준
 
-- [ ] Mart 반영 시간 p95 < 60초.
-- [ ] OCR worker는 동시성 5, CLOVA rate limit 초과 안 함.
-- [ ] Dramatiq actor는 모두 멱등성 보장 (재실행해도 중복 insert 없음).
-- [ ] DLQ에 들어간 메시지는 UI에서 재실행 가능.
+- [x] Mart 반영 시간 p95 < 60초 — `price_fact_observed_to_inserted_seconds` Histogram 노출 (Phase 2.2.6) + Runtime 대시보드 패널로 추적
+- [x] Dramatiq actor 는 모두 멱등성 보장 — `consume_idempotent`(`run.processed_event` 합성 PK) + content_hash dedup (raw/crawl) + watermark (db_incremental). 같은 event 재처리 시 INSERT 무영향
+- [x] DLQ 메시지 UI 재실행 — `/v1/dead-letters/{id}/replay` + `frontend/DeadLetterQueue` (Phase 2.2.10)
+- [ ] OCR worker 동시성 5, CLOVA rate limit 초과 안 함 — 현재 `worker-ocr` threads=8, 운영 시 CLOVA 한도에 맞춰 조정 (운영팀 합류 후 키 발급 후 측정)
 
 ---
 
 ## 2.5 이월/대체 의사결정 로그 (Phase 2에서 확정)
 
-Phase 2 진입 시점에 다음 중 하나로 확정하고 ADR 기록:
+ADR 로 정식 기록 — Phase 2.6 마무리에서 일괄 정리.
 
-1. **임베딩 공급자**: HyperCLOVA X vs OpenAI vs 로컬 모델.
-   - 기본 권장: **HyperCLOVA X** (NCP 통합, 한국어 특화, 비용 안정).
-2. **벡터 검색**: **pgvector** vs 외부 벡터 DB.
-   - NCP PG의 pgvector 지원 확인 후 가능하면 pgvector.
-3. **OCR 기본 엔진**: CLOVA 우선 확정.
-4. **Orchestrator**: **Apache Airflow 2.9+ 확정.** Executor는 Phase 2는 LocalExecutor, Phase 4에서 CeleryExecutor로 전환 검토.
+1. **임베딩 공급자**: **HyperCLOVA Embedding-Med 채택** (ADR-0005). 1536 dim, NCP 통합.
+2. **벡터 검색**: **pgvector(1536) + IVFFLAT cosine** 채택 (ADR-0005). NCP Cloud DB PG 지원.
+3. **OCR 기본 엔진**: **CLOVA OCR Document V2** 우선 + Upstage 폴백 (Phase 2.2.4). circuit breaker 5fail/30s.
+4. **Orchestrator**: **Apache Airflow 2.10 LocalExecutor** 확정 (Phase 2.2.3 chassis). CeleryExecutor 전환은 Phase 4 NKS.
+5. **Outbox 트리거**: **Actor enqueue** 채택 (ADR-0004). Phase 4 Debezium 검토 트리거 = Kafka 도입 트리거와 동기.
+6. **Crowd 검수**: **Phase 2 placeholder + Phase 4 정식 분리** (ADR-0006). `run.crowd_task → crowd.task` 마이그레이션 경로 명시.
+
+---
+
+## 2.6 문서화 & 마무리 (Phase 2 종결 — 2026-04-25)
+
+Phase 2 commit 흐름을 운영팀 합류 시 그대로 따라할 수 있도록 정리.
+
+- [x] `docs/phases/CURRENT.md` 를 Phase 3 로 전환 — Phase 2 DoD 7종 + 추가 chassis 모두 ✅, Phase 3 진입 조건/대상 모듈(workflow_definition / pipeline_run / node_run / SQL Studio / Visual ETL) 명시 ✅ 2026-04-25
+- [x] ADR 3건 추가 ✅ 2026-04-25
+  - `docs/adr/0004-outbox-publisher-trigger-strategy.md` — Actor enqueue / 폴링 catch-up / Phase 4 Debezium
+  - `docs/adr/0005-standardization-3-stage-matching.md` — pg_trgm 0.7 → HyperCLOVA 0.85 → crowd
+  - `docs/adr/0006-crowd-task-placeholder-vs-formal-review.md` — Phase 2 placeholder, Phase 4 분리
+- [x] `docs/dev/PHASE_2_E2E.md` — 11단계 시나리오 (수집 → outbox publisher → transform/OCR/표준화/price_fact → Crowd 큐 → DLQ replay → Runtime 모니터 → Loki LogQL → Sentry) ✅ 2026-04-25
+- [x] `README.md` 갱신 — 상태 "Phase 1·2 완료 → Phase 3 진입", URL 표(Loki 3100/Airflow 8080/Sentry placeholder), 기동 절차 `make airflow-up`/`worker-up`, 운영자 화면 메뉴 표 ✅ 2026-04-25
+- [x] `PHASE_3_VISUAL_ETL.md` 3.2.0 "의존성 사전점검" — 마이그레이션 예약(0015~0017), ORM 위치(`app/models/wf.py`), 노드 6종 위치(`app/domain/nodes/`), 기존 chassis 재사용 매핑 + 신규 의존성 (`sqlglot`, `@xyflow/react`) ✅ 2026-04-25
+
+**다음 단계 — Phase 3 진입**
+- [ ] Phase 3.2.1 Pipeline Runtime — `migrations/0015_workflow_definition`, `app/models/wf.py`, `app/domain/pipeline_runtime.py`, 노드 actor 디스패치
+- [ ] 운영팀 합류 직전(2026-08 말) 마지막 회귀 — PHASE_1_E2E + PHASE_2_E2E 를 한 번 통째로 돌려 Grafana 패널 / Sentry 이슈 분포 / Crowd 큐 시연 점검

@@ -2,7 +2,7 @@
 
 농축산물 가격 데이터를 다채널에서 수집 → AI 표준코드로 정규화 → 외부 서비스에 제공하는 플랫폼.
 
-**상태:** Phase 1 — Core Foundation **완료** (2026-04-25). Phase 2 — Pipeline Runtime 진입.
+**상태:** Phase 1 — Core Foundation **완료** + Phase 2 — Pipeline Runtime **완료** (2026-04-25). Phase 3 — Visual ETL Designer + SQL Studio 진입.
 
 ---
 
@@ -11,78 +11,114 @@
 1. [`CLAUDE.md`](CLAUDE.md) — Claude 작업 원칙, 핵심 맥락
 2. [`docs/README.md`](docs/README.md) — 전체 문서 목차
 3. [`docs/phases/CURRENT.md`](docs/phases/CURRENT.md) — 현재 Phase / 타임라인
-4. [`docs/dev/PHASE_1_E2E.md`](docs/dev/PHASE_1_E2E.md) — Phase 1 동작 검증 시나리오 (운영팀 9월 합류 시 가장 먼저 따라할 문서)
+4. [`docs/dev/PHASE_1_E2E.md`](docs/dev/PHASE_1_E2E.md) — Phase 1 동작 검증 시나리오 (10단계, 30분)
+5. [`docs/dev/PHASE_2_E2E.md`](docs/dev/PHASE_2_E2E.md) — Phase 2 자동 파이프라인 + 운영자 화면 검증 (11단계, 60분)
 
-## 로컬 기동 (Phase 1 완성본)
+## 로컬 기동 (Phase 1·2 완성본)
 
 ```bash
 # 1) 환경변수
 cp .env.example .env
+# (선택) Phase 2 외부 API 키 — APP_CLOVA_OCR_*, APP_HYPERCLOVA_API_KEY 등.
+# 키가 없어도 자동 파이프라인은 crowd_task placeholder 로 흘러 운영 가능.
 
-# 2) 인프라 + 관제 일괄 기동 (PG / Redis / MinIO / Prometheus / Grafana)
+# 2) 인프라 + 관제 + 로그 일괄 기동
+#    PG / Redis / MinIO / Prometheus / Grafana / Loki / Promtail
 make dev-up
-# 또는: docker compose -f infra/docker-compose.yml --env-file .env up -d
+make airflow-up    # Airflow 2.10 LocalExecutor (init → webserver → scheduler)
+make worker-up     # Worker 5종 컨테이너 빌드+기동
+                   #   (outbox / ocr / transform / price_fact / db_incremental / crawler)
 
-# 3) DB 마이그레이션
+# 3) DB 마이그레이션 (0001 ~ 0014 일괄 적용)
 make db-migrate
 
-# 4) Backend (FastAPI, 호스트 포트 8000)
+# 4) 부트스트랩 admin 사용자 (Phase 1.2.11)
 cd backend
-uv sync
-uv run uvicorn app.main:app --reload --port 8000
+uv run python ../scripts/seed_admin.py
 
-# 5) Frontend (Vite, 호스트 포트 5173)
-cd ../frontend
-pnpm install
-pnpm dev
+# 5) Backend / Frontend 기동 (각 별도 터미널)
+uv run uvicorn app.main:app --reload --port 8000
+cd ../frontend && pnpm install && pnpm dev   # http://localhost:5173
 ```
 
 ### 기동 후 확인 URL
 
 | 대상 | URL | 인증 |
 |---|---|---|
-| Backend OpenAPI | http://localhost:8000/docs | 없음 (Phase 1) |
+| Backend OpenAPI | http://localhost:8000/docs | 없음 |
 | Backend `/metrics` | http://localhost:8000/metrics | 없음 — 내부 scrape 전용 |
 | Backend `/healthz`, `/readyz` | http://localhost:8000/healthz | 없음 |
 | Web Portal | http://localhost:5173 | 로그인 (admin / admin) |
 | Prometheus | http://localhost:9090 | 없음 |
-| **Grafana 대시보드** | **http://localhost:3000** | **admin / admin** (`.env` 의 `GRAFANA_ADMIN_PASSWORD` 변경 권장) |
+| **Grafana — Core (Phase 1)** | http://localhost:3000/d/pipeline-hub-core | admin / admin |
+| **Grafana — Runtime (Phase 2)** | http://localhost:3000/d/pipeline-hub-runtime | admin / admin |
+| **Loki (Grafana Explore)** | http://localhost:3000/explore | admin / admin |
+| Loki (직접) | http://localhost:3100/ready | 없음 — Promtail 만 |
+| **Airflow** | http://localhost:8080 | airflow / airflow (`AIRFLOW_ADMIN_PASSWORD` 변경) |
 | MinIO Console | http://localhost:9001 | minioadmin / minioadmin |
+| **Sentry** (DSN 설정 시) | `APP_SENTRY_DSN` 의 NCP Sentry 인스턴스 | 별도 SSO |
 
-Grafana 진입 후 좌측 Dashboards → "Pipeline Hub — Core" 가 자동 프로비저닝되어 있다 (9 패널: 수집 QPS, dedup율, 24h 누적, p95 by path, 5xx rate, source × kind, outbox PENDING placeholder, DB pool).
+> 📸 Grafana 대시보드 스크린샷 자리 — 첫 데이터 적재 후 캡처 예정 (`docs/ops/MONITORING.md` 변경 이력 참조).
 
-> 📸 Grafana 대시보드 스크린샷 자리 — 첫 데이터 적재 후 캡처 예정 (`docs/ops/MONITORING.md` 7. 변경 이력에 함께 기록).
+### Phase 1·2 동작 검증
 
-### 동작 검증 (E2E 10단계)
+| 단계 | 시나리오 | 시간 |
+|---|---|---|
+| Phase 1 | [`docs/dev/PHASE_1_E2E.md`](docs/dev/PHASE_1_E2E.md) — 수집 API + dedup + outbox + 관제 | ~30분 |
+| Phase 2 | [`docs/dev/PHASE_2_E2E.md`](docs/dev/PHASE_2_E2E.md) — 자동 파이프라인(OCR→표준화→price_fact) + Crowd 큐 + DLQ replay + Loki/Sentry | ~60분 |
 
-수집 API 가 정상 동작하고 dedup·outbox·메트릭이 끝까지 흐르는지 확인하려면 **[`docs/dev/PHASE_1_E2E.md`](docs/dev/PHASE_1_E2E.md)** 의 1~10 시나리오를 그대로 따라가면 된다.
+### 운영자 Web Portal 화면
 
-자세한 단계별 할 일은 [`docs/phases/PHASE_1_CORE.md`](docs/phases/PHASE_1_CORE.md), 다음 단계는 [`docs/phases/PHASE_2_RUNTIME.md`](docs/phases/PHASE_2_RUNTIME.md).
+로그인 후 좌측 Sidebar 메뉴:
+
+| 메뉴 | 권한 | Phase | 용도 |
+|---|---|---|---|
+| 대시보드 | 전체 | 1.2.9 | 요약 메트릭 |
+| 데이터 소스 | 전체 | 1.2.5 | 소스 등록/수정 |
+| 수집 작업 | 전체 | 1.2.8 | ingest_job 이력 |
+| 원천 데이터 | 전체 | 1.2.8 | raw_object 조회 + presigned 다운로드 |
+| **검수 큐** | REVIEWER+ | 2.2.10 | crowd_task 상태 전이 (placeholder — Phase 4 정식) |
+| **Dead Letter** | ADMIN | 2.2.10 | run.dead_letter replay 도구 |
+| **Runtime 모니터** | 전체 | 2.2.10 | Grafana Runtime 대시보드 임베드 |
+| 사용자 관리 | ADMIN | 1.2.4 | RBAC |
+
+자세한 단계별 할 일은 [`docs/phases/PHASE_1_CORE.md`](docs/phases/PHASE_1_CORE.md), [`docs/phases/PHASE_2_RUNTIME.md`](docs/phases/PHASE_2_RUNTIME.md), 다음 단계는 [`docs/phases/PHASE_3_VISUAL_ETL.md`](docs/phases/PHASE_3_VISUAL_ETL.md).
 
 ## 폴더 구조
 
 ```
 datapipeline/
 ├── CLAUDE.md                      # Claude 진입점
-├── Makefile                       # make dev-up / db-migrate / test 등
+├── Makefile                       # dev-up / db-migrate / worker-up / airflow-up 등
 ├── docs/                          # 설계 문서 + ADR + 운영/개발 가이드
-│   ├── adr/                       # 0001 PG 드라이버 듀얼 / 0002 Object Storage / 0003 Outbox+content_hash
+│   ├── adr/                       # 0001~0006 (드라이버 / Storage / Outbox / 트리거 / 표준화 / Crowd)
 │   ├── ops/MONITORING.md          # Prometheus·Grafana·audit 운영 가이드
-│   └── dev/PHASE_1_E2E.md         # Phase 1 동작 검증 시나리오
-├── backend/                       # FastAPI + SQLAlchemy 2.0 + Alembic
-│   ├── app/api/v1/                # 라우터 (auth, sources, ingest, jobs, raw)
-│   ├── app/domain/                # 도메인 로직 (ingest, sources, ...)
-│   ├── app/core/                  # 미들웨어 (logging, metrics, access_log, request_context)
-│   ├── app/integrations/          # 외부 SDK 격리 (Phase 2: clova, upstage)
-│   └── tests/                     # unit + integration (실 PG 90+/MinIO 15+)
-├── frontend/                      # React 18 + Vite + Tailwind + shadcn-style
-├── migrations/                    # Alembic
+│   ├── airflow/INTEGRATION.md     # Airflow vs Dramatiq vs Visual ETL 책임 분담
+│   └── dev/{PHASE_1_E2E,PHASE_2_E2E}.md  # 단계별 검증 시나리오
+├── backend/                       # FastAPI + SQLAlchemy 2.0 + Alembic + Dramatiq
+│   ├── app/api/v1/                # 라우터 (auth, sources, ingest, jobs, raw, crowd, dead_letters)
+│   ├── app/domain/                # 도메인 로직 (ingest, ocr, standardization, transform,
+│   │                              #   price_fact, crawl, db_incremental, idempotent_consume, outbox)
+│   ├── app/core/                  # 미들웨어 (logging, metrics, access_log, request_context,
+│   │                              #   sentry, events, event_topics)
+│   ├── app/integrations/          # 외부 SDK 격리 (clova, upstage, hyperclova,
+│   │                              #   object_storage, sourcedb, crawler, ocr)
+│   ├── app/workers/               # Dramatiq actor 6종 + DLQ middleware + pipeline_actor
+│   └── tests/                     # unit + integration (실 PG / Redis / MinIO)
+├── frontend/                      # React 18 + Vite + Tailwind + shadcn-style + TanStack Query
+│   └── src/pages/                 # Login/Dashboard/Sources/Jobs/RawObjects/Users
+│                                  # + CrowdTaskQueue/DeadLetterQueue/RuntimeMonitor (Phase 2.2.10)
+├── migrations/                    # Alembic 0001 ~ 0014
 ├── infra/
-│   ├── docker-compose.yml         # PG / Redis / MinIO / Prometheus / Grafana
+│   ├── docker-compose.yml         # PG / Redis / MinIO / Prometheus / Grafana / Loki / Promtail
+│   │                              #   / Airflow init+webserver+scheduler / Worker 6종
 │   ├── prometheus/prometheus.yml
-│   └── grafana/{provisioning,dashboards}/
-├── scripts/                       # 운영/시드 스크립트
-└── tests/                         # 레포 전체 E2E (Phase 2~)
+│   ├── grafana/{provisioning,dashboards}/  # core.json (Phase 1) + runtime.json (Phase 2)
+│   ├── loki/{config.yml,promtail.yml}
+│   ├── airflow/{dags,plugins,requirements,logs}/
+│   └── postgres/init/             # 첫 기동 시 1회 SQL (airflow DB 등)
+├── scripts/                       # seed_admin.py (운영팀 합류 시 1회 실행)
+└── tests/                         # 레포 전체 E2E (Phase 3~)
 ```
 
 ## 주요 기술 스택

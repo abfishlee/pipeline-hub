@@ -42,6 +42,51 @@
 
 ## 3.2 작업 단위 체크리스트
 
+### 3.2.0 의존성 사전점검 (Phase 2 완료 시점 — 2026-04-25 확인)
+
+Phase 2 의 chassis 위에 얹는 항목이라 신규 의존성보단 *위치 결정* 위주.
+
+**필요 마이그레이션 (예약 번호)** — 0014 까지 사용했고, 다음 가용 번호는 `0015`.
+
+| 번호 | 파일 | 책임 |
+|---|---|---|
+| 0015 | `migrations/versions/0015_workflow_definition.py` | `wf` schema 신설 + `wf.workflow_definition` (PUBLISHED 버전) + `wf.node_definition` + `wf.edge_definition` (`from_node_id`, `to_node_id`, `condition_expr` JSON) |
+| 0016 | `migrations/versions/0016_pipeline_run.py` | `run.pipeline_run` (RANGE 파티션 by run_date) + `run.node_run` (FK pipeline_run + node_definition_id, 상태머신 PENDING/READY/RUNNING/SUCCESS/FAILED/SKIPPED) |
+| 0017 | `migrations/versions/0017_sql_studio.py` | `wf.sql_query` (사용자 작성 쿼리) + `wf.sql_query_version` (immutable) + `wf.sql_run` (sandbox 실행 이력) |
+
+**ORM 모델 추가 위치**
+
+| 파일 | 추가할 클래스 |
+|---|---|
+| `backend/app/models/wf.py` (신규) | `WorkflowDefinition`, `NodeDefinition`, `EdgeDefinition`, `SqlQuery`, `SqlQueryVersion`, `SqlRun` |
+| `backend/app/models/run.py` (확장) | `PipelineRun`, `NodeRun` (기존 `IngestJob`/`EventOutbox`/`ProcessedEvent`/`DeadLetter`/`CrowdTask` 와 같은 schema) |
+
+**도메인 / API / Frontend 추가 위치 (CURRENT.md 의 "Phase 3 대상 모듈" 표 참조)**
+
+- `backend/app/domain/pipeline_runtime.py` — DAG 실행기 (위상 정렬 + 노드 actor 디스패치 + node_run 상태 갱신)
+- `backend/app/domain/nodes/` — 노드 6종 구현 (`source_api.py`, `sql_transform.py`, `dq_check.py`, `dedup.py`, `load_master.py`, `notify.py`). 각 파일은 `Node Protocol` 을 만족하는 단일 클래스/함수.
+- `backend/app/api/v1/pipelines.py` + `sql_studio.py`
+- `backend/app/integrations/sqlglot_validator.py` — sqlglot 으로 SQL AST 분석. 참조 schema 화이트리스트(`mart`, `stg`) + 위험 함수(`pg_read_*`, `COPY`) 차단.
+- `frontend/src/pages/{PipelineDesigner,SqlStudio,PipelineRunDetail}.tsx`
+
+**기존 자산 재사용 (Phase 1·2 chassis)**
+
+| Phase 3 사용 | Phase 1·2 자산 |
+|---|---|
+| 노드 actor 트리거 | `app/workers/pipeline_actor` 데코레이터 (Phase 2.2.1) |
+| 노드 상태 SSE | Redis Pub/Sub — `app/core/events.py` 의 `RedisStreamPublisher` 패턴 (Phase 2.2.2) |
+| sqlglot sandbox 실행 권한 | `require_roles("ADMIN", "APPROVER")` (Phase 1.2.4) |
+| node_run 실행 이력 → mart 반영 | `app/domain/price_fact.py` 의 upsert 헬퍼 (Phase 2.2.6) 재사용 |
+| 노드 실패 → DLQ 자동 격리 | `DeadLetterMiddleware` (Phase 2.2.1) — 노드 actor 도 같은 broker 위에서 동작 |
+
+**신규 의존성**
+
+- `sqlglot>=25.x` (SQL 정적 분석)
+- React Flow 는 frontend 에 추가 (`@xyflow/react`)
+
+다른 외부 SDK / DB 익스텐션은 추가 없음. ADR-0007 (sqlglot vs PostgreSQL EXPLAIN-only)
+은 Phase 3.2.4 SQL Studio 진입 시 작성.
+
 ### 3.2.1 Pipeline Runtime [W1~W2]
 
 - [ ] `app/domain/pipeline.py` — DAG 실행기
