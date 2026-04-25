@@ -8,10 +8,15 @@ Phase 1.2.3 진행 중 — 모델은 migration 파일과 1:1 로 추가됨.
 
 from __future__ import annotations
 
+from app.models import ctl as ctl
 from app.models.base import Base
 
-# Sub-module imports — Alembic 의 target_metadata 가 모든 테이블을 인식하도록.
-# Migration 추가 시 import 도 함께 추가한다.
-# from app.models import ctl, raw, run, audit, mart, stg
+# Sub-module imports — Alembic target_metadata 가 모든 테이블을 인식.
+# 향후 추가:
+#   from app.models import raw   (0003)
+#   from app.models import run   (0004)
+#   from app.models import audit (0005)
+#   from app.models import mart  (0006)
+#   from app.models import stg   (0007)
 
 __all__ = ["Base"]

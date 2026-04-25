@@ -68,6 +68,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101"]
+# SQLAlchemy 의 __table_args__ 는 mutable dict/tuple 형태가 표준.
+"app/models/**/*.py" = ["RUF012"]
 
 [tool.ruff.format]
 quote-style = "double"
