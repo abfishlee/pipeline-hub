@@ -156,13 +156,31 @@
 
 ### 2.2.6 가격 팩트 자동 반영 [W5]
 
-- [ ] `app/domain/price_ingest.py`:
-  - `stg.price_observation` → `mart.price_fact` 변환
-  - `unit_price_per_kg` 계산
-  - `seller_master` 없으면 자동 생성 or UNMAPPED 처리
-- [ ] Outbox 이벤트 `staging.ready` → transform worker 처리
-- [ ] 일별 집계 배치: `mart.price_daily_agg` 재계산 (UPSERT)
-- [ ] 이상치 탐지: median ± 5σ 초과 시 `dq.quality_result` 기록 + 집계 제외
+**기반 (이번 commit) — staging.ready → mart.price_fact + confidence 게이트 + crowd_task placeholder**
+- [x] Migration `0013_price_fact_monthly_partitions` — `mart.price_fact_2026_05 ~ 2026_12` 8개 월 RANGE 파티션 (BRIN/product/seller 인덱스 부모로부터 자동 상속) ✅ 2026-04-25
+- [x] `app/domain/price_fact.py::propagate_price_fact` — `stg.price_observation`(raw_object_id) → `mart.{retailer,seller,product}_master` manual upsert (NULLS DISTINCT 회피, IS NOT DISTINCT FROM 매칭) → `mart.price_fact` INSERT ✅ 2026-04-25
+- [x] Confidence 게이트 ✅ 2026-04-25
+  - ≥ 95 → 즉시 INSERT (outcome=`insert`)
+  - 80~95 → INSERT + `_is_sampled(obs_id, sample_rate)` 결정적 5% 샘플링 → `crowd_task("price_fact_sample_review")` (outcome=`sampled`)
+  - < 80 → 미적재 + `crowd_task("price_fact_low_confidence")` (outcome=`held`)
+  - std_code NULL → skip (transform 단계에서 이미 crowd_task 발급됨, outcome=`skipped`)
+- [x] `app/workers/price_fact_worker.py::process_price_fact_event` actor (queue=price_fact, max_retries=3, time_limit=120s, idempotent consumer="price-fact-worker") ✅ 2026-04-25
+- [x] `event_topics`: `EventTopic.PRICE_FACT` + `PriceFactReadyPayload`(inserted/sampled/held/skipped + price_fact_ids 배열) ✅ 2026-04-25
+- [x] 메트릭 — `price_fact_inserts_total{outcome}`, `price_fact_observed_to_inserted_seconds` histogram (수집 → mart 반영 latency, SLA 60s 추적) ✅ 2026-04-25
+- [x] Settings — `price_fact_sample_rate`(0.05). `.env`/`.env.example` 동기화 ✅ 2026-04-25
+- [x] `docker-compose worker-price-fact` 서비스 (queue=price_fact, threads=8) ✅ 2026-04-25
+- [x] 통합 테스트 ✅ 2026-04-25 — `tests/integration/test_price_fact_pipeline.py` 4건
+  - 98% confidence 2건 동일 retailer/seller/std_code → product_master/seller/retailer 각 1행만 (upsert idempotent), price_fact 2건, outbox `price_fact.ready` 1건
+  - 85% confidence + sample_rate=1.0 → INSERT + `crowd_task("price_fact_sample_review")` + crowd outbox
+  - 70% confidence → 미적재 + `crowd_task("price_fact_low_confidence")` (PENDING)
+  - std_code NULL → skipped, price_fact 미적재, price_fact.ready outbox 만 발행
+
+**다음 sub-phase 로 분리**
+- [ ] `unit_price_per_kg` 계산 (weight_g 가 있는 row 만) — Phase 2.2.6.1
+- [ ] 일별 집계 배치: `mart.price_daily_agg` UPSERT — Phase 2.2.3 의 시스템 DAG `system_daily_agg` 와 결합 (Phase 2.2.6.2)
+- [ ] 이상치 탐지 (median ± 5σ) → `dq.quality_result` 기록 + 집계 제외 — Phase 2.2.8 (DQ)
+- [ ] `mart.product_mapping` 적재 (확정 매핑 → 다음 같은 raw 라벨 캐시) — Phase 2.2.6.3
+- [ ] retailer/seller 의 retailer_type 자동 분류 (현재 기본값 'ONLINE') — Phase 4 운영팀 보정 단계
 
 ### 2.2.7 DB-to-DB 커넥터 [W5~W6]
 

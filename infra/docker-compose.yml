@@ -195,6 +195,24 @@ services:
         "transform",
       ]
 
+  worker-price-fact:
+    <<: *worker-common
+    container_name: dp_worker_price_fact
+    environment:
+      <<: *worker-common-env
+      APP_PRICE_FACT_SAMPLE_RATE: ${APP_PRICE_FACT_SAMPLE_RATE:-0.05}
+    command:
+      [
+        "dramatiq",
+        "app.workers",
+        "--processes",
+        "1",
+        "--threads",
+        "8",
+        "--queues",
+        "price_fact",
+      ]
+
   grafana:
     image: grafana/grafana:11.3.0
     container_name: dp_grafana

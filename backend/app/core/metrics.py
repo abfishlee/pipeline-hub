@@ -147,6 +147,23 @@ hyperclova_embedding_duration_seconds = Histogram(
     buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
 )
 
+# ---------------------------------------------------------------------------
+# 가격 팩트 (Phase 2.2.6)
+# ---------------------------------------------------------------------------
+price_fact_inserts_total = Counter(
+    "price_fact_inserts_total",
+    "가격 팩트 적재 outcome (insert=즉시 / sampled=INSERT+샘플링 검수 / held=보류 / skipped=std_code 없음).",
+    labelnames=("outcome",),
+)
+
+# 수집(raw 도착) → mart.price_fact 반영까지의 latency. SLA 60s 추적.
+# `observed_at` 가 클라이언트 시각이 아닌 서버 도달 시각이라 이 분포가 곧 파이프라인 lag.
+price_fact_observed_to_inserted_seconds = Histogram(
+    "price_fact_observed_to_inserted_seconds",
+    "수집 → mart.price_fact INSERT 까지 경과 시간(초).",
+    buckets=(0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0),
+)
+
 
 # ---------------------------------------------------------------------------
 # HTTP 미들웨어
@@ -222,6 +239,8 @@ __all__ = [
     "ocr_confidence",
     "ocr_duration_seconds",
     "ocr_requests_total",
+    "price_fact_inserts_total",
+    "price_fact_observed_to_inserted_seconds",
     "standardization_confidence",
     "standardization_requests_total",
 ]

@@ -28,6 +28,7 @@ class EventTopic(StrEnum):
     CROWD_TASK = "crowd_task"
     PRICE_OBSERVATION = "price_observation"
     STAGING = "staging"
+    PRICE_FACT = "price_fact"
 
 
 class StreamEnvelope(BaseModel):
@@ -111,6 +112,23 @@ class StagingReadyPayload(BaseModel):
     crowd_task_count: int = 0  # 매핑 미달로 발급된 crowd_task 수.
 
 
+class PriceFactReadyPayload(BaseModel):
+    """`price_fact.ready` 이벤트 — Phase 2.2.6 가격 팩트 적재 결과.
+
+    confidence 게이트 outcome 별 카운트. inserted+sampled+held+skipped == 처리 시도 row 수.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="ignore")
+
+    raw_object_id: int
+    partition_date: str
+    inserted_count: int = 0  # std_confidence ≥ 95 또는 80~95 모두 INSERT.
+    sampled_count: int = 0  # 80~95 + 5% 샘플링 → crowd_task("price_fact_sample_review").
+    held_count: int = 0  # < 80 → INSERT 없이 crowd_task("price_fact_low_confidence").
+    skipped_count: int = 0  # std_code NULL — 이미 표준화 단계에서 crowd_task 발급됨.
+    price_fact_ids: list[int] = Field(default_factory=list)
+
+
 def parse_message(fields: dict[str, str]) -> StreamEnvelope:
     """Stream message fields → 타입화 envelope.
 
@@ -139,6 +157,7 @@ __all__ = [
     "CrowdTaskCreatedPayload",
     "EventTopic",
     "OcrCompletedPayload",
+    "PriceFactReadyPayload",
     "RawObjectCreatedPayload",
     "StagingReadyPayload",
     "StreamEnvelope",

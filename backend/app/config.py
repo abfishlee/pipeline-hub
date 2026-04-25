@@ -97,6 +97,10 @@ class Settings(BaseSettings):
     std_embedding_threshold: float = 0.85
     embedding_dim: int = 1536
 
+    # ---- price_fact 게이트 (Phase 2.2.6) ----
+    # 80~95 confidence 구간의 row 중 이 비율만 crowd_task("price_fact_sample_review") 적재.
+    price_fact_sample_rate: float = 0.05
+
     # ---- 계산 프로퍼티 ----
     @property
     def cors_origin_list(self) -> list[str]:

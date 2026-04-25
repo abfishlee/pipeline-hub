@@ -151,7 +151,12 @@ def get_broker() -> dramatiq.Broker:
 get_broker()
 
 # 모든 actor 를 broker 에 등록 — 하위 모듈 임포트 자체가 등록 effect.
-from app.workers import ocr_worker, outbox_publisher, transform_worker  # noqa: E402
+from app.workers import (  # noqa: E402
+    ocr_worker,
+    outbox_publisher,
+    price_fact_worker,
+    transform_worker,
+)
 
 __all__ = [
     "DeadLetterMiddleware",
@@ -159,5 +164,6 @@ __all__ = [
     "ocr_worker",
     "outbox_publisher",
     "pipeline_actor",
+    "price_fact_worker",
     "transform_worker",
 ]
