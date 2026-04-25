@@ -1,0 +1,8 @@
+# Phase 2.2.3 Airflow 추가 provider — apache/airflow:2.10.x 이미지에 포함되지 않은 패키지만.
+# 대부분의 provider 는 이미지에 들어 있으나, 명시적 핀으로 운영(NKS) 이관 시 재현성 확보.
+#
+# 변경 시 docker-compose.yml 의 _PIP_ADDITIONAL_REQUIREMENTS 가 자동 재설치 (개발용).
+# 운영(NKS) 에서는 별도 빌드 이미지를 만들고 이 파일을 COPY 한다.
+
+apache-airflow-providers-postgres>=5.13,<6
+apache-airflow-providers-redis>=3.8,<4

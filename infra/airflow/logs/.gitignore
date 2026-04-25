@@ -1,0 +1,4 @@
+# Airflow scheduler/dag/task 로그 — 기동 시 호스트로 마운트되어 폭증 가능.
+# 개발 환경에서는 git ignore 만 (운영은 별도 PVC).
+*
+!.gitignore

@@ -37,6 +37,13 @@ help:
 	@echo "  make worker-logs    - worker-outbox 실시간 로그"
 	@echo "  make worker-local   - 로컬(uv)에서 dramatiq 직접 실행 (디버깅)"
 	@echo ""
+	@echo "Airflow (Phase 2.2.3+):"
+	@echo "  make airflow-up       - airflow-init → webserver/scheduler 일괄 기동"
+	@echo "  make airflow-down     - airflow 컨테이너만 종료 (volume 보존)"
+	@echo "  make airflow-logs     - airflow 실시간 로그"
+	@echo "  make airflow-dag-list - 등록된 DAG 목록"
+	@echo "  make airflow-cli A='dags trigger system_hello_pipeline'  - 임의 CLI 실행"
+	@echo ""
 	@echo "처음이라면:"
 	@echo "  1) cp .env.example .env"
 	@echo "  2) make dev-up"
@@ -151,3 +158,32 @@ worker-logs:
 .PHONY: worker-local
 worker-local: .env
 	$(DRAMATIQ_LOCAL) app.workers --processes 1 --threads 4
+
+# ============================================================================
+# Airflow (LocalExecutor) — Phase 2.2.3
+# ============================================================================
+# 별도 컨테이너 4종(airflow-init/webserver/scheduler) — postgres/redis 와 같은
+# compose 스택. 메타DB = postgres/airflow (postgres init script 가 자동 생성).
+
+.PHONY: airflow-up
+airflow-up: .env
+	$(COMPOSE) up -d airflow-init airflow-webserver airflow-scheduler
+	@echo "✅  Airflow 기동 — http://localhost:$${AIRFLOW_HOST_PORT:-8080}  ($${AIRFLOW_ADMIN_USER:-airflow} / $${AIRFLOW_ADMIN_PASSWORD:-airflow})"
+
+.PHONY: airflow-down
+airflow-down:
+	$(COMPOSE) stop airflow-webserver airflow-scheduler airflow-init
+
+.PHONY: airflow-logs
+airflow-logs:
+	$(COMPOSE) logs -f airflow-webserver airflow-scheduler
+
+.PHONY: airflow-dag-list
+airflow-dag-list:
+	$(COMPOSE) exec airflow-scheduler airflow dags list
+
+# 임의 CLI: make airflow-cli A='dags trigger system_hello_pipeline'
+.PHONY: airflow-cli
+airflow-cli:
+	@if [ -z "$(A)" ]; then echo "Usage: make airflow-cli A='dags list'"; exit 1; fi
+	$(COMPOSE) exec airflow-scheduler airflow $(A)

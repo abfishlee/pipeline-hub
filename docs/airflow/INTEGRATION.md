@@ -133,6 +133,44 @@ Kafka가 들어오면 Redis Streams와 어떻게 겹치는가?
 
 즉 Kafka는 "DB 변경 로그 전용 특수 버스"로 도입. 애플리케이션 이벤트까지 Kafka로 몰면 운영 복잡도만 올라가고 이득 없음.
 
+## 6.5 로컬 기동 (Phase 2.2.3 ~)
+
+`make airflow-up` 한 줄이면 Airflow 가 main `docker compose` 스택에 합류한다.
+LocalExecutor 1프로세스 — 시스템 DAG 트래픽엔 충분하다 (수평 확장은 Phase 4 NKS 에서
+CeleryExecutor 로 전환).
+
+```bash
+make dev-up         # 인프라 + 관제
+make airflow-up     # airflow-init → webserver/scheduler 일괄 기동
+make airflow-logs   # 로그 follow
+```
+
+| URL | 인증 |
+|---|---|
+| http://localhost:8080 | `airflow` / `airflow` (`.env` 의 `AIRFLOW_ADMIN_PASSWORD` override 권장) |
+
+### Connections (자동 등록 — `airflow-init`)
+
+| Conn ID | 용도 | URI |
+|---|---|---|
+| `postgres_default` | 메인 애플리케이션 DB (`datapipeline`) | `postgresql://app:app@postgres:5432/datapipeline` |
+| `redis_default` | Redis Streams / Dramatiq 같은 인스턴스 | `redis://redis:6379/0` |
+
+Airflow metadata DB 는 별도 — `postgresql+psycopg2://app:app@postgres:5432/airflow` (postgres 첫 기동 시 `infra/postgres/init/01_create_airflow_db.sql` 가 생성).
+
+### DAG 작성 규칙 (Phase 2.2.3)
+
+이 프로젝트의 Airflow DAG 는 **시스템 DAG** 만 포함한다 (집계 / 파티션 / 아카이브 / DB-to-DB 증분 등). 사용자 정의 파이프라인은 Phase 3 Visual ETL 이 별도로 다룬다.
+
+- 파일/dag_id: `system_<purpose>` (예: `system_daily_agg`, `system_monthly_partition`).
+- tag: `["system", "phase-N"]` 최소.
+- owner: `platform` (운영팀 합류 후 팀 이름으로 갱신).
+- 외부 호출은 Operator / Hook / `connections` 사용 — DAG 안에서 직접 `requests.get` 금지 (`7. 금지 사항` 참조).
+- 새 시스템 DAG 추가 시 `infra/airflow/dags/<dag>.py` 작성 → 재기동 없이 scheduler 가 1분 내 인식.
+- Phase 2 의 Hello smoke test: `infra/airflow/dags/hello_pipeline.py` (`system_hello_pipeline` 1회 손으로 trigger 해보면 BashOperator + PythonOperator 1개씩 동작).
+
+운영(NKS) 이관 시: provider 패키지는 `infra/airflow/requirements/airflow.txt` 핀을 그대로 베이스 이미지에 COPY → `_PIP_ADDITIONAL_REQUIREMENTS` 의존 제거.
+
 ## 7. 금지 사항
 
 - ❌ Dramatiq actor 안에서 `time.sleep()` 길게 쓰기 (→ Airflow Sensor 써라)

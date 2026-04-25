@@ -24,6 +24,8 @@ services:
       - "${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # 첫 기동 시 1회만 실행 — 추가 DB(airflow 등) / 확장 / 권한 부여 SQL.
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-datapipeline}"]
       interval: 5s
@@ -175,6 +177,99 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  # ----------------------------------------------------------------------
+  # Apache Airflow — Phase 2.2.3 (LocalExecutor)
+  # ----------------------------------------------------------------------
+  # 시스템 정기 배치 (집계, 파티션 생성, 아카이브, DB-to-DB 증분 등) 전담.
+  # 사용자 정의 파이프라인은 Phase 3 Visual ETL 이 별도로 처리.
+  # CeleryExecutor 전환은 Phase 4 NKS — 수평 확장 필요 시점.
+  x-airflow-common: &airflow-common
+    image: apache/airflow:2.10.4-python3.12
+    environment: &airflow-common-env
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__CORE__PARALLELISM: "16"
+      AIRFLOW__CORE__DAG_CONCURRENCY: "8"
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-fz1Iia1OQHs8ECpOMGiTm0Sd1mI0r9QlmTkKt2qMBqs=}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/airflow
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session"
+      AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+      # 메인 애플리케이션 DB / Redis 와 같은 클러스터 — Airflow 가 DAG 안에서 사용할 connection.
+      AIRFLOW_CONN_POSTGRES_DEFAULT: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-datapipeline}
+      AIRFLOW_CONN_REDIS_DEFAULT: redis://redis:6379/0
+      # 개발용 — provider 패키지 자동 설치. 운영(NKS) 은 별도 빌드 이미지로 대체.
+      _PIP_ADDITIONAL_REQUIREMENTS: "apache-airflow-providers-postgres>=5.13,<6 apache-airflow-providers-redis>=3.8,<4"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./airflow/logs:/opt/airflow/logs
+    user: "${AIRFLOW_UID:-50000}:0"
+    depends_on: &airflow-common-deps
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: dp_airflow_init
+    restart: "no"
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        set -euo pipefail
+        echo "[airflow-init] db migrate"
+        airflow db migrate
+        echo "[airflow-init] ensure admin user"
+        airflow users create \
+          --username "${AIRFLOW_ADMIN_USER:-airflow}" \
+          --password "${AIRFLOW_ADMIN_PASSWORD:-airflow}" \
+          --firstname Admin --lastname User \
+          --role Admin --email admin@example.local || true
+        # connections 등록 — 환경변수로도 노출되지만, 명시적 등록으로 UI/CLI 가시성 확보.
+        airflow connections add postgres_default \
+          --conn-uri "postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-datapipeline}" || true
+        airflow connections add redis_default \
+          --conn-uri "redis://redis:6379/0" || true
+        echo "[airflow-init] done"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: dp_airflow_webserver
+    restart: unless-stopped
+    command: webserver
+    depends_on:
+      <<: *airflow-common-deps
+      airflow-init:
+        condition: service_completed_successfully
+    ports:
+      - "${AIRFLOW_HOST_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: dp_airflow_scheduler
+    restart: unless-stopped
+    command: scheduler
+    depends_on:
+      <<: *airflow-common-deps
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$$(hostname)\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
 volumes:
   postgres_data:

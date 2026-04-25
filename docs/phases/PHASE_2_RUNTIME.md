@@ -65,26 +65,29 @@
 
 사용자가 처음 Airflow를 쓰는 경우, 먼저 `docs/airflow/LEARNING_GUIDE.md` 를 함께 읽으며 실습.
 
-- [ ] `infra/airflow/` 디렉토리 생성
-- [ ] `docker-compose.yml` 에 Airflow 서비스 추가:
-  - `airflow-init` (최초 1회 DB 초기화, admin user 생성)
-  - `airflow-webserver` (포트 8080)
-  - `airflow-scheduler`
-  - `airflow-worker` (Phase 2는 **LocalExecutor**로 시작)
-- [ ] Airflow metadata DB는 기존 PostgreSQL의 별도 스키마 `airflow_meta` 또는 별도 DB `airflow` 사용
-- [ ] `AIRFLOW__CORE__DAGS_FOLDER` → `/opt/airflow/dags` 볼륨 마운트 (`backend/airflow_dags/`)
-- [ ] Airflow connection 등록 스크립트:
-  - `datapipeline_pg` (운영 PG)
-  - `datapipeline_redis`
-  - `datapipeline_os` (NCP Object Storage, S3 호환)
-  - `clova_ocr` (HTTP connection)
-- [ ] Airflow Variables (환경별 설정):
-  - `APP_ENV`, `slack_alert_webhook`, `budget_threshold_ocr_krw`
-- [ ] 기본 시스템 DAG 작성 (`backend/airflow_dags/system/`):
-  - `daily_price_aggregation.py` — 매일 00:30, `price_daily_agg` UPSERT
-  - `monthly_partition_create.py` — 매월 1일 03:00, 다음 달 파티션 생성
-  - `hourly_outbox_watchdog.py` — 매시간, PENDING > 1000 시 Slack 알림
-  - `daily_raw_archive.py` — 매일 04:00, 30일 경과 raw 파일 archive 이동
+**기반 인프라 (이번 commit)** — 운영팀 9월 합류 시 그대로 켜고 쓸 수 있는 chassis.
+- [x] `infra/airflow/` 디렉토리 (`dags/`, `plugins/`, `requirements/`, `logs/.gitignore`) ✅ 2026-04-25
+- [x] `docker-compose.yml` 에 Airflow 2.10.4 LocalExecutor 4종 추가 ✅ 2026-04-25
+  - `airflow-init` (1회 db migrate + admin 생성 + connections add, restart=no)
+  - `airflow-webserver` (포트 8080, `/health` healthcheck)
+  - `airflow-scheduler` (`airflow jobs check` healthcheck)
+  - `airflow-worker` 는 **LocalExecutor** 라 생략 — CeleryExecutor 전환은 Phase 4 NKS
+- [x] Airflow metadata DB = `postgres/airflow` (메인 DB 와 같은 클러스터, 다른 데이터베이스). `infra/postgres/init/01_create_airflow_db.sql` 가 첫 기동 시 자동 생성 ✅ 2026-04-25
+- [x] `AIRFLOW__CORE__DAGS_FOLDER` → `/opt/airflow/dags` (호스트 `./infra/airflow/dags` 마운트) ✅ 2026-04-25
+- [x] Connection 등록 (compose env + airflow connections add) ✅ 2026-04-25
+  - `postgres_default` — 메인 애플리케이션 DB (`datapipeline`)
+  - `redis_default` — Redis Streams / Dramatiq 같은 인스턴스
+  - `datapipeline_os` (NCP/MinIO Object Storage, S3 호환) — Phase 2.2.6 archive DAG 도입 시 추가
+  - `clova_ocr` (HTTP) — Phase 2.2.4 OCR DAG 도입 시 추가
+- [x] Hello smoke test DAG: `system_hello_pipeline` (BashOperator + PythonOperator, @daily) — Airflow 기동/스케줄/오퍼레이터 동작 확인용 ✅ 2026-04-25
+- [x] `Makefile` `airflow-up/down/logs/dag-list/cli` 타겟 ✅ 2026-04-25
+- [x] `docs/airflow/INTEGRATION.md` 6.5 — 로컬 기동 절차 + connection 표 + DAG 작성 규칙(`system_*`) ✅ 2026-04-25
+
+**시스템 DAG (Phase 2.2.4~2.2.6 에서 분할 작성)** — 위 chassis 위에 얹는다.
+- [ ] `daily_price_aggregation.py` — 매일 00:30, `price_daily_agg` UPSERT (Phase 2.2.5 transform 도입 후)
+- [ ] `monthly_partition_create.py` — 매월 1일 03:00, 다음 달 파티션 생성
+- [ ] `hourly_outbox_watchdog.py` — 매시간, PENDING > 1000 시 Slack 알림
+- [ ] `daily_raw_archive.py` — 매일 04:00, 30일 경과 raw 파일 archive 이동 (Phase 2.2.6)
 - [ ] 수집 관련 DAG (`backend/airflow_dags/ingest/`):
   - `ingest_kamis.py` — aT KAMIS 일별 가격 Pull (매일 06:00)
   - `ingest_db_incremental.py` — DB-to-DB 증분 (매 10분)
@@ -92,6 +95,7 @@
 - [ ] **Sensor 활용**:
   - `RawDataArrivalSensor` (custom) — `run.event_outbox` 에 특정 이벤트 도착 감시
   - `DQHoldSensor` — `run.pipeline_run.status='ON_HOLD'` 관찰, 승인 시 다음 태스크 진행
+- [ ] Airflow Variables: `APP_ENV`, `slack_alert_webhook`, `budget_threshold_ocr_krw`
 - [ ] Airflow UI 권한: admin 1명 + OPERATOR role 읽기 계정
 - [ ] DAG 단위 테스트: `pytest` + `airflow dags test` 명령어 활용
 - [ ] 운영 문서: `docs/airflow/` 에 DAG 카탈로그 유지
