@@ -10,6 +10,130 @@
 
 ---
 
+## 4.0 Phase 4 진입 게이트 (2026-04-26 기록)
+
+본 섹션은 Phase 4 wrap-up (2026-04-26) 시점에 정리한 진입 조건 + 첫 sub-phase task +
+운영팀 onboarding 계획. Phase 1~3 가 모두 같은 날(2026-04-26) 완료된 상태에서 4개월+
+의 마진을 활용한 사전 준비.
+
+### 4.0.1 필수 선결 항목 (Phase 3 의존성)
+
+Phase 4 진입 전 모두 확인해야 하는 Phase 3 산출물:
+
+- [x] `wf.workflow_definition.schedule_cron` + `schedule_enabled` 필드 (Phase 3.2.7)
+  → Phase 4.0.4 Airflow DAG 이 polling 대상으로 활용.
+- [x] `wf.pipeline_release` 이력 (Phase 3.2.6) → Phase 4.0.5 RBAC 의 release-level
+  권한 분리에 사용.
+- [x] `audit.sql_execution_log` (Phase 3.2.5) → Phase 4 Public API 의 사용량 로깅
+  패턴과 동일한 구조로 확장.
+- [x] ADR 0007/0008/0009 (Phase 3 wrap-up) → Phase 4 NKS manifest / RBAC 의 의사결정
+  근거 인용.
+- [ ] 비기능 baseline 측정 (PHASE_3 3.4 표) — `PERF=1` 환경에서 1회 측정 → Phase 4
+  회귀 비교 기준.
+
+### 4.0.2 인프라 / 운영 게이트
+
+- [ ] NCP 환경 프로비저닝 — 운영팀 합류 후 첫 주에 진행. `infra/terraform/ncp/` 의
+  skeleton 작성 (실 apply 는 운영팀과).
+- [ ] Container Registry 에 backend / frontend / worker 이미지 push 자동화 (CI 확장).
+- [ ] NCP Cloud DB for PostgreSQL replica 검토 — ADR-0008 의 sandbox 마이그 트리거가
+  발생하면 활성화.
+- [ ] Secret Manager 연동 — Phase 1.2.2 의 env 기반 설정이 NKS 에서 ExternalSecrets
+  로 자연 확장.
+
+### 4.0.3 운영팀 6~7명 onboarding (첫 주 실습)
+
+#### 필수 읽을 docs (Day 0 — 합류 전 1주 안에)
+
+| 우선순위 | 문서 | 분량 | 목적 |
+|---|---|---|---|
+| P0 | `CLAUDE.md` | 5분 | 프로젝트 한 문장 정의 + Phase 순서 |
+| P0 | `docs/00_PROJECT_CONTEXT.md` | 15분 | 도메인 / 규모 / SLA |
+| P0 | `docs/04_DOMAIN_MODEL.md` | 20분 | 채널 7종 + 표준화 흐름 |
+| P0 | `docs/phases/CURRENT.md` | 5분 | 현재 Phase + 진행 상태 |
+| P1 | `docs/02_ARCHITECTURE.md` | 30분 | 모듈 경계 |
+| P1 | ADR 0001~0009 | 60분 | 주요 의사결정 + 트레이드오프 |
+| P2 | `docs/06_DATA_FLOW.md` | 30분 | 10단계 데이터 흐름 |
+| P2 | `docs/07_CORE_TECHNOLOGIES.md` | 30분 | K8s / Airflow / Kafka 개념 |
+
+#### 첫 주 실습 일정
+
+| 일차 | 실습 | 산출물 | 멘토 |
+|---|---|---|---|
+| Day 1 | 로컬 docker-compose 기동 + admin 로그인 + Designer 첫 워크플로 | 7명 모두 워크플로 1개 | abfishlee |
+| Day 2 | SQL Studio 템플릿 실행 + DRAFT→PENDING→APPROVED lifecycle | 각자 SQL 자산 1개 APPROVED | abfishlee |
+| Day 3 | Backfill 7일치 + 특정 노드부터 재실행 | runs 검색 화면 익숙 | abfishlee |
+| Day 4 | 운영자 화면 (Crowd 큐 / Dead Letter / Runtime 모니터) | Phase 2.2.10 화면 익힘 | abfishlee |
+| Day 5 | NKS 환경 첫 진단 + 본인 owner 후보 영역 선정 | Phase 4 task 분배 초안 | 합류 운영자 6~7명 |
+
+#### Owner 후보 영역 (Phase 4 6 sub-phase + NKS 이관 분배)
+
+| 영역 | 연관 4.x sub-phase | 추천 인원 | 핵심 산출물 |
+|---|---|---|---|
+| Airflow DAG 통합 | 4.0.4 (이 ADR 항목) | 1명 | scheduled_pipelines.py + internal trigger 토큰 |
+| NKS 이관 | 4.2.8b | 2명 | Terraform / Helm / Argo CD / NetworkPolicy |
+| Crowd 정식 | 4.2.1 | 1~2명 | crowd.* schema + 이중 검수 + SLA + 보상 |
+| DQ 게이트 + 승인 | 4.2.2 | 1명 | ON_HOLD pipeline_run + 승인 UI |
+| Public API + RBAC | 4.2.4 + 4.2.5 + 4.0.5 | 1명 | API Key + Rate Limit + RLS + 컬럼 마스킹 |
+| CDC PoC | 4.2.3 | 1명 | wal2json (경로 A) 또는 Debezium (경로 B) |
+
+### 4.0.4 첫 sub-phase: Airflow DAG 통합 (Phase 4 진입 직후 1주 내 완료 권장)
+
+Phase 3.2.7 의 `schedule_cron` 필드가 시드되어 있지만 실제 cron 트리거가 미연결. 운영
+팀 합류 후 **가장 빠르게 가치를 만드는** task. 본 sub-phase 완료 = Phase 4 본격 진입.
+
+#### Task list
+
+- [ ] `airflow/dags/scheduled_pipelines.py` — 매분(`*/1 * * * *`) 실행, 다음을 수행:
+  1. `wf.workflow_definition` 에서 `status='PUBLISHED' AND schedule_enabled=TRUE` 인
+     row 조회.
+  2. 각 row 의 `schedule_cron` 으로 croniter 의 직전/다음 실행 시각 계산.
+  3. 직전 1분 안에 trigger 시각이 들었으면 `POST /v1/pipelines/internal/runs` 호출
+     (X-Internal-Token 헤더, body `{workflow_id}`).
+  4. 응답 pipeline_run_id 를 XCom 에 저장.
+- [ ] `backend/app/api/v1/internal.py` — Airflow 전용 trigger 엔드포인트 alias.
+  - `X-Internal-Token` 헤더 검증 (settings.airflow_internal_token, 시드 시점에
+    `.env.example` + Secret Manager 등록 안내).
+  - 본문 흐름은 기존 trigger_run 과 동일 — 권한 dependency 만 internal token 으로 교체.
+  - 같은 (workflow_id, today date) 가 이미 RUNNING 이면 새 run 안 만들고 기존 ID 반환
+    (멱등 — 1분 내 cron 이 두 번 발화해도 안전).
+- [ ] `docker-compose.airflow.yml` — Phase 3 docker-compose 와 nest 가능 (별도 파일).
+  Airflow standalone 1개 컨테이너로 빠르게 — Phase 4.2.8b 에서 NKS 로 이관 시 별도
+  Helm chart 로 재배포.
+- [ ] `docs/airflow/INTEGRATION.md` 갱신 — scheduled_pipelines DAG 동작 / 권한 / 디버깅.
+- [ ] `tests/integration/test_airflow_trigger.py`:
+  - X-Internal-Token 401/200
+  - 같은 (workflow_id, run_date) 멱등 (이미 RUNNING 이면 새 run 안 만듦)
+  - PUBLISHED 워크플로만 통과
+  - schedule_enabled=FALSE 워크플로는 trigger 불가 (Airflow 측 polling 단계에서 거름)
+- [ ] PHASE_4 의 다른 sub-phase 진입 전 본 task 가 동작 — Phase 1~3 자체 실행이 운영
+  환경에서 일관성 있게 흐르는 1차 검증.
+
+#### Acceptance criteria
+
+- [ ] 운영자가 Designer 에서 cron `*/5 * * * *` + enabled=TRUE 로 워크플로 PUBLISH 후
+  5분 안에 첫 자동 run 트리거 됨.
+- [ ] Airflow standalone 컨테이너 재기동 후에도 다음 분 cron 부터 정상 발화.
+- [ ] X-Internal-Token 누락 / 오답 시 401, 정상 시 202 + pipeline_run_id 반환.
+- [ ] 같은 분에 cron 이 두 번 발화해도 pipeline_run 은 1개 (멱등).
+
+### 4.0.5 RBAC 확장 (Phase 4.2.4 와 결합)
+
+Phase 3 의 4-role (`ADMIN`/`APPROVER`/`OPERATOR`/`VIEWER`) 위에 Phase 4 가 다음을 추가:
+
+- **`PUBLIC_READER`** — Public API 전용 외부 키. RLS 적용된 `mart.product_price`,
+  `mart.price_daily_agg`, `mart.standard_code` 만 SELECT 가능.
+- **`MART_WRITER`** — LOAD_MASTER 노드 + 승인된 SQL 자산 실행만. mart 직접 INSERT/
+  UPDATE 권한 (현재는 ADMIN/APPROVER 가 대신 가지지만, Phase 4 에선 분리).
+- **`SANDBOX_READER`** — SQL Studio 의 read-only role. Phase 4.0 게이트의 NCP replica
+  도입 후 sandbox 가 그쪽으로 라우팅되면 본 role 만 replica 접근.
+
+PR / migration 계획:
+- Phase 4 의 첫 PR 에서 ctl.role 에 3개 row 추가 + 매핑 시드.
+- ADR-0010 으로 권한 분리 근거 + Phase 3 의 `require_roles` dependency 호환성 명시.
+
+---
+
 ## 4.1 Phase 4 범위
 
 **포함:**
