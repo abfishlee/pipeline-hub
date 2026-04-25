@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unified Data Pipeline Platform — ERD (Entity Relationship Diagram)</title>
+<style>
+  @page { size: A3 landscape; margin: 12mm; }
+  @media print {
+    body { font-size: 10pt; }
+    .page-break { page-break-before: always; }
+    h1, h2, h3 { page-break-after: avoid; }
+    table, .schema-detail, figure { page-break-inside: avoid; }
+  }
+  :root {
+    --c-text: #0f172a;
+    --c-muted: #475569;
+    --c-border: #cbd5e1;
+    --c-bg-soft: #f1f5f9;
+    --c-ctl: #5b21b6;       --c-ctl-soft: #ede9fe;
+    --c-raw: #b45309;       --c-raw-soft: #fef3c7;
+    --c-stg: #1e40af;       --c-stg-soft: #dbeafe;
+    --c-mart: #047857;      --c-mart-soft: #d1fae5;
+    --c-wf: #c2410c;        --c-wf-soft: #fed7aa;
+    --c-run: #b91c1c;       --c-run-soft: #fee2e2;
+    --c-audit: #475569;     --c-audit-soft: #e2e8f0;
+    --c-dq: #0e7490;        --c-dq-soft: #cffafe;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Pretendard", "Apple SD Gothic Neo",
+                 "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+    color: var(--c-text);
+    line-height: 1.5;
+    margin: 0;
+    padding: 24px 32px 56px 32px;
+    max-width: 1500px;
+    margin-inline: auto;
+    background: #ffffff;
+  }
+  h1 { font-size: 24pt; margin: 0 0 6px 0; letter-spacing: -0.5px; }
+  h2 { font-size: 16pt; margin: 28px 0 8px 0; padding-top: 14px; border-top: 2px solid var(--c-border); }
+  h3 { font-size: 12pt; margin: 18px 0 4px 0; }
+  p  { margin: 6px 0; }
+
+  .cover {
+    border: 1px solid var(--c-border); border-left: 6px solid var(--c-stg);
+    padding: 22px 26px;
+    background: linear-gradient(135deg, #ffffff 0%, var(--c-stg-soft) 250%);
+    margin-bottom: 12px;
+  }
+  .cover .meta { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 10px; font-size: 10pt; color: var(--c-muted); }
+
+  .lead { font-size: 11pt; color: var(--c-muted); margin: 4px 0 12px 0; }
+
+  /* schema legend */
+  .legend {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    margin: 12px 0 18px 0;
+  }
+  .legend .pill {
+    border-left: 4px solid var(--c-border);
+    padding: 8px 12px; border-radius: 4px;
+    font-size: 9.5pt;
+  }
+  .legend .pill h4 { margin: 0 0 2px 0; font-size: 10.5pt; }
+  .legend .pill p  { margin: 0; color: var(--c-muted); font-size: 9pt; line-height: 1.4; }
+  .legend .pill.ctl   { border-color: var(--c-ctl);   background: var(--c-ctl-soft); }
+  .legend .pill.raw   { border-color: var(--c-raw);   background: var(--c-raw-soft); }
+  .legend .pill.stg   { border-color: var(--c-stg);   background: var(--c-stg-soft); }
+  .legend .pill.mart  { border-color: var(--c-mart);  background: var(--c-mart-soft); }
+  .legend .pill.wf    { border-color: var(--c-wf);    background: var(--c-wf-soft); }
+  .legend .pill.run   { border-color: var(--c-run);   background: var(--c-run-soft); }
+  .legend .pill.audit { border-color: var(--c-audit); background: var(--c-audit-soft); }
+  .legend .pill.dq    { border-color: var(--c-dq);    background: var(--c-dq-soft); }
+
+  figure { margin: 14px 0 8px 0; padding: 0; }
+  figure svg { display: block; max-width: 100%; height: auto; border: 1px solid var(--c-border); border-radius: 6px; background: #fafafa; }
+  figcaption { font-size: 9.5pt; color: var(--c-muted); margin-top: 6px; text-align: center; }
+
+  table {
+    border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 9.5pt;
+  }
+  thead th {
+    background: var(--c-bg-soft); text-align: left; padding: 6px 8px;
+    border-bottom: 2px solid var(--c-border); font-weight: 600;
+  }
+  tbody td { padding: 5px 8px; border-bottom: 1px solid var(--c-border); vertical-align: top; }
+  code {
+    font-family: "JetBrains Mono", Consolas, ui-monospace, monospace;
+    font-size: 9pt; background: var(--c-bg-soft); padding: 1px 4px; border-radius: 3px;
+  }
+
+  .schema-detail {
+    border: 1px solid var(--c-border); border-radius: 6px;
+    padding: 14px 18px; margin: 14px 0;
+    background: white;
+  }
+  .schema-detail h3 {
+    margin-top: 0;
+    padding: 4px 10px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+  .schema-detail.ctl   h3 { background: var(--c-ctl-soft);   color: var(--c-ctl); }
+  .schema-detail.raw   h3 { background: var(--c-raw-soft);   color: var(--c-raw); }
+  .schema-detail.stg   h3 { background: var(--c-stg-soft);   color: var(--c-stg); }
+  .schema-detail.mart  h3 { background: var(--c-mart-soft);  color: var(--c-mart); }
+  .schema-detail.wf    h3 { background: var(--c-wf-soft);    color: var(--c-wf); }
+  .schema-detail.run   h3 { background: var(--c-run-soft);   color: var(--c-run); }
+  .schema-detail.audit h3 { background: var(--c-audit-soft); color: var(--c-audit); }
+  .schema-detail.dq    h3 { background: var(--c-dq-soft);    color: var(--c-dq); }
+
+  /* SVG entity styling helpers */
+  .svg-help {
+    font-size: 9pt; color: var(--c-muted);
+    margin: 4px 0 14px 0;
+  }
+
+  /* badges */
+  .badge {
+    display: inline-block; font-size: 8.5pt; padding: 1px 5px; border-radius: 3px;
+    background: var(--c-bg-soft); color: var(--c-text); margin-right: 3px;
+  }
+  .badge.pk { background: #fde68a; color: #92400e; font-weight: 600; }
+  .badge.fk { background: #bfdbfe; color: #1e40af; font-weight: 600; }
+  .badge.uq { background: #ddd6fe; color: #5b21b6; }
+  .badge.idx { background: #d1fae5; color: #047857; }
+  .badge.partitioned { background: #fed7aa; color: #c2410c; font-weight: 600; }
+  .badge.vector { background: #cffafe; color: #0e7490; font-weight: 600; }
+  .badge.jsonb { background: #fae8ff; color: #86198f; font-weight: 600; }
+
+  /* legend in ERD */
+  .erd-legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    font-size: 9.5pt; padding: 10px 14px; background: var(--c-bg-soft); border-radius: 6px;
+    margin: 10px 0 18px 0;
+  }
+  .erd-legend .item { display: flex; align-items: center; gap: 6px; }
+  .erd-legend .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--c-border); }
+</style>
+</head>
+<body>
+
+<header class="cover">
+  <h1>Entity Relationship Diagram (ERD)</h1>
+  <p class="lead">
+    Unified Data Pipeline Platform — Phase 3 종료 시점 (migration 0001~0020 적용 후) DB
+    스키마 전체. 8 schema · 30+ table · 47 foreign key.
+  </p>
+  <div class="meta">
+    <span><strong>버전</strong>&nbsp; Phase 3 종료 (2026-04-26)</span>
+    <span><strong>대상</strong>&nbsp; DBA / 데이터 모델러 / 아키텍트</span>
+    <span><strong>관련 ADR</strong>&nbsp; 0001 / 0003 / 0006 / 0009</span>
+  </div>
+</header>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     1. SCHEMA LEGEND
+════════════════════════════════════════════════════════════════════════════ -->
+<h2>1. Schema 8종 — 책임 분리</h2>
+<p class="lead">
+  데이터는 좌→우로 흘러가며, 각 schema 는 명확한 책임. 한 schema 안의 변경이 다른 schema 에
+  영향 주지 않도록 FK 가 좁게 설정되어 있다 (예: <code>mart.*</code> 가 <code>raw.*</code>
+  에 직접 의존하지 않음 — <code>stg.*</code> 를 거쳐 흐름).
+</p>
+
+<div class="legend">
+  <div class="pill ctl">
+    <h4>ctl &mdash; 제어 / 메타</h4>
+    <p>사용자, 역할, API 키, 데이터 소스, 커넥터. 모든 schema 가 이쪽을 참조.</p>
+  </div>
+  <div class="pill raw">
+    <h4>raw &mdash; 원천 보존</h4>
+    <p>채널 원천 형태 그대로 (JSON / IMAGE / RECEIPT / HTML). idempotency 보장.</p>
+  </div>
+  <div class="pill stg">
+    <h4>stg &mdash; 표준화 후보</h4>
+    <p>raw → 정형 row 1차 파싱 + std_code 매핑. DQ 게이트 통과 row 만 mart 로.</p>
+  </div>
+  <div class="pill mart">
+    <h4>mart &mdash; 통합 마스터 + 팩트</h4>
+    <p>standard_code, retailer/seller/product master, price_fact, 일별 집계.</p>
+  </div>
+  <div class="pill wf">
+    <h4>wf &mdash; Visual ETL Designer</h4>
+    <p>워크플로 정의 (DRAFT/PUBLISHED), 노드/엣지, 배포 이력, SQL 자산 + 버전 + 승인.</p>
+  </div>
+  <div class="pill run">
+    <h4>run &mdash; 실행 이력</h4>
+    <p>pipeline_run / node_run, ingest_job, outbox, dead_letter, crowd_task.</p>
+  </div>
+  <div class="pill audit">
+    <h4>audit &mdash; 감사 / 컴플라이언스</h4>
+    <p>access_log (PARTITIONED), sql_execution_log, download_log.</p>
+  </div>
+  <div class="pill dq">
+    <h4>dq &mdash; 데이터 품질</h4>
+    <p>DQ_CHECK 노드 결과. row_count / null_pct / unique / custom_sql.</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     2. ERD MAIN DIAGRAM
+════════════════════════════════════════════════════════════════════════════ -->
+<h2>2. ERD — 전체 관계도</h2>
+
+<div class="erd-legend">
+  <div class="item"><span class="swatch" style="background:#fde68a"></span> <strong>PK</strong> Primary Key</div>
+  <div class="item"><span class="swatch" style="background:#bfdbfe"></span> <strong>FK</strong> Foreign Key</div>
+  <div class="item"><span class="swatch" style="background:#fed7aa"></span> <strong>PARTITIONED</strong> RANGE 파티션 (월별)</div>
+  <div class="item"><span class="swatch" style="background:#cffafe"></span> <strong>VECTOR</strong> pgvector(1536) IVFFLAT</div>
+  <div class="item"><span class="swatch" style="background:#fae8ff"></span> <strong>JSONB</strong> 비정형 필드</div>
+  <div class="item">→ <strong>FK</strong> 관계 (parent ← child)</div>
+</div>
+
+<figure>
+<svg viewBox="0 0 1480 1140" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif" font-size="10">
+  <defs>
+    <marker id="erdArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <!-- ══════ CTL (top-left) ══════ -->
+  <g>
+    <rect x="20" y="20" width="320" height="280" rx="8" fill="#ede9fe" stroke="#5b21b6" stroke-width="1.5"/>
+    <text x="180" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="#5b21b6">ctl &mdash; 제어 / 메타</text>
+
+    <!-- app_user -->
+    <rect x="34"  y="56"  width="140" height="72" fill="#fff" stroke="#5b21b6" rx="3"/>
+    <text x="104" y="71"  text-anchor="middle" font-weight="700">app_user</text>
+    <line x1="34" y1="76" x2="174" y2="76" stroke="#5b21b6"/>
+    <text x="40"  y="92">user_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="40"  y="106">login_id (UQ)</text>
+    <text x="40"  y="120">password_hash, is_active</text>
+
+    <!-- role -->
+    <rect x="186" y="56"  width="140" height="50" fill="#fff" stroke="#5b21b6" rx="3"/>
+    <text x="256" y="71"  text-anchor="middle" font-weight="700">role</text>
+    <line x1="186" y1="76" x2="326" y2="76" stroke="#5b21b6"/>
+    <text x="192" y="92">role_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="192" y="104">role_code (UQ) — 5 종</text>
+
+    <!-- user_role -->
+    <rect x="186" y="118" width="140" height="48" fill="#fff" stroke="#5b21b6" rx="3"/>
+    <text x="256" y="133" text-anchor="middle" font-weight="700">user_role</text>
+    <line x1="186" y1="138" x2="326" y2="138" stroke="#5b21b6"/>
+    <text x="192" y="154">user_id <tspan fill="#1e40af" font-weight="700">FK</tspan>, role_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+
+    <!-- data_source -->
+    <rect x="34"  y="142" width="140" height="68" fill="#fff" stroke="#5b21b6" rx="3"/>
+    <text x="104" y="157" text-anchor="middle" font-weight="700">data_source</text>
+    <line x1="34"  y1="162" x2="174" y2="162" stroke="#5b21b6"/>
+    <text x="40"  y="176">source_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="40"  y="188">source_code (UQ)</text>
+    <text x="40"  y="200">watermark <tspan fill="#86198f" font-weight="700">JSONB</tspan></text>
+
+    <!-- api_key -->
+    <rect x="186" y="178" width="140" height="50" fill="#fff" stroke="#5b21b6" rx="3"/>
+    <text x="256" y="193" text-anchor="middle" font-weight="700">api_key</text>
+    <line x1="186" y1="198" x2="326" y2="198" stroke="#5b21b6"/>
+    <text x="192" y="214">api_key_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+
+    <!-- connector -->
+    <rect x="34"  y="222" width="140" height="46" fill="#fff" stroke="#5b21b6" rx="3"/>
+    <text x="104" y="237" text-anchor="middle" font-weight="700">connector</text>
+    <line x1="34" y1="242" x2="174" y2="242" stroke="#5b21b6"/>
+    <text x="40" y="258">source_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+  </g>
+
+  <!-- ══════ WF (top-center) ══════ -->
+  <g>
+    <rect x="380" y="20" width="370" height="280" rx="8" fill="#fed7aa" stroke="#c2410c" stroke-width="1.5"/>
+    <text x="565" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="#c2410c">wf &mdash; Visual ETL Designer</text>
+
+    <!-- workflow_definition -->
+    <rect x="394" y="56"  width="170" height="86" fill="#fff" stroke="#c2410c" rx="3"/>
+    <text x="479" y="71"  text-anchor="middle" font-weight="700">workflow_definition</text>
+    <line x1="394" y1="76" x2="564" y2="76" stroke="#c2410c"/>
+    <text x="400" y="92">workflow_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="400" y="106">name + version (UQ)</text>
+    <text x="400" y="120">status DRAFT/PUBLISHED/ARCHIVED</text>
+    <text x="400" y="134">schedule_cron (5필드)</text>
+
+    <!-- node_definition -->
+    <rect x="576" y="56"  width="160" height="76" fill="#fff" stroke="#c2410c" rx="3"/>
+    <text x="656" y="71"  text-anchor="middle" font-weight="700">node_definition</text>
+    <line x1="576" y1="76" x2="736" y2="76" stroke="#c2410c"/>
+    <text x="582" y="92">node_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="582" y="106">workflow_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="582" y="120">node_type (7), config <tspan fill="#86198f" font-weight="700">JSONB</tspan></text>
+
+    <!-- edge_definition -->
+    <rect x="394" y="156" width="170" height="62" fill="#fff" stroke="#c2410c" rx="3"/>
+    <text x="479" y="171" text-anchor="middle" font-weight="700">edge_definition</text>
+    <line x1="394" y1="176" x2="564" y2="176" stroke="#c2410c"/>
+    <text x="400" y="190">edge_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="400" y="204">from_node_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="400" y="218">to_node_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+
+    <!-- pipeline_release -->
+    <rect x="576" y="156" width="160" height="78" fill="#fff" stroke="#c2410c" rx="3"/>
+    <text x="656" y="171" text-anchor="middle" font-weight="700">pipeline_release</text>
+    <line x1="576" y1="176" x2="736" y2="176" stroke="#c2410c"/>
+    <text x="582" y="190">release_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="582" y="204">released_workflow_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="582" y="218">change_summary <tspan fill="#86198f" font-weight="700">JSONB</tspan></text>
+    <text x="582" y="232">{nodes,edges}_snapshot</text>
+
+    <!-- sql_query -->
+    <rect x="394" y="232" width="170" height="56" fill="#fff" stroke="#c2410c" rx="3"/>
+    <text x="479" y="247" text-anchor="middle" font-weight="700">sql_query</text>
+    <line x1="394" y1="252" x2="564" y2="252" stroke="#c2410c"/>
+    <text x="400" y="266">sql_query_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="400" y="280">name (UQ), current_version_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+
+    <!-- sql_query_version -->
+    <rect x="576" y="248" width="160" height="44" fill="#fff" stroke="#c2410c" rx="3"/>
+    <text x="656" y="263" text-anchor="middle" font-weight="700">sql_query_version</text>
+    <line x1="576" y1="268" x2="736" y2="268" stroke="#c2410c"/>
+    <text x="582" y="284">v_id <tspan fill="#92400e" font-weight="700">PK</tspan>, status DRAFT/PENDING/...</text>
+  </g>
+
+  <!-- ══════ RUN (top-right) ══════ -->
+  <g>
+    <rect x="790" y="20" width="380" height="280" rx="8" fill="#fee2e2" stroke="#b91c1c" stroke-width="1.5"/>
+    <text x="980" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="#b91c1c">run &mdash; 실행 이력</text>
+
+    <!-- pipeline_run (PARTITIONED) -->
+    <rect x="804" y="56" width="170" height="76" fill="#fff" stroke="#b91c1c" rx="3"/>
+    <text x="889" y="71" text-anchor="middle" font-weight="700">pipeline_run</text>
+    <text x="889" y="85" text-anchor="middle" font-size="9" fill="#c2410c">[PARTITIONED by run_date]</text>
+    <line x1="804" y1="90" x2="974" y2="90" stroke="#b91c1c"/>
+    <text x="810" y="104">pipeline_run_id+run_date <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="810" y="118">workflow_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="810" y="132">status PENDING/RUNNING/...</text>
+
+    <!-- node_run -->
+    <rect x="986" y="56" width="170" height="76" fill="#fff" stroke="#b91c1c" rx="3"/>
+    <text x="1071" y="71" text-anchor="middle" font-weight="700">node_run</text>
+    <line x1="986" y1="76" x2="1156" y2="76" stroke="#b91c1c"/>
+    <text x="992" y="92">node_run_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="992" y="106">pipeline_run_id+run_date <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="992" y="120">node_definition_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="992" y="132">status PENDING→READY→...</text>
+
+    <!-- ingest_job -->
+    <rect x="804" y="146" width="170" height="60" fill="#fff" stroke="#b91c1c" rx="3"/>
+    <text x="889" y="161" text-anchor="middle" font-weight="700">ingest_job</text>
+    <line x1="804" y1="166" x2="974" y2="166" stroke="#b91c1c"/>
+    <text x="810" y="180">job_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="810" y="194">source_id <tspan fill="#1e40af" font-weight="700">FK</tspan>, requested_by <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+
+    <!-- event_outbox -->
+    <rect x="986" y="146" width="170" height="60" fill="#fff" stroke="#b91c1c" rx="3"/>
+    <text x="1071" y="161" text-anchor="middle" font-weight="700">event_outbox</text>
+    <line x1="986" y1="166" x2="1156" y2="166" stroke="#b91c1c"/>
+    <text x="992" y="180">event_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="992" y="194">payload_json <tspan fill="#86198f" font-weight="700">JSONB</tspan></text>
+
+    <!-- crowd_task -->
+    <rect x="804" y="218" width="170" height="62" fill="#fff" stroke="#b91c1c" rx="3"/>
+    <text x="889" y="233" text-anchor="middle" font-weight="700">crowd_task</text>
+    <line x1="804" y1="238" x2="974" y2="238" stroke="#b91c1c"/>
+    <text x="810" y="252">crowd_task_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="810" y="266">reviewed_by <tspan fill="#1e40af" font-weight="700">FK</tspan>, status PENDING/REVIEWING/...</text>
+
+    <!-- dead_letter -->
+    <rect x="986" y="218" width="170" height="62" fill="#fff" stroke="#b91c1c" rx="3"/>
+    <text x="1071" y="233" text-anchor="middle" font-weight="700">dead_letter</text>
+    <line x1="986" y1="238" x2="1156" y2="238" stroke="#b91c1c"/>
+    <text x="992" y="252">dl_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="992" y="266">replayed_by <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+  </g>
+
+  <!-- ══════ AUDIT (top-far-right) ══════ -->
+  <g>
+    <rect x="1200" y="20" width="260" height="280" rx="8" fill="#e2e8f0" stroke="#475569" stroke-width="1.5"/>
+    <text x="1330" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="#475569">audit</text>
+
+    <!-- access_log (PARTITIONED) -->
+    <rect x="1214" y="56" width="232" height="68" fill="#fff" stroke="#475569" rx="3"/>
+    <text x="1330" y="71" text-anchor="middle" font-weight="700">access_log</text>
+    <text x="1330" y="85" text-anchor="middle" font-size="9" fill="#c2410c">[PARTITIONED by occurred_at]</text>
+    <line x1="1214" y1="90" x2="1446" y2="90" stroke="#475569"/>
+    <text x="1220" y="104">log_id+occurred_at <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="1220" y="118">user_id <tspan fill="#1e40af" font-weight="700">FK</tspan>, api_key_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+
+    <!-- sql_execution_log -->
+    <rect x="1214" y="142" width="232" height="78" fill="#fff" stroke="#475569" rx="3"/>
+    <text x="1330" y="157" text-anchor="middle" font-weight="700">sql_execution_log</text>
+    <line x1="1214" y1="162" x2="1446" y2="162" stroke="#475569"/>
+    <text x="1220" y="176">sql_log_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="1220" y="190">user_id <tspan fill="#1e40af" font-weight="700">FK</tspan>, sql_query_version_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="1220" y="204">execution_kind: VALIDATE/PREVIEW/</text>
+    <text x="1220" y="216">EXPLAIN/SANDBOX/APPROVED/SCHEDULED</text>
+
+    <!-- download_log -->
+    <rect x="1214" y="232" width="232" height="50" fill="#fff" stroke="#475569" rx="3"/>
+    <text x="1330" y="247" text-anchor="middle" font-weight="700">download_log</text>
+    <line x1="1214" y1="252" x2="1446" y2="252" stroke="#475569"/>
+    <text x="1220" y="266">download_id <tspan fill="#92400e" font-weight="700">PK</tspan>, user_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+  </g>
+
+  <!-- ══════ RAW (middle-left) ══════ -->
+  <g>
+    <rect x="20" y="340" width="320" height="240" rx="8" fill="#fef3c7" stroke="#b45309" stroke-width="1.5"/>
+    <text x="180" y="360" text-anchor="middle" font-size="13" font-weight="700" fill="#b45309">raw &mdash; 원천 보존</text>
+
+    <rect x="34"  y="376" width="140" height="78" fill="#fff" stroke="#b45309" rx="3"/>
+    <text x="104" y="391" text-anchor="middle" font-weight="700">raw_object</text>
+    <text x="104" y="405" text-anchor="middle" font-size="9" fill="#c2410c">[PARTITIONED by partition_date]</text>
+    <line x1="34"  y1="410" x2="174" y2="410" stroke="#b45309"/>
+    <text x="40"  y="424">raw_object_id+partition_date <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="40"  y="438">source_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="40"  y="452">payload <tspan fill="#86198f" font-weight="700">JSONB</tspan> / object_key</text>
+
+    <rect x="186" y="376" width="140" height="48" fill="#fff" stroke="#b45309" rx="3"/>
+    <text x="256" y="391" text-anchor="middle" font-weight="700">content_hash_index</text>
+    <line x1="186" y1="396" x2="326" y2="396" stroke="#b45309"/>
+    <text x="192" y="410">SHA-256 dedup</text>
+    <text x="192" y="420">source_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+
+    <rect x="186" y="436" width="140" height="48" fill="#fff" stroke="#b45309" rx="3"/>
+    <text x="256" y="451" text-anchor="middle" font-weight="700">raw_web_page</text>
+    <line x1="186" y1="456" x2="326" y2="456" stroke="#b45309"/>
+    <text x="192" y="470">크롤 HTML</text>
+    <text x="192" y="480">source_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+
+    <rect x="34"  y="468" width="140" height="48" fill="#fff" stroke="#b45309" rx="3"/>
+    <text x="104" y="483" text-anchor="middle" font-weight="700">ocr_result</text>
+    <line x1="34" y1="488" x2="174" y2="488" stroke="#b45309"/>
+    <text x="40" y="502">CLOVA + Upstage 결과</text>
+
+    <rect x="186" y="496" width="140" height="48" fill="#fff" stroke="#b45309" rx="3"/>
+    <text x="256" y="511" text-anchor="middle" font-weight="700">db_snapshot</text>
+    <line x1="186" y1="516" x2="326" y2="516" stroke="#b45309"/>
+    <text x="192" y="530">DB-to-DB CDC before/after</text>
+    <text x="192" y="540">source_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+  </g>
+
+  <!-- ══════ STG (middle-center) ══════ -->
+  <g>
+    <rect x="380" y="340" width="240" height="240" rx="8" fill="#dbeafe" stroke="#1e40af" stroke-width="1.5"/>
+    <text x="500" y="360" text-anchor="middle" font-size="13" font-weight="700" fill="#1e40af">stg &mdash; 표준화 후보</text>
+
+    <rect x="394" y="376" width="212" height="100" fill="#fff" stroke="#1e40af" rx="3"/>
+    <text x="500" y="391" text-anchor="middle" font-weight="700">price_observation</text>
+    <line x1="394" y1="396" x2="606" y2="396" stroke="#1e40af"/>
+    <text x="400" y="410">obs_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="400" y="424">source_id <tspan fill="#1e40af" font-weight="700">FK</tspan>, std_code <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="400" y="438">retailer_code, store_name</text>
+    <text x="400" y="452">product_name_raw, price_krw</text>
+    <text x="400" y="466">std_confidence, observed_at</text>
+
+    <rect x="394" y="494" width="212" height="74" fill="#fff" stroke="#1e40af" rx="3"/>
+    <text x="500" y="509" text-anchor="middle" font-weight="700">standard_record</text>
+    <line x1="394" y1="514" x2="606" y2="514" stroke="#1e40af"/>
+    <text x="400" y="528">표준화 후보</text>
+    <text x="400" y="542">source_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="400" y="556">embedding <tspan fill="#0e7490" font-weight="700">VECTOR(1536)</tspan></text>
+  </g>
+
+  <!-- ══════ MART (middle-right) ══════ -->
+  <g>
+    <rect x="660" y="340" width="500" height="240" rx="8" fill="#d1fae5" stroke="#047857" stroke-width="1.5"/>
+    <text x="910" y="360" text-anchor="middle" font-size="13" font-weight="700" fill="#047857">mart &mdash; 통합 마스터 + 팩트</text>
+
+    <!-- standard_code -->
+    <rect x="674" y="376" width="150" height="86" fill="#fff" stroke="#047857" rx="3"/>
+    <text x="749" y="391" text-anchor="middle" font-weight="700">standard_code</text>
+    <line x1="674" y1="396" x2="824" y2="396" stroke="#047857"/>
+    <text x="680" y="410">std_code <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="680" y="424">name_ko, category</text>
+    <text x="680" y="438">embedding <tspan fill="#0e7490" font-weight="700">VECTOR(1536)</tspan></text>
+    <text x="680" y="452">IVFFLAT cosine</text>
+
+    <!-- product_master -->
+    <rect x="836" y="376" width="150" height="76" fill="#fff" stroke="#047857" rx="3"/>
+    <text x="911" y="391" text-anchor="middle" font-weight="700">product_master</text>
+    <line x1="836" y1="396" x2="986" y2="396" stroke="#047857"/>
+    <text x="842" y="410">product_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="842" y="424">std_code <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="842" y="438">canonical_name, weight_g</text>
+
+    <!-- product_mapping -->
+    <rect x="998" y="376" width="148" height="76" fill="#fff" stroke="#047857" rx="3"/>
+    <text x="1072" y="391" text-anchor="middle" font-weight="700">product_mapping</text>
+    <line x1="998" y1="396" x2="1146" y2="396" stroke="#047857"/>
+    <text x="1004" y="410">mapping_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="1004" y="424">product_id <tspan fill="#1e40af" font-weight="700">FK</tspan>, retailer_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="1004" y="438">verified_by <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+
+    <!-- retailer_master -->
+    <rect x="674" y="476" width="150" height="50" fill="#fff" stroke="#047857" rx="3"/>
+    <text x="749" y="491" text-anchor="middle" font-weight="700">retailer_master</text>
+    <line x1="674" y1="496" x2="824" y2="496" stroke="#047857"/>
+    <text x="680" y="510">retailer_id <tspan fill="#92400e" font-weight="700">PK</tspan>, retailer_type</text>
+
+    <!-- seller_master -->
+    <rect x="836" y="476" width="150" height="50" fill="#fff" stroke="#047857" rx="3"/>
+    <text x="911" y="491" text-anchor="middle" font-weight="700">seller_master</text>
+    <line x1="836" y1="496" x2="986" y2="496" stroke="#047857"/>
+    <text x="842" y="510">seller_id <tspan fill="#92400e" font-weight="700">PK</tspan>, retailer_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+
+    <!-- price_fact -->
+    <rect x="998" y="476" width="148" height="98" fill="#fff" stroke="#047857" rx="3"/>
+    <text x="1072" y="491" text-anchor="middle" font-weight="700">price_fact</text>
+    <text x="1072" y="503" text-anchor="middle" font-size="9" fill="#c2410c">[PARTITIONED by partition_date]</text>
+    <line x1="998" y1="508" x2="1146" y2="508" stroke="#047857"/>
+    <text x="1004" y="522">price_id+partition_date <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="1004" y="536">product_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="1004" y="550">seller_id <tspan fill="#1e40af" font-weight="700">FK</tspan></text>
+    <text x="1004" y="564">price_krw, observed_at</text>
+
+    <!-- price_daily_agg -->
+    <rect x="674" y="540" width="312" height="32" fill="#fff" stroke="#047857" rx="3"/>
+    <text x="830" y="554" text-anchor="middle" font-weight="700">price_daily_agg</text>
+    <line x1="674" y1="558" x2="986" y2="558" stroke="#047857"/>
+    <text x="680" y="568">(agg_date, std_code, retailer_id, region) — min/avg/max/median</text>
+  </g>
+
+  <!-- ══════ DQ (bottom-left) ══════ -->
+  <g>
+    <rect x="20" y="610" width="320" height="120" rx="8" fill="#cffafe" stroke="#0e7490" stroke-width="1.5"/>
+    <text x="180" y="630" text-anchor="middle" font-size="13" font-weight="700" fill="#0e7490">dq &mdash; 데이터 품질</text>
+
+    <rect x="34" y="646" width="292" height="70" fill="#fff" stroke="#0e7490" rx="3"/>
+    <text x="180" y="661" text-anchor="middle" font-weight="700">quality_result</text>
+    <line x1="34" y1="666" x2="326" y2="666" stroke="#0e7490"/>
+    <text x="40" y="680">quality_result_id <tspan fill="#92400e" font-weight="700">PK</tspan></text>
+    <text x="40" y="694">pipeline_run_id, node_run_id (loose link, no FK)</text>
+    <text x="40" y="708">check_kind: row_count_min/null_pct_max/unique_columns/custom_sql</text>
+  </g>
+
+  <!-- ══════ Summary stats (bottom) ══════ -->
+  <g>
+    <rect x="380" y="610" width="780" height="120" rx="8" fill="#f1f5f9" stroke="#475569" stroke-width="1"/>
+    <text x="770" y="630" text-anchor="middle" font-size="13" font-weight="700" fill="#475569">전체 통계 + 핵심 정책</text>
+
+    <text x="400" y="654" font-weight="700" fill="#5b21b6">8 schema</text>
+    <text x="400" y="668">ctl, raw, stg, mart, wf, run, audit, dq</text>
+
+    <text x="400" y="690" font-weight="700" fill="#5b21b6">30+ table</text>
+    <text x="400" y="704">+ 9 partition (raw_object/pipeline_run/price_fact/access_log)</text>
+
+    <text x="650" y="654" font-weight="700" fill="#1e40af">47 FK</text>
+    <text x="650" y="668">대부분 ctl.app_user / data_source 참조</text>
+
+    <text x="650" y="690" font-weight="700" fill="#1e40af">3 자기참조 FK</text>
+    <text x="650" y="704">sql_query_version.parent_version_id 등</text>
+
+    <text x="900" y="654" font-weight="700" fill="#0e7490">2 vector 컬럼</text>
+    <text x="900" y="668">mart.standard_code.embedding (IVFFLAT)</text>
+    <text x="900" y="678">stg.standard_record.embedding</text>
+
+    <text x="900" y="700" font-weight="700" fill="#86198f">10+ JSONB</text>
+    <text x="900" y="714">payload, config_json, watermark, snapshots ...</text>
+  </g>
+
+  <!-- ══════ FK arrows ══════ -->
+  <g stroke="#475569" stroke-width="1.4" fill="none" marker-end="url(#erdArrow)">
+    <!-- ctl.user_role -> app_user, role -->
+    <path d="M 256 142 Q 220 130, 174 96"/>
+    <path d="M 256 118 Q 256 110, 256 106"/>
+
+    <!-- ctl.connector -> data_source -->
+    <path d="M 104 222 Q 104 215, 104 210"/>
+
+    <!-- raw -> ctl.data_source -->
+    <path d="M 174 414 Q 195 380, 174 230"/>
+    <path d="M 256 436 Q 240 380, 174 230" stroke-dasharray="2 2"/>
+
+    <!-- stg.price_observation -> ctl.data_source -->
+    <path d="M 394 414 Q 350 280, 174 200"/>
+    <!-- stg.price_observation -> mart.standard_code -->
+    <path d="M 606 412 Q 660 405, 674 410"/>
+    <!-- stg.standard_record -> ctl.data_source -->
+    <path d="M 394 528 Q 240 480, 174 220" stroke-dasharray="2 2"/>
+
+    <!-- mart relations -->
+    <path d="M 749 462 Q 749 470, 749 476"/>     <!-- standard_code -> retailer? no -->
+    <path d="M 911 452 Q 911 462, 911 476"/>     <!-- product_master -> seller_master? no -->
+    <path d="M 836 410 Q 800 410, 824 414" stroke-dasharray="0"/>  <!-- product_master -> standard_code -->
+    <path d="M 998 414 Q 970 410, 986 414"/>     <!-- product_mapping -> product_master -->
+    <path d="M 998 432 Q 870 470, 824 500"/>     <!-- product_mapping -> retailer_master -->
+    <path d="M 1072 526 Q 1072 510, 911 510"/>   <!-- price_fact -> seller_master -->
+    <path d="M 1072 522 Q 940 460, 911 452"/>    <!-- price_fact -> product_master -->
+
+    <!-- wf relations -->
+    <path d="M 656 132 Q 590 130, 564 110"/>     <!-- node_def -> workflow_def -->
+    <path d="M 479 156 Q 479 145, 479 142"/>     <!-- edge_def -> workflow_def -->
+    <path d="M 479 184 Q 530 170, 576 132"/>     <!-- edge_def -> node_def (from) -->
+    <path d="M 479 200 Q 540 180, 576 132"/>     <!-- edge_def -> node_def (to) -->
+    <path d="M 656 234 Q 590 220, 564 142" stroke-dasharray="2 2"/> <!-- release -> workflow_def (released) -->
+    <path d="M 656 268 Q 600 270, 564 280"/>     <!-- sql_query_version -> sql_query -->
+    <path d="M 565 270 Q 564 280, 564 290" stroke-dasharray="2 2"/> <!-- sql_query.current_version_id -> sql_query_version -->
+
+    <!-- run.pipeline_run -> wf.workflow_definition -->
+    <path d="M 804 95 Q 760 90, 736 100"/>
+    <!-- run.node_run -> run.pipeline_run + wf.node_definition -->
+    <path d="M 986 100 Q 980 100, 974 100"/>     <!-- node_run -> pipeline_run -->
+    <path d="M 1071 132 Q 850 200, 736 110" stroke-dasharray="2 2"/> <!-- node_run -> node_def -->
+
+    <!-- run.ingest_job -> ctl.data_source, app_user -->
+    <path d="M 804 180 Q 500 180, 174 196" stroke-dasharray="2 2"/>
+    <!-- run.crowd_task -> ctl.app_user -->
+    <path d="M 804 252 Q 500 230, 174 100" stroke-dasharray="2 2"/>
+    <!-- run.dead_letter -> ctl.app_user -->
+    <path d="M 986 252 Q 600 250, 174 100" stroke-dasharray="2 2"/>
+
+    <!-- audit.sql_execution_log -> wf.sql_query_version, ctl.app_user -->
+    <path d="M 1214 180 Q 900 200, 736 280" stroke-dasharray="2 2"/>
+    <path d="M 1214 200 Q 700 220, 174 96" stroke-dasharray="2 2"/>
+
+    <!-- wf.workflow_definition -> ctl.app_user (created_by) -->
+    <path d="M 394 100 Q 230 100, 174 100"/>
+  </g>
+
+  <!-- ══════ data flow arrow underlay (raw → stg → mart) ══════ -->
+  <g>
+    <path d="M 340 460 L 380 460" stroke="#22c55e" stroke-width="3" marker-end="url(#erdArrow)" fill="none"/>
+    <path d="M 620 460 L 660 460" stroke="#22c55e" stroke-width="3" marker-end="url(#erdArrow)" fill="none"/>
+    <text x="360" y="450" font-size="9" fill="#15803d" font-weight="700">data flow</text>
+    <text x="640" y="450" font-size="9" fill="#15803d" font-weight="700">data flow</text>
+  </g>
+
+  <!-- legend in bottom right -->
+  <g transform="translate(1180, 770)">
+    <rect x="0" y="0" width="280" height="160" fill="#fff" stroke="#cbd5e1" rx="6"/>
+    <text x="140" y="20" text-anchor="middle" font-weight="700" font-size="12">화살표 의미</text>
+
+    <line x1="14" y1="40" x2="60" y2="40" stroke="#475569" stroke-width="1.4" marker-end="url(#erdArrow)"/>
+    <text x="70" y="44" font-size="10">FK (CASCADE / RESTRICT)</text>
+
+    <line x1="14" y1="60" x2="60" y2="60" stroke="#475569" stroke-width="1.4" stroke-dasharray="2 2" marker-end="url(#erdArrow)"/>
+    <text x="70" y="64" font-size="10">FK (SET NULL)</text>
+
+    <line x1="14" y1="80" x2="60" y2="80" stroke="#22c55e" stroke-width="3" marker-end="url(#erdArrow)"/>
+    <text x="70" y="84" font-size="10">데이터 흐름 (raw→stg→mart)</text>
+
+    <text x="14" y="106" font-size="10" font-weight="700">PARTITIONED 표시 4종</text>
+    <text x="14" y="120" font-size="9.5">audit.access_log (월)</text>
+    <text x="14" y="134" font-size="9.5">raw.raw_object (월)</text>
+    <text x="14" y="148" font-size="9.5">run.pipeline_run (월), mart.price_fact (월)</text>
+  </g>
+</svg>
+<figcaption>그림 2-1. 전체 ERD — 8 schema, 30+ table, 47 FK. 색상은 schema 별 분리, 녹색 굵은 화살표는 raw→stg→mart 데이터 흐름.</figcaption>
+</figure>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     3. SCHEMA DETAILS
+════════════════════════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2>3. Schema 별 상세</h2>
+
+<!-- ctl -->
+<div class="schema-detail ctl">
+  <h3>ctl &mdash; 제어 / 메타</h3>
+  <p>모든 schema 가 의존하는 코어. 사용자/역할/API 키/데이터 소스. <code>seed_admin.py</code>
+  로 초기 ADMIN 1명 시드.</p>
+  <table>
+    <thead><tr><th>테이블</th><th>주요 컬럼</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><code>app_user</code></td><td>user_id PK, login_id UQ, password_hash (argon2id), is_active</td><td>로그인 주체</td></tr>
+      <tr><td><code>role</code></td><td>role_id PK, role_code UQ</td><td>5종: ADMIN/APPROVER/OPERATOR/REVIEWER/VIEWER</td></tr>
+      <tr><td><code>user_role</code></td><td>(user_id, role_id) PK 두 개의 FK</td><td>다대다 매핑</td></tr>
+      <tr><td><code>api_key</code></td><td>api_key_id PK, prefix, hash</td><td>Phase 4 Public API 발급용</td></tr>
+      <tr><td><code>data_source</code></td><td>source_id PK, source_code UQ, source_type, watermark <span class="badge jsonb">JSONB</span></td><td>API/DB/CRAWL/OCR 채널</td></tr>
+      <tr><td><code>connector</code></td><td>connector_id PK, source_id FK</td><td>외부 시스템 인증 정보</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- raw -->
+<div class="schema-detail raw">
+  <h3>raw &mdash; 원천 보존</h3>
+  <p>모든 채널이 채널 원천 형태 그대로 적재. <strong>idempotency_key</strong> + <strong>content_hash
+  dedup</strong> (ADR-0003) 으로 같은 데이터가 두 번 들어오지 않게.</p>
+  <table>
+    <thead><tr><th>테이블</th><th>주요 컬럼</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><code>raw_object</code> <span class="badge partitioned">PARTITIONED</span></td>
+        <td>(raw_object_id, partition_date) PK, source_id FK, object_type, payload <span class="badge jsonb">JSONB</span>, object_key</td>
+        <td>월 RANGE 파티션. 큰 payload 는 Object Storage object_key 만 저장</td></tr>
+      <tr><td><code>content_hash_index</code></td>
+        <td>source_id FK, content_hash (SHA-256), partition_date</td>
+        <td>같은 raw 내용 중복 방지</td></tr>
+      <tr><td><code>raw_web_page</code></td>
+        <td>source_id FK, url, parser_version, html bytes</td>
+        <td>크롤 HTML 전용 (Phase 2.2.8)</td></tr>
+      <tr><td><code>ocr_result</code></td>
+        <td>raw_object_id, provider (CLOVA/Upstage), confidence</td>
+        <td>OCR worker 결과 (Phase 2.2.4)</td></tr>
+      <tr><td><code>db_snapshot</code></td>
+        <td>source_id FK, before/after <span class="badge jsonb">JSONB</span>, op_kind</td>
+        <td>DB-to-DB CDC 시 변경 전/후 모두</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- stg -->
+<div class="schema-detail stg">
+  <h3>stg &mdash; 표준화 후보</h3>
+  <p>raw 가 worker 에 의해 정형 row 로 1차 파싱된 결과. std_code 매핑 + confidence 게이트 통과
+  row 만 mart 로 흐름.</p>
+  <table>
+    <thead><tr><th>테이블</th><th>주요 컬럼</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><code>price_observation</code></td>
+        <td>obs_id PK, source_id FK, std_code FK, retailer_code, store_name, product_name_raw, price_krw, weight_g, observed_at, std_confidence</td>
+        <td>채널 7종이 모두 이리로 수렴</td></tr>
+      <tr><td><code>standard_record</code></td>
+        <td>source_id FK, embedding <span class="badge vector">VECTOR(1536)</span></td>
+        <td>표준화 후보 + 임베딩 (Phase 2.2.5)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- mart -->
+<div class="schema-detail mart">
+  <h3>mart &mdash; 통합 마스터 + 팩트</h3>
+  <p>표준코드, retailer/seller/product master, price_fact (월 RANGE 파티션), 일별 집계.
+  <code>std_code</code> 가 식품 분류의 root key.</p>
+  <table>
+    <thead><tr><th>테이블</th><th>주요 컬럼</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><code>standard_code</code></td>
+        <td>std_code PK, name_ko, category, embedding <span class="badge vector">VECTOR(1536)</span></td>
+        <td>IVFFLAT cosine 인덱스. 표준화 매칭 후보</td></tr>
+      <tr><td><code>retailer_master</code></td>
+        <td>retailer_id PK, retailer_type (MART/SSM/LOCAL/ONLINE/TRAD_MARKET/APP)</td>
+        <td>유통사 단위</td></tr>
+      <tr><td><code>seller_master</code></td>
+        <td>seller_id PK, retailer_id FK</td>
+        <td>매장 단위 (예: 이마트 용산점)</td></tr>
+      <tr><td><code>product_master</code></td>
+        <td>product_id PK, std_code FK, canonical_name, weight_g</td>
+        <td>표준 상품 마스터</td></tr>
+      <tr><td><code>product_mapping</code></td>
+        <td>mapping_id PK, product_id FK, retailer_id FK, retailer_product_code, verified_by FK</td>
+        <td>유통사별 sku ↔ product_id 매핑</td></tr>
+      <tr><td><code>price_fact</code> <span class="badge partitioned">PARTITIONED</span></td>
+        <td>(price_id, partition_date) PK, product_id FK, seller_id FK, price_krw, observed_at</td>
+        <td>가격 사실. 월 파티션 (2026-04 ~ 2026-12 미리 생성)</td></tr>
+      <tr><td><code>price_daily_agg</code></td>
+        <td>(agg_date, std_code, retailer_id, region_sido) PK, min/avg/max/median/count</td>
+        <td>일별 집계 (00:30 자동 재계산)</td></tr>
+      <tr><td><code>master_entity_history</code></td>
+        <td>(entity_id, version) PK</td>
+        <td>master 변경 이력 (Phase 4)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- wf -->
+<div class="schema-detail wf">
+  <h3>wf &mdash; Visual ETL Designer (Phase 3)</h3>
+  <p>워크플로 정의 (DRAFT/PUBLISHED), 노드/엣지 그래프, 배포 이력 + 그래프 스냅샷, SQL 자산
+  + 5상태 라이프사이클.</p>
+  <table>
+    <thead><tr><th>테이블</th><th>주요 컬럼</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><code>workflow_definition</code></td>
+        <td>workflow_id PK, (name, version) UQ, status, schedule_cron, schedule_enabled</td>
+        <td>DRAFT/PUBLISHED/ARCHIVED 3상태</td></tr>
+      <tr><td><code>node_definition</code></td>
+        <td>node_id PK, workflow_id FK, node_key (UQ workflow_id+key), node_type (7종), config_json <span class="badge jsonb">JSONB</span>, position</td>
+        <td>NOOP/SOURCE_API/SQL_TRANSFORM/DEDUP/DQ_CHECK/LOAD_MASTER/NOTIFY</td></tr>
+      <tr><td><code>edge_definition</code></td>
+        <td>edge_id PK, workflow_id FK, from_node_id FK, to_node_id FK</td>
+        <td>self-loop 금지 (CHECK 제약)</td></tr>
+      <tr><td><code>pipeline_release</code></td>
+        <td>release_id PK, workflow_name, version_no, source_workflow_id FK, released_workflow_id FK, change_summary <span class="badge jsonb">JSONB</span>, nodes_snapshot, edges_snapshot</td>
+        <td>PUBLISH 시 1행 INSERT (ADR-0009)</td></tr>
+      <tr><td><code>sql_query</code></td>
+        <td>sql_query_id PK, name UQ, owner_user_id FK, current_version_id FK (자기참조 우회)</td>
+        <td>SQL 자산 메타</td></tr>
+      <tr><td><code>sql_query_version</code></td>
+        <td>v_id PK, sql_query_id FK, version_no, status (5종), parent_version_id FK (자기참조), referenced_tables</td>
+        <td>DRAFT/PENDING/APPROVED/REJECTED/SUPERSEDED</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- run -->
+<div class="schema-detail run">
+  <h3>run &mdash; 실행 이력</h3>
+  <p>pipeline_run (월 파티션) + node_run 상태머신, ingest_job, outbox 패턴, dead_letter,
+  crowd_task placeholder.</p>
+  <table>
+    <thead><tr><th>테이블</th><th>주요 컬럼</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><code>pipeline_run</code> <span class="badge partitioned">PARTITIONED</span></td>
+        <td>(pipeline_run_id, run_date) PK, workflow_id FK, status, triggered_by FK</td>
+        <td>월 RANGE 파티션</td></tr>
+      <tr><td><code>node_run</code></td>
+        <td>node_run_id PK, (pipeline_run_id, run_date) FK 합성, node_definition_id FK, status, attempt_no, output_json <span class="badge jsonb">JSONB</span></td>
+        <td>PENDING→READY→RUNNING→SUCCESS/FAILED/SKIPPED/CANCELLED</td></tr>
+      <tr><td><code>ingest_job</code></td>
+        <td>job_id PK, source_id FK, job_type (ON_DEMAND/SCHEDULED/RETRY/BACKFILL), parameters <span class="badge jsonb">JSONB</span></td>
+        <td>채널 수집 작업 큐</td></tr>
+      <tr><td><code>event_outbox</code></td>
+        <td>event_id PK, aggregate_type/id, event_type, payload <span class="badge jsonb">JSONB</span>, status</td>
+        <td>outbox 패턴 (ADR-0003) — Redis Streams 로 이송</td></tr>
+      <tr><td><code>processed_event</code></td>
+        <td>(event_id, consumer_name) PK</td>
+        <td>idempotent consumer marker</td></tr>
+      <tr><td><code>dead_letter</code></td>
+        <td>dl_id PK, payload <span class="badge jsonb">JSONB</span>, replayed_by FK</td>
+        <td>실패 메시지 보관 + 재처리</td></tr>
+      <tr><td><code>crowd_task</code></td>
+        <td>crowd_task_id PK, raw_object_id, reason, status, payload <span class="badge jsonb">JSONB</span>, reviewed_by FK</td>
+        <td>Phase 2 placeholder → Phase 4 정식 (ADR-0006)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- audit -->
+<div class="schema-detail audit">
+  <h3>audit &mdash; 감사 / 컴플라이언스</h3>
+  <p>모든 사용자 활동 + SQL 실행 + 다운로드 흔적. Phase 1.2.10 의 미들웨어 자동 적재.</p>
+  <table>
+    <thead><tr><th>테이블</th><th>주요 컬럼</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><code>access_log</code> <span class="badge partitioned">PARTITIONED</span></td>
+        <td>(log_id, occurred_at) PK, user_id FK, api_key_id FK, method, path, status_code, duration_ms, ip <span class="badge">INET</span>, request_id</td>
+        <td>월 RANGE 파티션. 모든 HTTP 요청</td></tr>
+      <tr><td><code>sql_execution_log</code></td>
+        <td>sql_log_id PK, user_id FK, sql_query_version_id FK, sql_text, sql_hash, execution_kind (6종), status, row_count</td>
+        <td>VALIDATE/PREVIEW/EXPLAIN/SANDBOX/APPROVED/SCHEDULED</td></tr>
+      <tr><td><code>download_log</code></td>
+        <td>download_id PK, user_id FK, resource_kind, resource_ref, byte_count</td>
+        <td>외부 다운로드 흔적</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- dq -->
+<div class="schema-detail dq">
+  <h3>dq &mdash; 데이터 품질</h3>
+  <p>DQ_CHECK 노드의 검사 결과. pipeline_run / node_run 와 loose link (FK 미설정 — 파티션
+  CASCADE 회피).</p>
+  <table>
+    <thead><tr><th>테이블</th><th>주요 컬럼</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><code>quality_result</code></td>
+        <td>quality_result_id PK, pipeline_run_id, node_run_id (FK 없음), target_table, check_kind, passed, severity (INFO/WARN/ERROR/BLOCK), details_json</td>
+        <td>row_count_min / null_pct_max / unique_columns / custom_sql</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     4. KEY POLICIES
+════════════════════════════════════════════════════════════════════════════ -->
+<h2>4. 핵심 정책 + 인덱스</h2>
+
+<table>
+  <thead><tr><th>정책</th><th>대상</th><th>이유</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>RANGE 파티션 (월별)</td>
+      <td>raw.raw_object, run.pipeline_run, mart.price_fact, audit.access_log</td>
+      <td>대량 시계열 데이터 — 13개월 후 cold archive 가 쉬워야 (Phase 4)</td>
+    </tr>
+    <tr>
+      <td>pgvector(1536) IVFFLAT</td>
+      <td>mart.standard_code.embedding, stg.standard_record.embedding</td>
+      <td>HyperCLOVA 임베딩 cosine top-k 매칭 (Phase 2.2.5)</td>
+    </tr>
+    <tr>
+      <td>pg_trgm (trigram)</td>
+      <td>mart.standard_code.name_ko</td>
+      <td>표준화 1단계 lexical similarity ≥ 0.7</td>
+    </tr>
+    <tr>
+      <td>UNIQUE (workflow_definition.name, version)</td>
+      <td>wf.workflow_definition</td>
+      <td>같은 name 안에서 version 자동 +1 안전장치 (ADR-0009)</td>
+    </tr>
+    <tr>
+      <td>CHECK 제약</td>
+      <td>edge_definition (self-loop 금지), workflow_definition.status, node_run.status, ...</td>
+      <td>상태머신 강제 (DB 레벨 안전망)</td>
+    </tr>
+    <tr>
+      <td>BRIN 인덱스</td>
+      <td>mart.price_fact (시계열 append-heavy)</td>
+      <td>인덱스 크기 1/100, 시계열 쿼리에 충분</td>
+    </tr>
+    <tr>
+      <td>Partial 인덱스</td>
+      <td>wf.workflow_definition (schedule_enabled=TRUE AND status=PUBLISHED)</td>
+      <td>Phase 4 Airflow polling 가속</td>
+    </tr>
+    <tr>
+      <td>ON CONFLICT (UPSERT)</td>
+      <td>mart.price_fact, mart.product_master</td>
+      <td>LOAD_MASTER 노드의 idempotent 적재</td>
+    </tr>
+    <tr>
+      <td>FK use_alter (자기참조 사이클)</td>
+      <td>wf.sql_query.current_version_id ↔ wf.sql_query_version</td>
+      <td>SQLAlchemy create_all 시 FK 사이클 풀기</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr style="margin:36px 0 20px 0; border:0; border-top:2px solid var(--c-border)"/>
+<p class="muted" style="text-align:center; font-size:9.5pt; color:var(--c-muted)">
+  Unified Data Pipeline Platform — ERD (Phase 3 종료 시점)<br>
+  본 문서는 <code>docs/deliverables/03_erd.html</code> 에 동봉되며,
+  Chrome 브라우저에서 <strong>Ctrl + P → PDF로 저장</strong> (A3 가로 권장) 으로 PDF 추출 가능합니다.
+</p>
+
+</body>
+</html>

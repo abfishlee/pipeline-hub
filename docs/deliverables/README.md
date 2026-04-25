@@ -5,10 +5,11 @@
 
 ## 산출물 목록
 
-| 파일 | 대상 독자 | 내용 | 페이지 (예상) |
-|---|---|---|---|
-| [01_system_overview.html](./01_system_overview.html) | 사업 결정권자 / 기술 책임자 | 시스템 목표 / 4계층 모델 / 핵심 기능 + 기술 스택 / 10단계 파이프라인 / 채널 7종 / Phase 진행 / ADR | ~14 페이지 |
-| [02_user_manual.html](./02_user_manual.html) | 운영자 / 분석가 / 관리자 | 채널별 (POS API / DB / Crawl / OCR) 9단계 프로세스 + 스케줄 / Backfill / 재실행 + SQL Studio 라이프사이클 + 트러블슈팅 | ~16 페이지 |
+| 파일 | 대상 독자 | 내용 | 페이지 (예상) | 권장 용지 |
+|---|---|---|---|---|
+| [01_system_overview.html](./01_system_overview.html) | 사업 결정권자 / 기술 책임자 | 시스템 목표 / 4계층 모델 / 핵심 기능 + 기술 스택 / 10단계 파이프라인 / 채널 7종 / Phase 진행 / ADR | ~14 페이지 | A4 세로 |
+| [02_user_manual.html](./02_user_manual.html) | 운영자 / 분석가 / 관리자 | 채널별 (POS API / DB / Crawl / OCR) 9단계 프로세스 + 스케줄 / Backfill / 재실행 + SQL Studio 라이프사이클 + 트러블슈팅 | ~16 페이지 | A4 세로 |
+| [03_erd.html](./03_erd.html) | DBA / 데이터 모델러 / 아키텍트 | Schema 8종 + 30+ 테이블 + 47 FK 전체 ERD (SVG) + Schema 별 상세 + 파티션/벡터/인덱스 정책 | ~6 페이지 | **A3 가로** |
 
 ## PDF 추출 방법
 
