@@ -173,6 +173,37 @@ def operator_auth(operator_token: str) -> dict[str, str]:
 
 
 @pytest.fixture
+def viewer_auth(
+    it_client: TestClient,
+    admin_auth: dict[str, str],
+    rand_suffix: str,
+    cleanup_users: list[str],
+) -> dict[str, str]:
+    """VIEWER 역할만 가진 임시 사용자 — 권한 분리 테스트용.
+
+    function-scope 로 매 테스트마다 새 사용자 생성 후 cleanup_users 가 정리.
+    """
+    login_id = f"it_viewer_{rand_suffix.lower()}"
+    password = f"viewer-pw-{rand_suffix}"
+    r = it_client.post(
+        "/v1/users",
+        json={
+            "login_id": login_id,
+            "display_name": "IT Viewer",
+            "password": password,
+            "role_codes": ["VIEWER"],
+        },
+        headers=admin_auth,
+    )
+    assert r.status_code == 201, r.text
+    cleanup_users.append(login_id)
+
+    r = it_client.post("/v1/auth/login", json={"login_id": login_id, "password": password})
+    token = r.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
 def rand_suffix() -> str:
     """테스트 간 login_id 충돌 방지용 랜덤 suffix."""
     return uuid.uuid4().hex[:8] + secrets.token_hex(2)

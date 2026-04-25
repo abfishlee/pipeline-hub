@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.raw import ContentHashIndex, RawObject
@@ -201,12 +201,105 @@ async def insert_event_outbox(
     return ev.event_id
 
 
+# ---------------------------------------------------------------------------
+# Read queries — 운영 조회용 (Phase 1.2.8)
+# ---------------------------------------------------------------------------
+async def get_ingest_job(session: AsyncSession, job_id: int) -> IngestJob | None:
+    stmt = select(IngestJob).where(IngestJob.job_id == job_id)
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def list_ingest_jobs(
+    session: AsyncSession,
+    *,
+    source_id: int | None = None,
+    status: str | None = None,
+    job_type: str | None = None,
+    from_ts: datetime | None = None,
+    to_ts: datetime | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> list[IngestJob]:
+    stmt = (
+        select(IngestJob)
+        .order_by(IngestJob.created_at.desc(), IngestJob.job_id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    conditions = []
+    if source_id is not None:
+        conditions.append(IngestJob.source_id == source_id)
+    if status is not None:
+        conditions.append(IngestJob.status == status)
+    if job_type is not None:
+        conditions.append(IngestJob.job_type == job_type)
+    if from_ts is not None:
+        conditions.append(IngestJob.created_at >= from_ts)
+    if to_ts is not None:
+        conditions.append(IngestJob.created_at <= to_ts)
+    if conditions:
+        stmt = stmt.where(and_(*conditions))
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def list_raw_objects(
+    session: AsyncSession,
+    *,
+    source_id: int | None = None,
+    status: str | None = None,
+    object_type: str | None = None,
+    from_ts: datetime | None = None,
+    to_ts: datetime | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> list[RawObject]:
+    stmt = (
+        select(RawObject)
+        .order_by(RawObject.received_at.desc(), RawObject.raw_object_id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    conditions = []
+    if source_id is not None:
+        conditions.append(RawObject.source_id == source_id)
+    if status is not None:
+        conditions.append(RawObject.status == status)
+    if object_type is not None:
+        conditions.append(RawObject.object_type == object_type)
+    if from_ts is not None:
+        conditions.append(RawObject.received_at >= from_ts)
+    if to_ts is not None:
+        conditions.append(RawObject.received_at <= to_ts)
+    if conditions:
+        stmt = stmt.where(and_(*conditions))
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def get_raw_object_detail(
+    session: AsyncSession, raw_object_id: int, partition_date: date | None = None
+) -> RawObject | None:
+    """`raw_object_id` (+ 선택적 partition_date) 로 단건 조회.
+
+    partition_date 가 주어지면 PG 가 해당 파티션만 스캔(빠름). 없으면 모든 파티션 스캔.
+    PK 가 (raw_object_id, partition_date) 인 점에 주의.
+    """
+    stmt = select(RawObject).where(RawObject.raw_object_id == raw_object_id)
+    if partition_date is not None:
+        stmt = stmt.where(RawObject.partition_date == partition_date)
+    stmt = stmt.limit(1)
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
 __all__ = [
     "ExistingRawObject",
     "get_by_content_hash",
     "get_by_idempotency_key",
+    "get_ingest_job",
+    "get_raw_object_detail",
     "insert_content_hash_index",
     "insert_event_outbox",
     "insert_ingest_job",
     "insert_raw_object",
+    "list_ingest_jobs",
+    "list_raw_objects",
 ]
