@@ -20,6 +20,7 @@ def test_readyz_structure(client: TestClient) -> None:
     assert "version" in body
     assert body["checks"]["app"] == "ok"
     assert body["checks"]["db"] == "ok"
+    assert body["checks"]["object_storage"] == "ok"
 
 
 def test_readyz_returns_503_when_db_down(client_db_down: TestClient) -> None:
@@ -30,6 +31,16 @@ def test_readyz_returns_503_when_db_down(client_db_down: TestClient) -> None:
     assert body["status"] == "unready"
     assert body["checks"]["db"] == "fail"
     assert body["checks"]["app"] == "ok"
+
+
+def test_readyz_returns_503_when_object_storage_down(client_os_down: TestClient) -> None:
+    """Object Storage ping 실패 시 503 + checks.object_storage=fail."""
+    r = client_os_down.get("/readyz")
+    assert r.status_code == 503
+    body = r.json()
+    assert body["status"] == "unready"
+    assert body["checks"]["object_storage"] == "fail"
+    assert body["checks"]["db"] == "ok"
 
 
 def test_healthz_unaffected_by_db_state(client_db_down: TestClient) -> None:

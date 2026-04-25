@@ -29,6 +29,7 @@ from app.core.errors import DomainError
 from app.core.logging import configure_logging, get_logger
 from app.core.request_context import set_request_id
 from app.db import session as db_session
+from app.integrations import object_storage as object_storage_module
 
 log = get_logger(__name__)
 
@@ -70,6 +71,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         log.info("db.connected")
     else:
         log.warning("db.unreachable", url_host=settings.database_url.split("@")[-1])
+
+    # Object Storage ping — 동일 정책 (실패해도 startup 통과).
+    try:
+        storage = object_storage_module.get_object_storage()
+        if await storage.ping():
+            log.info("object_storage.connected", bucket=storage.bucket)
+        else:
+            log.warning("object_storage.unreachable", endpoint=settings.os_endpoint)
+    except Exception as exc:
+        log.warning("object_storage.init_failed", error=str(exc))
 
     log.info("startup.complete")
     try:
@@ -138,12 +149,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def readyz() -> JSONResponse:
         """Readiness probe — 외부 의존성 ping.
 
-        DB 연결 실패 시 503 + checks.db=fail. healthz 는 영향 없음.
+        DB / Object Storage ping 실패 시 503 + 해당 check=fail. healthz 는 영향 없음.
         """
         db_ok = await db_session.ping()
+        try:
+            os_ok = await object_storage_module.get_object_storage().ping()
+        except Exception:
+            os_ok = False
         checks: dict[str, str] = {
             "app": "ok",
             "db": "ok" if db_ok else "fail",
+            "object_storage": "ok" if os_ok else "fail",
             # "redis": "ok",  # Phase 2
         }
         all_ok = all(v == "ok" for v in checks.values())

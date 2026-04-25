@@ -37,6 +37,10 @@ dependencies = [
 
   # Cron 표현식 검증 (data_source.schedule_cron). Phase 2 Airflow 와는 무관 — 사용자 입력 검증용.
   "croniter>=2.0,<7",
+
+  # Object Storage (MinIO 로컬 / NCP Object Storage 운영). S3 호환.
+  # async 는 asyncio.to_thread 로 감쌈 (ADR-0002).
+  "boto3>=1.34,<2",
 ]
 
 [dependency-groups]
@@ -88,7 +92,7 @@ show_error_codes = true
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["jose.*", "croniter.*"]
+module = ["jose.*", "croniter.*", "boto3.*", "botocore.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
