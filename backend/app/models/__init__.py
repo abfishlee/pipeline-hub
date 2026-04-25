@@ -13,10 +13,11 @@ from app.models import ctl as ctl
 from app.models import mart as mart
 from app.models import raw as raw
 from app.models import run as run
+from app.models import stg as stg
 from app.models.base import Base
 
 # Sub-module imports — Alembic target_metadata 가 모든 테이블을 인식.
 # 향후 추가:
-#   from app.models import stg   (0007)
+#   wf (Phase 3 Visual ETL), dq (Phase 2 데이터 품질) 등
 
 __all__ = ["Base"]
