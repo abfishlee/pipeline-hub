@@ -5,10 +5,28 @@
 - **Phase 4 (NKS 이관 + Public API + Crowd 정식 + CDC)** 는 운영팀과 함께 수행 (9월 이후).
 
 ## ✅ 지금 진행 중
-**Phase 1 — Core Foundation**
-- 시작: 2026-04-25
-- 목표 완료: 2026-05-30 (**5주, 원래 6~8주에서 압축**)
-- 참조: [PHASE_1_CORE.md](./PHASE_1_CORE.md)
+**Phase 2 — Pipeline Runtime (Worker + OCR + 표준화)**
+- 시작: 2026-06-01 (예정 — Phase 1 1.2.11 까지 종료, 2026-04-25 ~ 2026-04-25 1일 만에 압축 완료)
+- 목표 완료: 2026-07-11 (**6주**)
+- 참조: [PHASE_2_RUNTIME.md](./PHASE_2_RUNTIME.md)
+
+> Phase 1 은 5주 예산이었으나 사용자 + Claude 협업으로 같은 날(2026-04-25) 1.2.1 → 1.2.11 까지 일관 commit 흐름으로 종료. 일정 4주 단축분은 Phase 3 압축 부담 완화에 사용.
+
+### Phase 2 진입 조건 (모두 충족 — 2026-04-25)
+- ✅ Phase 1 DoD 7종 모두 충족 (수집 API 3종, 스키마 6 schema, MinIO, Web Portal, /metrics, CI, NKS Ready 8계명)
+- ✅ Outbox PENDING 행이 정상 적재 (Phase 1.2.7) — Phase 2 publisher 가 소비할 데이터 대기 중
+- ✅ Prometheus + Grafana 로컬 기동 (Phase 1.2.10) — Worker/OCR 메트릭이 추가될 자리 마련
+- ✅ ADR 0001~0003 기록 (드라이버 듀얼 / Object Storage / Outbox+content_hash)
+
+### Phase 2 대상 모듈 (신규 생성)
+| 위치 | 책임 |
+|---|---|
+| `backend/app/workers/` | Dramatiq broker + actor (`outbox_publisher`, `ocr`, `transform`, `crawler`) |
+| `backend/app/integrations/clova/` | CLOVA OCR API 클라이언트 (서킷브레이커, retry) |
+| `backend/app/integrations/upstage/` | Upstage 폴백 OCR 클라이언트 |
+| `backend/app/domain/standardization.py` | pg_trgm + pgvector + HyperCLOVA 임베딩 표준화 |
+| `airflow/dags/` | 시스템 DAG 5종 (`daily_agg`, `monthly_partition`, `hourly_outbox`, `daily_archive`, `ingest_db_incremental`) |
+| `infra/docker-compose.yml` | `worker-*`, `airflow-*`, `loki`, `promtail` 서비스 추가 |
 
 ---
 
@@ -26,14 +44,15 @@
 
 ## 📦 Phase별 완료 기준 (9/1 전에 갖춰야 할 것)
 
-### Phase 1 (5주) DoD
-- FastAPI 수집 API 3종 동작 (`/v1/ingest/api`, `/file`, `/receipt`)
-- PG 스키마 (ctl, raw, run, audit, stg 뼈대, mart 뼈대)
-- Object Storage 연동 (MinIO 로컬)
-- 기본 Web Portal (로그인 + 소스 관리 + 원천 조회 + 수집 잡)
-- Prometheus `/metrics` 노출
-- CI (lint+test+build)
-- **NKS Ready 8계명** 이미지 준수
+### Phase 1 (5주) DoD — ✅ 2026-04-25 완료
+- [x] FastAPI 수집 API 3종 동작 (`/v1/ingest/api`, `/file`, `/receipt`) — Phase 1.2.7
+- [x] PG 스키마 (ctl, raw, run, audit, stg 뼈대, mart 뼈대) — Phase 1.2.3
+- [x] Object Storage 연동 (MinIO 로컬, NCP 호환) — Phase 1.2.6
+- [x] 기본 Web Portal (로그인 + 소스 관리 + 원천 조회 + 수집 잡) — Phase 1.2.9
+- [x] Prometheus `/metrics` + Grafana 대시보드 — Phase 1.2.10
+- [x] audit.access_log 미들웨어 — Phase 1.2.10
+- [x] CI (lint+test+typecheck) — Phase 1.2.1
+- [x] **NKS Ready 8계명** 이미지 준수 — Phase 1.2.2 Dockerfile
 
 ### Phase 2 (6주) DoD
 - Dramatiq worker 3종 (OCR / transform / crawler)
