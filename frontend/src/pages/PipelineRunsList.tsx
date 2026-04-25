@@ -1,16 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
+import { Pencil, Plus } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { apiRequest } from "@/api/client";
 import {
   type PipelineRunOut,
   type PipelineRunStatus,
+  type WorkflowStatus,
   useWorkflows,
 } from "@/api/pipelines";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { cn } from "@/lib/cn";
 import { formatDateTime } from "@/lib/format";
+import { useAuthStore } from "@/store/auth";
 
 const STATUS_COLORS: Record<PipelineRunStatus, string> = {
   PENDING: "text-muted-foreground",
@@ -18,6 +23,12 @@ const STATUS_COLORS: Record<PipelineRunStatus, string> = {
   SUCCESS: "text-emerald-600",
   FAILED: "text-rose-600",
   CANCELLED: "text-muted-foreground",
+};
+
+const WORKFLOW_BADGE: Record<WorkflowStatus, "default" | "muted" | "destructive"> = {
+  DRAFT: "muted",
+  PUBLISHED: "default",
+  ARCHIVED: "destructive",
 };
 
 function useRecentRuns(workflowId: number | null) {
@@ -36,12 +47,90 @@ export function PipelineRunsList() {
   const workflows = useWorkflows({ limit: 100 });
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<number | null>(null);
   const runs = useRecentRuns(selectedWorkflowId);
+  const user = useAuthStore((s) => s.user);
+  const canDesign =
+    !!user?.roles.some((r) => r === "ADMIN" || r === "APPROVER");
 
   return (
     <div className="space-y-4">
       <Card>
+        <CardContent className="space-y-3 p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="text-sm font-semibold">워크플로 목록</h3>
+            {canDesign && (
+              <Link
+                to="/pipelines/designer"
+                className="ml-auto inline-flex h-8 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="h-3 w-3" />
+                신규 디자이너
+              </Link>
+            )}
+          </div>
+          <Table>
+            <Thead>
+              <Tr>
+                <Th>workflow_id</Th>
+                <Th>name</Th>
+                <Th>version</Th>
+                <Th>status</Th>
+                <Th>updated</Th>
+                <Th></Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              {workflows.isLoading && (
+                <Tr>
+                  <Td colSpan={6} className="text-center text-muted-foreground">
+                    로딩 중…
+                  </Td>
+                </Tr>
+              )}
+              {!workflows.isLoading && (workflows.data?.length ?? 0) === 0 && (
+                <Tr>
+                  <Td colSpan={6} className="text-center text-muted-foreground">
+                    워크플로가 없습니다.
+                    {canDesign && " 우측 상단 '신규 디자이너' 로 만들어 보세요."}
+                  </Td>
+                </Tr>
+              )}
+              {workflows.data?.map((w) => (
+                <Tr key={w.workflow_id}>
+                  <Td className="font-mono">#{w.workflow_id}</Td>
+                  <Td>{w.name}</Td>
+                  <Td className="font-mono">v{w.version}</Td>
+                  <Td>
+                    <Badge variant={WORKFLOW_BADGE[w.status]}>{w.status}</Badge>
+                  </Td>
+                  <Td>{formatDateTime(w.updated_at)}</Td>
+                  <Td className="space-x-2 whitespace-nowrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedWorkflowId(w.workflow_id)}
+                    >
+                      이력
+                    </Button>
+                    {canDesign && (
+                      <Link
+                        to={`/pipelines/designer/${w.workflow_id}`}
+                        className="inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium text-foreground/80 hover:bg-accent hover:text-accent-foreground"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        {w.status === "DRAFT" ? "편집" : "보기"}
+                      </Link>
+                    )}
+                  </Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardContent className="flex flex-wrap items-center gap-3 p-4">
-          <span className="text-sm text-muted-foreground">Workflow:</span>
+          <span className="text-sm text-muted-foreground">실행 이력 필터:</span>
           <select
             value={selectedWorkflowId ?? ""}
             onChange={(e) =>

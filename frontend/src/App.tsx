@@ -10,6 +10,7 @@ import { DashboardPage } from "@/pages/DashboardPage";
 import { DeadLetterQueue } from "@/pages/DeadLetterQueue";
 import { JobsPage } from "@/pages/JobsPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { PipelineDesigner } from "@/pages/PipelineDesigner";
 import { PipelineRunDetail } from "@/pages/PipelineRunDetail";
 import { PipelineRunsList } from "@/pages/PipelineRunsList";
 import { RawObjectsPage } from "@/pages/RawObjectsPage";
@@ -71,6 +72,18 @@ export default function App() {
           >
             <Route element={<Layout />}>
               <Route path="/crowd-tasks" element={<CrowdTaskQueue />} />
+            </Route>
+          </Route>
+
+          <Route
+            element={<ProtectedRoute requireAnyRole={["ADMIN", "APPROVER"]} />}
+          >
+            <Route element={<Layout />}>
+              <Route path="/pipelines/designer" element={<PipelineDesigner />} />
+              <Route
+                path="/pipelines/designer/:workflowId"
+                element={<PipelineDesigner />}
+              />
             </Route>
           </Route>
 

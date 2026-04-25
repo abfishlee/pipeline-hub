@@ -25,6 +25,8 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
   reviewerOk?: boolean;
+  /** ADMIN 또는 APPROVER 만 노출 (Visual ETL Designer 전용). */
+  approverOk?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -33,6 +35,12 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/jobs", label: "수집 작업", icon: ListChecks },
   { to: "/raw-objects", label: "원천 데이터", icon: FileBox },
   { to: "/pipelines/runs", label: "파이프라인 실행", icon: Workflow },
+  {
+    to: "/pipelines/designer",
+    label: "Visual ETL Designer",
+    icon: Workflow,
+    approverOk: true,
+  },
   { to: "/crowd-tasks", label: "검수 큐", icon: ClipboardCheck, reviewerOk: true },
   { to: "/dead-letters", label: "Dead Letter", icon: AlertTriangle, adminOnly: true },
   { to: "/runtime", label: "Runtime 모니터", icon: Activity },
@@ -42,6 +50,7 @@ const NAV_ITEMS: NavItem[] = [
 export function Layout(_: PropsWithChildren) {
   const user = useAuthStore((s) => s.user);
   const isAdmin = !!user?.roles.includes("ADMIN");
+  const isApprover = isAdmin || !!user?.roles.includes("APPROVER");
   const isReviewer =
     isAdmin ||
     !!user?.roles.some((r) => r === "REVIEWER" || r === "APPROVER");
@@ -61,6 +70,7 @@ export function Layout(_: PropsWithChildren) {
         <nav className="flex-1 space-y-1 p-2">
           {NAV_ITEMS.filter((it) => {
             if (it.adminOnly) return isAdmin;
+            if (it.approverOk) return isApprover;
             if (it.reviewerOk) return isReviewer;
             return true;
           }).map((item) => (
@@ -126,6 +136,7 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/raw-objects")) return "원천 데이터";
   if (pathname.startsWith("/pipelines/runs/")) return "파이프라인 실행 상세";
   if (pathname.startsWith("/pipelines/runs")) return "파이프라인 실행 이력";
+  if (pathname.startsWith("/pipelines/designer")) return "Visual ETL Designer";
   if (pathname.startsWith("/crowd-tasks")) return "검수 큐";
   if (pathname.startsWith("/dead-letters")) return "Dead Letter";
   if (pathname.startsWith("/runtime")) return "Runtime 모니터";

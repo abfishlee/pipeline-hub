@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "./client";
 
 export type WorkflowStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
@@ -113,5 +113,110 @@ export function usePipelineRun(pipelineRunId: number | null) {
     queryFn: () =>
       apiRequest<PipelineRunDetail>(`/v1/pipelines/runs/${pipelineRunId}`),
     refetchInterval: 5_000, // SSE 가 끊겨도 5s 폴링으로 fallback.
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Designer mutations (Phase 3.2.4)
+// ---------------------------------------------------------------------------
+export interface NodeIn {
+  node_key: string;
+  node_type: NodeType;
+  config_json?: Record<string, unknown>;
+  position_x?: number;
+  position_y?: number;
+}
+
+export interface EdgeIn {
+  from_node_key: string;
+  to_node_key: string;
+  condition_expr?: Record<string, unknown> | null;
+}
+
+export interface WorkflowCreate {
+  name: string;
+  version?: number;
+  description?: string | null;
+  nodes: NodeIn[];
+  edges?: EdgeIn[];
+}
+
+export interface WorkflowPatch {
+  name?: string;
+  description?: string | null;
+  nodes?: NodeIn[];
+  edges?: EdgeIn[];
+}
+
+export function useCreateWorkflow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: WorkflowCreate) =>
+      apiRequest<WorkflowDetail>("/v1/pipelines", {
+        method: "POST",
+        body,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pipelines", "workflows"] });
+    },
+  });
+}
+
+export function useUpdateWorkflow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      workflowId,
+      body,
+    }: {
+      workflowId: number;
+      body: WorkflowPatch;
+    }) =>
+      apiRequest<WorkflowDetail>(`/v1/pipelines/${workflowId}`, {
+        method: "PATCH",
+        body,
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["pipelines", "workflows", vars.workflowId],
+      });
+      qc.invalidateQueries({ queryKey: ["pipelines", "workflows"] });
+    },
+  });
+}
+
+export function useTransitionWorkflowStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      workflowId,
+      status,
+    }: {
+      workflowId: number;
+      status: "PUBLISHED" | "ARCHIVED";
+    }) =>
+      apiRequest<WorkflowOut>(`/v1/pipelines/${workflowId}/status`, {
+        method: "PATCH",
+        body: { status },
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({
+        queryKey: ["pipelines", "workflows", vars.workflowId],
+      });
+      qc.invalidateQueries({ queryKey: ["pipelines", "workflows"] });
+    },
+  });
+}
+
+export function useTriggerRun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (workflowId: number) =>
+      apiRequest<PipelineRunDetail>(`/v1/pipelines/${workflowId}/runs`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pipelines", "runs"] });
+    },
   });
 }
