@@ -10,7 +10,8 @@ name: datapipeline-dev
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector 확장 포함 — Phase 2.2.5 표준화 임베딩 (migration 0012) 에 필요.
+    image: pgvector/pgvector:pg16
     container_name: dp_postgres
     restart: unless-stopped
     environment:

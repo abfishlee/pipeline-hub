@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unified Data Pipeline Platform — 사용자/관리자 매뉴얼</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm 20mm 16mm; }
+  @media print {
+    body { font-size: 10.5pt; }
+    .page-break { page-break-before: always; }
+    h1, h2, h3 { page-break-after: avoid; }
+    table, .card, .step, .scenario { page-break-inside: avoid; }
+    a { color: inherit; text-decoration: none; }
+  }
+  :root {
+    --c-text: #0f172a;
+    --c-muted: #475569;
+    --c-border: #cbd5e1;
+    --c-bg-soft: #f1f5f9;
+    --c-primary: #1e40af;
+    --c-primary-soft: #dbeafe;
+    --c-emerald: #047857;
+    --c-emerald-soft: #d1fae5;
+    --c-amber: #b45309;
+    --c-amber-soft: #fef3c7;
+    --c-rose: #b91c1c;
+    --c-rose-soft: #fee2e2;
+    --c-violet: #5b21b6;
+    --c-violet-soft: #ede9fe;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Pretendard", "Apple SD Gothic Neo",
+                 "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+    color: var(--c-text);
+    line-height: 1.55;
+    margin: 0;
+    padding: 32px 40px 64px 40px;
+    max-width: 1080px;
+    margin-inline: auto;
+    background: #ffffff;
+  }
+  h1 { font-size: 26pt; margin: 0 0 6px 0; letter-spacing: -0.5px; }
+  h2 { font-size: 17pt; margin: 36px 0 8px 0; padding-top: 16px; border-top: 2px solid var(--c-border); }
+  h3 { font-size: 13pt; margin: 22px 0 6px 0; color: var(--c-primary); }
+  h4 { font-size: 11pt; margin: 14px 0 4px 0; color: var(--c-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  p  { margin: 8px 0; }
+  ul, ol { margin: 6px 0 6px 22px; padding: 0; }
+  li { margin: 3px 0; }
+  code {
+    font-family: "JetBrains Mono", Consolas, ui-monospace, monospace;
+    font-size: 0.9em; background: var(--c-bg-soft); padding: 1px 4px; border-radius: 3px;
+  }
+  .lead { font-size: 12pt; color: var(--c-muted); margin: 4px 0 24px 0; }
+  .muted { color: var(--c-muted); font-size: 9.5pt; }
+
+  .cover {
+    border: 1px solid var(--c-border);
+    border-left: 6px solid var(--c-emerald);
+    padding: 28px 32px;
+    background: linear-gradient(135deg, #ffffff 0%, var(--c-emerald-soft) 200%);
+    margin-bottom: 8px;
+  }
+  .cover .meta {
+    display: flex; gap: 24px; flex-wrap: wrap;
+    margin-top: 12px; font-size: 10pt; color: var(--c-muted);
+  }
+  .toc { background: var(--c-bg-soft); padding: 14px 18px; border-radius: 6px; margin: 16px 0 24px 0; }
+  .toc ol { margin: 0; padding-left: 18px; }
+
+  .card { border: 1px solid var(--c-border); border-radius: 6px; padding: 14px 16px; background: white; }
+  .card.tip      { border-left: 4px solid var(--c-primary); background: var(--c-primary-soft); }
+  .card.warn     { border-left: 4px solid var(--c-amber);   background: var(--c-amber-soft); }
+  .card.danger   { border-left: 4px solid var(--c-rose);    background: var(--c-rose-soft); }
+  .card.success  { border-left: 4px solid var(--c-emerald); background: var(--c-emerald-soft); }
+  .card h4 { margin-top: 0; }
+
+  .step {
+    border: 1px solid var(--c-border);
+    border-left: 4px solid var(--c-primary);
+    padding: 12px 16px;
+    margin: 10px 0;
+    background: white;
+    border-radius: 6px;
+    position: relative;
+  }
+  .step .num {
+    position: absolute; top: -10px; left: -10px;
+    background: var(--c-primary); color: white;
+    width: 28px; height: 28px; border-radius: 50%;
+    text-align: center; line-height: 28px; font-weight: 700; font-size: 12pt;
+  }
+  .step h4 { margin-top: 0; color: var(--c-primary); text-transform: none; font-size: 12pt; }
+  .step .menu {
+    display: inline-block; padding: 2px 8px; background: var(--c-bg-soft);
+    border-radius: 4px; font-size: 10pt; color: var(--c-text);
+    border-left: 3px solid var(--c-primary); margin: 4px 4px 4px 0;
+  }
+
+  .role-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 9pt;
+    border-radius: 3px;
+    margin: 0 2px;
+  }
+  .role-tag.admin    { background: var(--c-violet-soft);  color: var(--c-violet); }
+  .role-tag.approver { background: var(--c-rose-soft);    color: var(--c-rose); }
+  .role-tag.operator { background: var(--c-amber-soft);   color: var(--c-amber); }
+  .role-tag.reviewer { background: var(--c-emerald-soft); color: var(--c-emerald); }
+  .role-tag.viewer   { background: var(--c-bg-soft);      color: var(--c-muted); }
+
+  .screenshot {
+    border: 2px dashed var(--c-border);
+    background: var(--c-bg-soft);
+    padding: 20px;
+    margin: 12px 0;
+    text-align: center;
+    border-radius: 6px;
+    color: var(--c-muted);
+    font-size: 10pt;
+    font-style: italic;
+  }
+  .screenshot strong { color: var(--c-text); display: block; margin-bottom: 4px; }
+  .screenshot .path { font-family: monospace; color: var(--c-primary); font-size: 9.5pt; }
+
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 10pt; }
+  thead th { background: var(--c-bg-soft); text-align: left; padding: 8px 10px;
+             border-bottom: 2px solid var(--c-border); font-weight: 600; }
+  tbody td { padding: 7px 10px; border-bottom: 1px solid var(--c-border); vertical-align: top; }
+
+  .scenario {
+    border: 1px solid var(--c-border);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin: 24px 0;
+    background: white;
+  }
+  .scenario .scenario-title {
+    font-size: 14pt; font-weight: 700; color: var(--c-emerald);
+    border-bottom: 2px solid var(--c-emerald-soft); padding-bottom: 8px; margin-bottom: 12px;
+  }
+  .scenario .scenario-channel {
+    display: inline-block; padding: 3px 10px; background: var(--c-emerald-soft);
+    color: var(--c-emerald); border-radius: 4px; font-size: 10pt; font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .flow {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    margin: 12px 0; padding: 10px 14px; background: var(--c-bg-soft); border-radius: 6px;
+  }
+  .flow .stage {
+    padding: 4px 10px; background: white; border: 1px solid var(--c-border);
+    border-radius: 4px; font-size: 10pt; font-weight: 500;
+  }
+  .flow .stage.active { background: var(--c-primary); color: white; border-color: var(--c-primary); }
+  .flow .arrow { color: var(--c-muted); font-size: 12pt; }
+
+  figure { margin: 14px 0 8px 0; padding: 0; }
+  figure svg { display: block; max-width: 100%; height: auto; }
+  figcaption { font-size: 9.5pt; color: var(--c-muted); margin-top: 6px; text-align: center; }
+</style>
+</head>
+<body>
+
+<header class="cover">
+  <h1>사용자 / 관리자 매뉴얼</h1>
+  <p class="lead">
+    Unified Data Pipeline Platform — 채널별 수집 프로세스 가이드.
+    "어느 메뉴에서 시작해 어떤 순서로 작업하면 데이터가 마트까지 도착하는가" 를 채널별로 풀어냅니다.
+  </p>
+  <div class="meta">
+    <span><strong>대상</strong>&nbsp; 운영자 / 분석가 / 관리자</span>
+    <span><strong>전제</strong>&nbsp; 시스템이 가동 중 (도메인 또는 IP 로 접속 가능)</span>
+    <span><strong>버전</strong>&nbsp; Phase 3 종료 시점 (2026-04-26)</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <strong>목차</strong>
+  <ol>
+    <li>1. 시작 전 알아야 할 것 (사용자 역할 / 메뉴 / 데이터 흐름)</li>
+    <li>2. 채널별 공통 — 9단계 프로세스</li>
+    <li>3. 시나리오 A — 유통사 POS API 수집</li>
+    <li>4. 시나리오 B — DB-to-DB 증분 수집</li>
+    <li>5. 시나리오 C — 온라인 크롤링</li>
+    <li>6. 시나리오 D — OCR (영수증 / 전단)</li>
+    <li>7. 추가 — 스케줄 / Backfill / 재실행</li>
+    <li>8. 추가 — SQL Studio 승인 라이프사이클</li>
+    <li>9. 트러블슈팅</li>
+  </ol>
+</nav>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     1. PRELIMINARIES
+════════════════════════════════════════════════════════════════════════════ -->
+<h2>1. 시작 전 알아야 할 것</h2>
+
+<h3>1.1 사용자 역할 (Role)</h3>
+<table>
+  <thead><tr><th>역할</th><th>핵심 권한</th><th>대표 메뉴</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><span class="role-tag admin">ADMIN</span></td>
+      <td>모든 메뉴, 사용자 관리, mart 직접 적재 가능</td>
+      <td>모든 메뉴 + 사용자 관리 + Dead Letter</td>
+    </tr>
+    <tr>
+      <td><span class="role-tag approver">APPROVER</span></td>
+      <td>워크플로 PUBLISH, 실행, SQL 자산 승인/반려</td>
+      <td>Visual ETL Designer + SQL Studio (승인) + Crowd 검수</td>
+    </tr>
+    <tr>
+      <td><span class="role-tag operator">OPERATOR</span></td>
+      <td>워크플로 작성 + SQL 자산 작성/제출 (승인 ✗)</td>
+      <td>Designer + SQL Studio + 파이프라인 실행 모니터</td>
+    </tr>
+    <tr>
+      <td><span class="role-tag reviewer">REVIEWER</span></td>
+      <td>Crowd 검수 큐 처리</td>
+      <td>검수 큐</td>
+    </tr>
+    <tr>
+      <td><span class="role-tag viewer">VIEWER</span></td>
+      <td>읽기 전용 — 대시보드, 마스터 조회만</td>
+      <td>대시보드 / 데이터 소스 (read)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>1.2 좌측 사이드바 메뉴 13종</h3>
+<div class="screenshot">
+  <strong>[화면 캡처 자리]</strong>
+  로그인 후 좌측 사이드바 — 13개 메뉴 (역할에 따라 일부 숨김).<br>
+  <span class="path">캡처 권장: 좌측 사이드바 전체 + 상단 Pipeline Hub 로고</span>
+</div>
+
+<table class="compact">
+  <tr><td>대시보드</td><td>전체 메트릭 요약</td></tr>
+  <tr><td>데이터 소스</td><td>수집 대상 등록/관리 (POS API / DB / Crawl / OCR 채널)</td></tr>
+  <tr><td>수집 작업</td><td>ingest_job 이력 + 재시도</td></tr>
+  <tr><td>원천 데이터</td><td>raw.raw_object 조회 (payload 미리보기)</td></tr>
+  <tr><td>파이프라인 실행</td><td>워크플로 목록 + run 검색 (status / 기간)</td></tr>
+  <tr><td>Visual ETL Designer</td><td>워크플로 설계 + 저장 + PUBLISH (APPROVER+)</td></tr>
+  <tr><td>배포 이력</td><td>release 표 + 변경 요약 (added/removed/changed)</td></tr>
+  <tr><td>SQL Studio</td><td>SQL 자산 + sandbox preview + 승인 (OPERATOR+)</td></tr>
+  <tr><td>검수 큐</td><td>Crowd 검수 (REVIEWER+)</td></tr>
+  <tr><td>Dead Letter</td><td>실패 메시지 replay (ADMIN)</td></tr>
+  <tr><td>Runtime 모니터</td><td>worker 백로그, queue lag, dramatiq 상태</td></tr>
+  <tr><td>사용자 관리</td><td>사용자 / 역할 (ADMIN)</td></tr>
+</table>
+
+<h3>1.3 데이터 흐름 한눈에</h3>
+<figure>
+<svg viewBox="0 0 980 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1e40af"/>
+    </marker>
+  </defs>
+  <g font-family="sans-serif" font-size="11">
+    <rect x="20"  y="80" width="120" height="50" fill="#fef3c7" stroke="#b45309" rx="6"/>
+    <text x="80"  y="100" text-anchor="middle" font-weight="700">① 데이터 소스</text>
+    <text x="80"  y="118" text-anchor="middle" fill="#475569">등록 (관리자)</text>
+
+    <rect x="170" y="80" width="120" height="50" fill="#fef3c7" stroke="#b45309" rx="6"/>
+    <text x="230" y="100" text-anchor="middle" font-weight="700">② 수집 트리거</text>
+    <text x="230" y="118" text-anchor="middle" fill="#475569">자동/수동</text>
+
+    <rect x="320" y="80" width="120" height="50" fill="#dbeafe" stroke="#1e40af" rx="6"/>
+    <text x="380" y="100" text-anchor="middle" font-weight="700">③ Designer 설계</text>
+    <text x="380" y="118" text-anchor="middle" fill="#475569">7노드 DAG</text>
+
+    <rect x="470" y="80" width="120" height="50" fill="#dbeafe" stroke="#1e40af" rx="6"/>
+    <text x="530" y="100" text-anchor="middle" font-weight="700">④ SQL Studio</text>
+    <text x="530" y="118" text-anchor="middle" fill="#475569">검증 + 승인</text>
+
+    <rect x="620" y="80" width="120" height="50" fill="#fee2e2" stroke="#b91c1c" rx="6"/>
+    <text x="680" y="100" text-anchor="middle" font-weight="700">⑤ PUBLISH + 실행</text>
+    <text x="680" y="118" text-anchor="middle" fill="#475569">cron / 즉시</text>
+
+    <rect x="770" y="80" width="120" height="50" fill="#d1fae5" stroke="#047857" rx="6"/>
+    <text x="830" y="100" text-anchor="middle" font-weight="700">⑥ mart 적재</text>
+    <text x="830" y="118" text-anchor="middle" fill="#475569">SSE 모니터</text>
+
+    <line x1="140" y1="105" x2="170" y2="105" stroke="#1e40af" stroke-width="2" marker-end="url(#ar4)"/>
+    <line x1="290" y1="105" x2="320" y2="105" stroke="#1e40af" stroke-width="2" marker-end="url(#ar4)"/>
+    <line x1="440" y1="105" x2="470" y2="105" stroke="#1e40af" stroke-width="2" marker-end="url(#ar4)"/>
+    <line x1="590" y1="105" x2="620" y2="105" stroke="#1e40af" stroke-width="2" marker-end="url(#ar4)"/>
+    <line x1="740" y1="105" x2="770" y2="105" stroke="#1e40af" stroke-width="2" marker-end="url(#ar4)"/>
+  </g>
+</svg>
+<figcaption>그림 1-1. 데이터 소스 등록부터 mart 적재까지 — 6단계 큰 그림.</figcaption>
+</figure>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     2. COMMON 9 STEPS
+════════════════════════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2>2. 채널별 공통 — 9단계 프로세스</h2>
+<p>모든 채널 (POS API / DB / Crawl / OCR) 은 다음 9단계를 따릅니다. 채널별 차이는 각 단계
+세부 항목에서 발생.</p>
+
+<div class="step">
+  <span class="num">1</span>
+  <h4>사전 준비 — 인증 + 역할 확인</h4>
+  <p><span class="menu">로그인 화면</span> → admin 또는 본인 계정으로 로그인. 좌측 사이드바
+  하단의 본인 역할 (ADMIN/APPROVER/...) 을 확인.</p>
+  <p class="muted">권한 부족 시 메뉴가 안 보이거나 403 에러. 관리자에게 역할 부여 요청.</p>
+</div>
+
+<div class="step">
+  <span class="num">2</span>
+  <h4>데이터 소스 등록 <span class="role-tag admin">ADMIN</span></h4>
+  <p><span class="menu">데이터 소스 → 신규</span> 에서 source_code (예: <code>EMART_API</code>),
+  source_type (<code>API/DB/CRAWL/OCR</code>), 인증 정보 (API key / DB 접속 정보) 입력.</p>
+  <div class="screenshot">
+    <strong>[화면 캡처 자리]</strong>
+    데이터 소스 신규 등록 폼.<br>
+    <span class="path">캡처 위치: /sources → 우측 상단 "신규" 버튼 클릭</span>
+  </div>
+</div>
+
+<div class="step">
+  <span class="num">3</span>
+  <h4>(채널별) 첫 수집 트리거 — raw 적재 확인 <span class="role-tag admin">ADMIN</span> <span class="role-tag operator">OPERATOR</span></h4>
+  <p>채널마다 다름:</p>
+  <ul>
+    <li><strong>POS API</strong>: <span class="menu">수집 작업 → 신규</span> 또는 외부 시스템이 <code>POST /v1/ingest/api</code> 호출</li>
+    <li><strong>DB-to-DB</strong>: <span class="menu">데이터 소스 → 해당 source 의 watermark 초기화</span> + 자동 polling</li>
+    <li><strong>Crawl</strong>: <span class="menu">데이터 소스 → 크롤 시작 URL 등록</span> + Crawler worker 가 자동 처리</li>
+    <li><strong>OCR</strong>: 사용자 (앱/웹) 이 <code>POST /v1/ingest/{file,receipt}</code> 로 이미지 업로드</li>
+  </ul>
+  <p><span class="menu">원천 데이터</span> 메뉴에서 채널별 raw_object 가 적재되었는지 확인.</p>
+</div>
+
+<div class="step">
+  <span class="num">4</span>
+  <h4>워크플로 설계 — Visual ETL Designer <span class="role-tag operator">OPERATOR</span> <span class="role-tag approver">APPROVER</span></h4>
+  <p><span class="menu">Visual ETL Designer</span> 진입 → 좌측 팔레트의 7노드 (NOOP / SOURCE_API
+  / SQL_TRANSFORM / DEDUP / DQ_CHECK / LOAD_MASTER / NOTIFY) 를 캔버스로 drag &amp; drop.</p>
+  <p>각 노드 클릭 → 우측 패널에서 <code>config_json</code> 편집 (sources / queries / target tables).</p>
+  <p>노드 간 엣지로 연결 → 상단 <strong>저장</strong> (DRAFT 로 영속).</p>
+  <div class="screenshot">
+    <strong>[화면 캡처 자리]</strong>
+    Visual ETL Designer 캔버스 — 좌측 팔레트 + 중앙 캔버스 + 우측 노드 설정 패널.<br>
+    <span class="path">캡처 위치: /pipelines/designer (예: 시드된 retail_api_price__emart 워크플로)</span>
+  </div>
+</div>
+
+<div class="step">
+  <span class="num">5</span>
+  <h4>SQL 작성 + 승인 — SQL Studio <span class="role-tag operator">OPERATOR</span> + <span class="role-tag approver">APPROVER</span></h4>
+  <p>SQL_TRANSFORM 노드의 SQL 은 안전을 위해 SQL Studio 의 sandbox 에서 사전 검증한다.</p>
+  <ol>
+    <li><span class="menu">SQL Studio → 신규</span> 로 SQL 자산 만들기 (자동 DRAFT v1).</li>
+    <li>상단 <strong>Validate</strong> → sqlglot 로 정적 분석 (참조 테이블 + 위반 사유 노출).</li>
+    <li><strong>Preview</strong> → read-only TX 안에서 LIMIT 1000 자동 부착해 결과 미리보기.</li>
+    <li><strong>EXPLAIN</strong> → PostgreSQL 실행 계획 (FORMAT JSON) 확인.</li>
+    <li>OPERATOR 가 <strong>제출</strong> → DRAFT → PENDING 상태 전이.</li>
+    <li>APPROVER 가 <strong>승인</strong> 또는 <strong>반려</strong> (self-approval 차단).</li>
+    <li>APPROVED SQL 만 SQL_TRANSFORM 노드에 연결.</li>
+  </ol>
+</div>
+
+<div class="step">
+  <span class="num">6</span>
+  <h4>PUBLISH (배포) <span class="role-tag approver">APPROVER</span></h4>
+  <p>Designer 상단 <strong>PUBLISH</strong> 버튼. DRAFT 워크플로 자체는 유지되며, 같은 name
+  안에서 <code>version_no = max+1</code> 인 새 PUBLISHED 워크플로 row 가 생성된다.</p>
+  <p>그래프(노드/엣지) 가 freeze 되어 향후 DRAFT 가 변경돼도 PUBLISHED 는 영향 없음.</p>
+  <p>완료 후 화면이 자동으로 새 PUBLISHED 워크플로로 redirect — toast: <code>v2 배포 완료
+  (release #N)</code>.</p>
+  <div class="card success">
+    <h4>왜 새 row 인가?</h4>
+    <p>운영자가 PUBLISH 후에도 같은 이름의 워크플로를 계속 편집할 수 있게 하기 위해서.
+    PUBLISHED 그래프는 절대 변하지 않고, DRAFT 는 다음 버전 작업 공간.</p>
+    <p class="muted">상세: ADR-0009 / 배포 이력 메뉴.</p>
+  </div>
+</div>
+
+<div class="step">
+  <span class="num">7</span>
+  <h4>실행 — 즉시 또는 cron 자동 <span class="role-tag approver">APPROVER</span></h4>
+  <p>두 가지 방법:</p>
+  <ul>
+    <li><strong>즉시 실행</strong> — Designer 의 <strong>실행</strong> 버튼 (PUBLISHED 워크플로
+      한정). 즉시 pipeline_run 생성 + entry 노드 actor 디스패치.</li>
+    <li><strong>cron 자동</strong> — Designer 툴바의 cron 입력 + "활성" 체크 + "스케줄 저장".
+      <code>0 5 * * *</code> 같은 5필드 표현식 (UTC). Phase 4 의 Airflow 통합이 polling 후
+      자동 트리거.</li>
+  </ul>
+</div>
+
+<div class="step">
+  <span class="num">8</span>
+  <h4>실시간 모니터 + 검수 <span class="role-tag operator">OPERATOR</span> <span class="role-tag reviewer">REVIEWER</span></h4>
+  <p><span class="menu">파이프라인 실행</span> → workflow / status / 기간 필터 → 상세 진입.</p>
+  <p>상세 화면 (<code>/pipelines/runs/:runId</code>) 에서 SSE 가 노드별 status 를 실시간으로
+  색상 (PENDING/READY/RUNNING/SUCCESS/FAILED/SKIPPED) 갱신.</p>
+  <p>OCR 등에서 confidence 미달 row 는 <span class="menu">검수 큐</span> 에 자동 적재 →
+  REVIEWER 가 수동 처리.</p>
+  <div class="screenshot">
+    <strong>[화면 캡처 자리]</strong>
+    PipelineRunDetail — React Flow 캔버스 위에 노드 색상 (RUNNING=노랑, SUCCESS=초록).<br>
+    <span class="path">캡처 위치: /pipelines/runs/[run_id]</span>
+  </div>
+</div>
+
+<div class="step">
+  <span class="num">9</span>
+  <h4>mart 결과 확인 + 외부 서비스화</h4>
+  <p>SQL Studio 의 <code>mart_freshness_check_24h</code> 같은 템플릿으로 24h 이내 신규 row
+  수 확인.</p>
+  <p>외부 소비자에게 노출은 Phase 4 의 <code>/public/v1/prices/*</code> 가 담당. Phase 3
+  까지는 내부 사용자가 mart 를 SQL 로 직접 조회하거나 Web Portal 의 마스터 메뉴 (Phase 4
+  추가 예정) 로 확인.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     3. SCENARIO A — POS API
+════════════════════════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2>3. 시나리오 A — 유통사 POS API 수집</h2>
+
+<div class="scenario">
+  <span class="scenario-channel">채널: 유통사 POS API</span>
+  <div class="scenario-title">A-1. 이마트 POS 가격 일배치 (예: <code>retail_api_price__emart</code>)</div>
+
+  <p><strong>목표</strong>: 이마트 POS API 가 매일 새벽 5시(UTC) 에 자동 호출되어 mart.product_price
+  로 적재되도록 운영 가능 상태 만들기.</p>
+
+  <div class="flow">
+    <span class="stage">데이터 소스 등록</span>
+    <span class="arrow">→</span>
+    <span class="stage">Designer 설계</span>
+    <span class="arrow">→</span>
+    <span class="stage">SQL Studio 승인</span>
+    <span class="arrow">→</span>
+    <span class="stage">PUBLISH</span>
+    <span class="arrow">→</span>
+    <span class="stage">cron 활성화</span>
+    <span class="arrow">→</span>
+    <span class="stage active">자동 실행</span>
+  </div>
+
+  <h4>3.1 작업 순서</h4>
+  <ol>
+    <li><span class="menu">데이터 소스 → 신규</span>: <code>source_code=EMART_API</code>,
+      <code>source_type=API</code>, base_url + API key 등록 <span class="role-tag admin">ADMIN</span></li>
+    <li>외부 시스템이 <code>POST /v1/ingest/api</code> 로 호출 시작 (또는 수동 테스트 호출).</li>
+    <li><span class="menu">원천 데이터</span> 메뉴 → <code>EMART_API</code> 필터 → raw_object
+      적재 확인 (≥ 1건).</li>
+    <li><span class="menu">Visual ETL Designer → 신규</span>: 노드 7개 배치 (시드된
+      <code>retail_api_price__emart</code> 워크플로 그대로 사용 가능).</li>
+    <li><span class="menu">SQL Studio → 신규</span>: 표준화 SQL 작성 → Validate → Preview →
+      OPERATOR 제출 → APPROVER 승인.</li>
+    <li>Designer 의 <code>sql_normalize</code> 노드 config_json.sql 에 APPROVED SQL 붙여넣기 →
+      <strong>저장</strong>.</li>
+    <li><strong>PUBLISH</strong> → 새 PUBLISHED v2 자동 redirect.</li>
+    <li>Designer 툴바 cron 영역에 <code>0 5 * * *</code> 입력 + "활성" 체크 + <strong>스케줄
+      저장</strong>.</li>
+    <li>다음 날 새벽 5시 KST 14시 자동 실행 (Phase 4 Airflow 통합 후) — Phase 3 한정으로는
+      "실행" 버튼 수동.</li>
+  </ol>
+
+  <h4>3.2 검증 (다음 날)</h4>
+  <ul>
+    <li><span class="menu">파이프라인 실행</span> → workflow=retail_api_price__emart →
+      어제 run SUCCESS.</li>
+    <li><span class="menu">SQL Studio</span> → <code>mart_freshness_check_24h</code> Preview
+      → 24h 이내 row 수 ≥ 1.</li>
+  </ul>
+
+  <h4>3.3 자주 발생하는 문제</h4>
+  <table>
+    <thead><tr><th>증상</th><th>원인</th><th>해결</th></tr></thead>
+    <tbody>
+      <tr><td>raw_object 0건</td><td>외부 시스템이 호출 안 함 / API key 만료</td>
+        <td>데이터 소스 → 인증 갱신 + 외부 측 cron 확인</td></tr>
+      <tr><td>SQL_TRANSFORM 노드 FAILED</td><td>참조 테이블 schema 미허용</td>
+        <td>SQL Studio Validate 메시지 확인 → mart/stg/wf 만 사용</td></tr>
+      <tr><td>LOAD_MASTER UPSERT 충돌</td><td>key_columns 부족 / 중복 row</td>
+        <td>DEDUP 노드의 key_columns 점검</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     4. SCENARIO B — DB-to-DB
+════════════════════════════════════════════════════════════════════════════ -->
+<h2>4. 시나리오 B — DB-to-DB 증분 수집</h2>
+
+<div class="scenario">
+  <span class="scenario-channel">채널: 외부 PostgreSQL/MySQL incremental</span>
+  <div class="scenario-title">B-1. 외부 ERP 의 상품/가격 테이블 증분 수집</div>
+
+  <p><strong>목표</strong>: 외부 ERP DB (PG 또는 MySQL) 의 상품/가격 테이블을 watermark 기반
+  증분 수집해 raw + stg 적재.</p>
+
+  <div class="flow">
+    <span class="stage">DB 접속 정보 등록</span>
+    <span class="arrow">→</span>
+    <span class="stage">watermark 초기값</span>
+    <span class="arrow">→</span>
+    <span class="stage">db_incremental worker 활성</span>
+    <span class="arrow">→</span>
+    <span class="stage active">자동 polling</span>
+  </div>
+
+  <h4>4.1 작업 순서</h4>
+  <ol>
+    <li><span class="menu">데이터 소스 → 신규</span>: <code>source_code=ERP_DB</code>,
+      <code>source_type=DB</code>, 연결 문자열 (PG/MySQL DSN), watermark 컬럼명 (예:
+      <code>updated_at</code>) 등록.</li>
+    <li><code>ctl.data_source.watermark</code> jsonb 에 초기값 (예: <code>{"updated_at":
+      "2026-04-01T00:00:00+00:00"}</code>) 직접 설정.</li>
+    <li>db_incremental worker (Phase 2.2.7) 가 자동 polling — 매 N분마다 watermark 이후 row
+      를 가져와 <code>raw.raw_object</code> + <code>stg.price_observation</code> 에 적재.</li>
+    <li>이후는 <strong>시나리오 A 의 4단계 (Designer)</strong> 와 동일 — SOURCE_API 노드의
+      <code>source_code</code> 만 <code>ERP_DB</code> 로 바꿔 작성.</li>
+  </ol>
+
+  <h4>4.2 watermark 동작</h4>
+  <p>매 polling 후 가져온 마지막 row 의 watermark 컬럼 값을 다음 polling 의 시작점으로 저장.
+  CDC (Change Data Capture) 시 before/after 모두 raw 에 보관.</p>
+
+  <div class="card warn">
+    <h4>주의: 외부 DB 부하</h4>
+    <p>watermark 컬럼에 인덱스가 있어야 외부 DB 부하가 작다. 5분 간격 polling 으로 시작해
+    부하 보면서 조정.</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     5. SCENARIO C — CRAWL
+════════════════════════════════════════════════════════════════════════════ -->
+<h2>5. 시나리오 C — 온라인 크롤링</h2>
+
+<div class="scenario">
+  <span class="scenario-channel">채널: HTML 크롤링 (쿠팡 / 마컬)</span>
+  <div class="scenario-title">C-1. 쿠팡 상품 페이지 시간배치 (예: <code>online_crawl__coupang_hourly</code>)</div>
+
+  <p><strong>목표</strong>: 쿠팡의 상품 페이지를 매시간 정각 크롤링해 가격 변동 추적.</p>
+
+  <div class="flow">
+    <span class="stage">데이터 소스 (URL 셋)</span>
+    <span class="arrow">→</span>
+    <span class="stage">Crawler worker</span>
+    <span class="arrow">→</span>
+    <span class="stage">robots.txt 검증</span>
+    <span class="arrow">→</span>
+    <span class="stage">content_hash dedup</span>
+    <span class="arrow">→</span>
+    <span class="stage active">stg 적재</span>
+  </div>
+
+  <h4>5.1 작업 순서</h4>
+  <ol>
+    <li><span class="menu">데이터 소스 → 신규</span>: <code>source_code=COUPANG_CRAWL</code>,
+      <code>source_type=CRAWL</code>, 크롤 시작 URL 셋 + 파서 버전 등록.</li>
+    <li>Crawler worker (Phase 2.2.8) 가 자동 크롤 — robots.txt 준수, content_hash 로 같은
+      페이지 dedup.</li>
+    <li>HTML → 정형 row 파싱 → <code>stg.price_observation</code>.</li>
+    <li>Designer 워크플로 — 시드된 <code>online_crawl__coupang_hourly</code> 그대로 사용 가능
+      (cron <code>0 * * * *</code> 매시간).</li>
+  </ol>
+
+  <div class="card danger">
+    <h4>⚠ robots.txt 준수 필수</h4>
+    <p>Crawler worker 는 <code>robots.txt</code> 의 Disallow 규칙을 자동 검증하고 차단된
+    URL 은 즉시 RobotsBlocked 예외. 사이트 운영자와의 약속 준수.</p>
+  </div>
+
+  <h4>5.2 가격 이상치 (BLOCK 정책)</h4>
+  <p>크롤링은 파서 버그로 가격 단위가 잘못 잡히는 경우가 있어 <code>online_crawl__coupang_hourly</code>
+  YAML 의 <code>dq_check_price_outliers</code> 노드는 severity=BLOCK — 가격 ≤ 0 또는 5천만원
+  초과 row 발견 시 pipeline_run 즉시 FAILED. (Phase 4 의 ON_HOLD 흐름과 결합 예정.)</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     6. SCENARIO D — OCR
+════════════════════════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2>6. 시나리오 D — OCR (영수증 / 전단)</h2>
+
+<div class="scenario">
+  <span class="scenario-channel">채널: OCR (영수증 / 마트 전단)</span>
+  <div class="scenario-title">D-1. 소비자 영수증 OCR 자동 처리 + Crowd 검수</div>
+
+  <p><strong>목표</strong>: 사용자가 앱/웹에서 영수증 사진을 업로드하면 OCR 로 추출 →
+  confidence ≥ 0.85 자동 반영 / 미만은 Crowd 검수 큐.</p>
+
+  <div class="flow">
+    <span class="stage">사용자 업로드</span>
+    <span class="arrow">→</span>
+    <span class="stage">CLOVA OCR</span>
+    <span class="arrow">→</span>
+    <span class="stage">Upstage 폴백</span>
+    <span class="arrow">→</span>
+    <span class="stage">confidence 게이트</span>
+    <span class="arrow">→</span>
+    <span class="stage active">자동 반영 / Crowd</span>
+  </div>
+
+  <h4>6.1 사용자 측 (앱/웹)</h4>
+  <ol>
+    <li>로그인 후 영수증 업로드 화면 (앱) → 사진 촬영 → <code>POST /v1/ingest/receipt</code>.</li>
+    <li>multipart/form-data 로 이미지 업로드 (≤ 10MB).</li>
+    <li>처리 결과는 비동기 — 사용자에게 "접수 완료" 알림 즉시 표시.</li>
+  </ol>
+
+  <h4>6.2 자동 처리 (백엔드)</h4>
+  <ol>
+    <li>raw.raw_object 적재 (RECEIPT_IMAGE) + Object Storage 에 원본 사진.</li>
+    <li>OCR worker — CLOVA OCR 호출 (1차) → 실패 시 Upstage 폴백 (2차).</li>
+    <li>추출된 매장명/품목/가격을 <code>stg.price_observation</code> 에 INSERT.</li>
+    <li>confidence ≥ 0.85 인 row 는 자동 표준화 (3단계 fallback) → mart 반영.</li>
+    <li>confidence &lt; 0.85 또는 표준화 실패 row 는 <code>run.crowd_task</code> 에 적재.</li>
+  </ol>
+
+  <h4>6.3 검수자 측 <span class="role-tag reviewer">REVIEWER</span></h4>
+  <ol>
+    <li><span class="menu">검수 큐</span> 진입 → reason 별 필터 (<code>ocr_low_confidence
+      / std_low_confidence / price_fact_low_confidence / sample_review</code>).</li>
+    <li>해당 row 클릭 → 원본 영수증 사진 미리보기 + OCR 추출 결과 + 후보 std_code top-5.</li>
+    <li>승인 / 반려 마킹. (Phase 3 한정으로는 status 전이만 — Phase 4 부터 mart 자동 반영 +
+      이중 검수.)</li>
+  </ol>
+
+  <h4>6.4 개인정보 마스킹</h4>
+  <div class="card danger">
+    <h4>⚠ 영수증 PII 마스킹 필수</h4>
+    <p>전화번호 / 카드 끝자리 / 주소는 OCR 단계에서 자동 정규식 마스킹 (Phase 2.2.4).
+    원본 사진은 Object Storage 에 암호화 저장. 외부 API 응답에 절대 포함 금지.</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     7. SCHEDULE / BACKFILL / RESTART
+════════════════════════════════════════════════════════════════════════════ -->
+<h2>7. 추가 — 스케줄 / Backfill / 재실행</h2>
+
+<h3>7.1 스케줄 cron 설정</h3>
+<ol>
+  <li>PUBLISHED 워크플로의 Designer 진입.</li>
+  <li>툴바의 cron 입력란 (5필드, UTC 기준): <code>분 시 일 월 요일</code>.</li>
+  <li>"활성" 체크박스 + <strong>스케줄 저장</strong>.</li>
+  <li>완료. 다음 cron 발화 시각부터 자동 실행 (Phase 4 Airflow 통합 후).</li>
+</ol>
+
+<table class="compact">
+  <thead><tr><th>UTC cron</th><th>의미 (한국시간)</th><th>예시 시나리오</th></tr></thead>
+  <tbody>
+    <tr><td><code>0 5 * * *</code></td><td>매일 14:00 KST</td><td>POS API 일배치</td></tr>
+    <tr><td><code>0 2 * * *</code></td><td>매일 11:00 KST</td><td>영수증 OCR 일배치</td></tr>
+    <tr><td><code>0 * * * *</code></td><td>매시간 정각</td><td>크롤링 시배치</td></tr>
+    <tr><td><code>*/15 * * * *</code></td><td>매 15분</td><td>DB-to-DB 증분 polling</td></tr>
+  </tbody>
+</table>
+
+<h3>7.2 Backfill — 과거 일자 재처리</h3>
+<ol>
+  <li>PUBLISHED 워크플로 Designer → <strong>Backfill</strong> 버튼.</li>
+  <li>시작/종료 날짜 입력 (예: 2026-04-01 ~ 2026-04-07).</li>
+  <li><strong>실행</strong> → 일자별 PENDING pipeline_run 1개씩 생성 (멱등 — 이미 있으면 기존
+    ID 반환).</li>
+  <li>최대 366일 한도. 그 이상은 chunk 로 나눠서.</li>
+</ol>
+
+<h3>7.3 재실행 — 처음부터 또는 특정 노드부터</h3>
+<ol>
+  <li><span class="menu">파이프라인 실행 → 해당 run 상세</span>.</li>
+  <li>상단 <strong>처음부터 재실행</strong> — 새 pipeline_run + entry 노드 READY.</li>
+  <li>각 노드 row 의 <strong>이 노드부터</strong> — 해당 노드의 ancestors 는 SUCCESS 시드,
+    노드 자체는 READY, 후손은 PENDING.</li>
+</ol>
+
+<div class="card tip">
+  <h4>언제 "이 노드부터" 를 쓰나?</h4>
+  <p>SQL_TRANSFORM 의 SQL 만 고쳤을 때, 앞 단계 (SOURCE_API / DEDUP) 를 다시 돌릴 필요가
+  없으면 SQL_TRANSFORM 노드부터 재실행 — 시간/리소스 절약.</p>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     8. SQL STUDIO LIFECYCLE
+════════════════════════════════════════════════════════════════════════════ -->
+<h2>8. 추가 — SQL Studio 승인 라이프사이클</h2>
+
+<figure>
+<svg viewBox="0 0 980 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+  </defs>
+  <g font-family="sans-serif" font-size="11">
+    <rect x="20"  y="80" width="120" height="50" fill="#f1f5f9" stroke="#475569" rx="6"/>
+    <text x="80"  y="100" text-anchor="middle" font-weight="700">DRAFT</text>
+    <text x="80"  y="118" text-anchor="middle" fill="#475569">작성자 자유</text>
+
+    <rect x="200" y="80" width="120" height="50" fill="#fef3c7" stroke="#b45309" rx="6"/>
+    <text x="260" y="100" text-anchor="middle" font-weight="700">PENDING</text>
+    <text x="260" y="118" text-anchor="middle" fill="#475569">검토 대기</text>
+
+    <rect x="380" y="20" width="120" height="50" fill="#d1fae5" stroke="#047857" rx="6"/>
+    <text x="440" y="40" text-anchor="middle" font-weight="700">APPROVED</text>
+    <text x="440" y="58" text-anchor="middle" fill="#475569">SQL_TRANSFORM 연결 가능</text>
+
+    <rect x="380" y="140" width="120" height="50" fill="#fee2e2" stroke="#b91c1c" rx="6"/>
+    <text x="440" y="160" text-anchor="middle" font-weight="700">REJECTED</text>
+    <text x="440" y="178" text-anchor="middle" fill="#475569">새 DRAFT 재제출</text>
+
+    <rect x="560" y="20" width="120" height="50" fill="#f1f5f9" stroke="#475569" rx="6"/>
+    <text x="620" y="40" text-anchor="middle" font-weight="700">SUPERSEDED</text>
+    <text x="620" y="58" text-anchor="middle" fill="#475569">새 APPROVED 등장</text>
+
+    <line x1="140" y1="105" x2="200" y2="105" stroke="#475569" stroke-width="2" marker-end="url(#ar5)"/>
+    <text x="170" y="98" text-anchor="middle" font-size="10" fill="#475569">submit</text>
+
+    <line x1="320" y1="100" x2="380" y2="55" stroke="#047857" stroke-width="2" marker-end="url(#ar5)"/>
+    <text x="345" y="73" text-anchor="middle" font-size="10" fill="#047857">approve</text>
+
+    <line x1="320" y1="115" x2="380" y2="160" stroke="#b91c1c" stroke-width="2" marker-end="url(#ar5)"/>
+    <text x="345" y="148" text-anchor="middle" font-size="10" fill="#b91c1c">reject</text>
+
+    <line x1="500" y1="45" x2="560" y2="45" stroke="#475569" stroke-width="2" marker-end="url(#ar5)"/>
+    <text x="530" y="38" text-anchor="middle" font-size="10" fill="#475569">새 v approve</text>
+
+    <line x1="440" y1="140" x2="100" y2="130" stroke="#475569" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#ar5)"/>
+    <text x="270" y="155" text-anchor="middle" font-size="10" fill="#475569">새 DRAFT (version_no +1)</text>
+  </g>
+</svg>
+<figcaption>그림 8-1. SqlQueryVersion 5상태 라이프사이클.</figcaption>
+</figure>
+
+<h3>8.1 self-approval 차단</h3>
+<p>OPERATOR 가 submit 한 SQL 을 본인이 approve 하려고 하면 <strong>422</strong> 거부.
+APPROVER 도 동일 — 본인이 submit 한 PENDING 은 다른 APPROVER 가 처리해야 함. 이중
+검토를 강제하는 보안 정책.</p>
+
+<h3>8.2 SQL 자산을 SQL_TRANSFORM 노드와 연결</h3>
+<ol>
+  <li>SQL Studio 에서 새 SQL 자산 작성 → APPROVED 까지 진행.</li>
+  <li>Designer 의 SQL_TRANSFORM 노드 클릭 → <code>config_json</code> 의 <code>sql</code>
+    필드에 APPROVED SQL 본문 붙여넣기 (Phase 3 한정 — Phase 4 에서 자산 ID 직접 참조).</li>
+  <li>Designer 의 하단 SQL Studio 영역의 <strong>Validate</strong> 통과하면 노드 config
+    저장 OK.</li>
+</ol>
+
+<!-- ════════════════════════════════════════════════════════════════════════════
+     9. TROUBLESHOOTING
+════════════════════════════════════════════════════════════════════════════ -->
+<div class="page-break"></div>
+<h2>9. 트러블슈팅</h2>
+
+<h3>9.1 로그인 / 권한</h3>
+<table>
+  <thead><tr><th>증상</th><th>원인 / 해결</th></tr></thead>
+  <tbody>
+    <tr><td>로그인 401</td>
+      <td>비밀번호 오타 / 사용자 비활성. ADMIN 에게 비활성 해제 요청.</td></tr>
+    <tr><td>메뉴가 안 보임</td>
+      <td>역할 부족. 사이드바 하단의 본인 역할 확인.</td></tr>
+    <tr><td>버튼 클릭 시 403</td>
+      <td>API 권한 미달. 같은 메뉴라도 일부 액션은 더 높은 역할 필요 (예: SQL approve = APPROVER).</td></tr>
+  </tbody>
+</table>
+
+<h3>9.2 Visual ETL Designer</h3>
+<table>
+  <thead><tr><th>증상</th><th>원인 / 해결</th></tr></thead>
+  <tbody>
+    <tr><td>저장 시 422</td>
+      <td>node_key 중복 / 엣지가 없는 node_key 참조 — 우측 패널의 node_key 정합성 확인.</td></tr>
+    <tr><td>PUBLISH 시 409</td>
+      <td>노드 0개 워크플로. 최소 1개 노드 필요.</td></tr>
+    <tr><td>실행 버튼이 비활성</td>
+      <td>워크플로 status 가 DRAFT — 먼저 PUBLISH.</td></tr>
+    <tr><td>편집이 안 됨</td>
+      <td>PUBLISHED 워크플로는 readonly. 좌측 사이드바의 같은 name 의 DRAFT 워크플로로 이동해 편집.</td></tr>
+  </tbody>
+</table>
+
+<h3>9.3 SQL Studio</h3>
+<table>
+  <thead><tr><th>증상</th><th>원인 / 해결</th></tr></thead>
+  <tbody>
+    <tr><td>Validate 실패: schema not allowed</td>
+      <td>mart/stg/wf 외 schema 사용. SQL 수정.</td></tr>
+    <tr><td>Validate 실패: only SELECT statements</td>
+      <td>DROP/UPDATE/DELETE/COPY 등 거부. SELECT 만.</td></tr>
+    <tr><td>Preview 실패: statement_timeout</td>
+      <td>SQL 이 30초 초과. WHERE 추가 / 인덱스 활용 / LIMIT.</td></tr>
+    <tr><td>Approve 시 422</td>
+      <td>self-approval — 다른 APPROVER 에게 요청.</td></tr>
+  </tbody>
+</table>
+
+<h3>9.4 파이프라인 실행</h3>
+<table>
+  <thead><tr><th>증상</th><th>원인 / 해결</th></tr></thead>
+  <tbody>
+    <tr><td>run 이 PENDING 에서 안 진행</td>
+      <td>Worker 미가동. <span class="menu">Runtime 모니터</span> 에서 worker 백로그 확인.</td></tr>
+    <tr><td>NOTIFY 노드 SUCCESS 인데 알림 안 옴</td>
+      <td>Phase 3 한정 — outbox 만 적재, 실 발송은 Phase 4 notify_worker.</td></tr>
+    <tr><td>같은 (workflow, run_date) 가 두 번</td>
+      <td>발생 안 함 — backfill / cron 모두 멱등 (이미 있으면 기존 ID 반환).</td></tr>
+  </tbody>
+</table>
+
+<h3>9.5 OCR / Crowd</h3>
+<table>
+  <thead><tr><th>증상</th><th>원인 / 해결</th></tr></thead>
+  <tbody>
+    <tr><td>OCR 결과가 모두 이상</td>
+      <td>이미지 회전/품질 문제. 사용자에게 재업로드 요청.</td></tr>
+    <tr><td>검수 큐가 끝없이 쌓임</td>
+      <td>confidence 임계 0.85 가 너무 엄격할 수 있음. ADR-0005 의 임계값 보정 검토 (Phase 4).</td></tr>
+    <tr><td>검수 승인 후 mart 안 들어감</td>
+      <td>Phase 3 한정 — Crowd 결과 mart 자동 반영은 Phase 4 의 정식 모듈.</td></tr>
+  </tbody>
+</table>
+
+<h3>9.6 시스템 전반</h3>
+<table>
+  <thead><tr><th>증상</th><th>원인 / 해결</th></tr></thead>
+  <tbody>
+    <tr><td>500 Internal Server Error</td>
+      <td><code>/readyz</code> 확인 → DB / Object Storage 연결 점검. ADMIN 에게 알림.</td></tr>
+    <tr><td>SSE 끊김 (실시간 색상 안 바뀜)</td>
+      <td>5초 후 자동 재연결 + 5초 폴링 fallback. 1분 뒤에도 안 되면 새로고침.</td></tr>
+    <tr><td>대시보드 메트릭 로딩 안 됨</td>
+      <td>Prometheus 미가동. Runtime 모니터 → /metrics 직접 호출 시도.</td></tr>
+  </tbody>
+</table>
+
+<hr style="margin:48px 0 24px 0; border:0; border-top:2px solid var(--c-border)"/>
+<p class="muted" style="text-align:center">
+  Unified Data Pipeline Platform — 2026-04-26 작성<br>
+  본 문서는 <code>docs/deliverables/02_user_manual.html</code> 에 동봉되며,
+  Chrome 브라우저에서 <strong>Ctrl + P → PDF로 저장</strong> 으로 PDF 추출 가능합니다.<br>
+  화면 캡처 자리는 운영자가 실 인스턴스에서 캡처해 [화면 캡처 자리] 박스를 <code>&lt;img src="..."&gt;</code> 로 교체하면 됩니다.
+</p>
+
+</body>
+</html>
