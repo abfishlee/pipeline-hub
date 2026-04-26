@@ -83,9 +83,9 @@ def _ctx(
 # 1. dispatcher
 # ===========================================================================
 def test_v2_catalog_lists_13_types() -> None:
-    types = list_v2_node_types()
-    assert len(types) == 13
-    assert set(types) == {
+    """Phase 5.1 의 13 노드는 *부분집합* — Phase 6 에서 PUBLIC_API_FETCH 추가됨."""
+    types = set(list_v2_node_types())
+    assert {
         "MAP_FIELDS",
         "SQL_INLINE_TRANSFORM",
         "SQL_ASSET_TRANSFORM",
@@ -99,7 +99,7 @@ def test_v2_catalog_lists_13_types() -> None:
         "DEDUP",
         "DQ_CHECK",
         "NOTIFY",
-    }
+    }.issubset(types)
 
 
 def test_v2_dispatcher_resolves_all_13() -> None:

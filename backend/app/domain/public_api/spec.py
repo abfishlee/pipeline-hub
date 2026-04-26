@@ -176,7 +176,7 @@ def save_spec_to_db(
     }
 
     if spec.connector_id is None:
-        payload["created_by"] = created_by  # type: ignore[assignment]
+        payload["created_by"] = created_by
         cid = session.execute(
             text(
                 "INSERT INTO domain.public_api_connector "
@@ -200,7 +200,7 @@ def save_spec_to_db(
         ).scalar_one()
         return int(cid)
 
-    payload["connector_id"] = spec.connector_id  # type: ignore[assignment]
+    payload["connector_id"] = spec.connector_id
     session.execute(
         text(
             "UPDATE domain.public_api_connector SET "
@@ -251,7 +251,7 @@ def render_template(template: Mapping[str, Any], runtime: Mapping[str, Any]) -> 
         elif isinstance(v, list):
             out[k] = [
                 render_template({"_": x}, runtime)["_"]
-                if isinstance(x, (dict, str))
+                if isinstance(x, dict | str)
                 else x
                 for x in v
             ]

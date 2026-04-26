@@ -41,6 +41,7 @@ from app.api.v1 import sse as sse_router
 from app.api.v1 import users as users_router
 from app.api.v2 import backfill as v2_backfill_router
 from app.api.v2 import checklist as v2_checklist_router
+from app.api.v2 import connectors as v2_connectors_router
 from app.api.v2 import contracts as v2_contracts_router
 from app.api.v2 import cutover as v2_cutover_router
 from app.api.v2 import domains as v2_domains_router
@@ -317,6 +318,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Phase 5.2.8 STEP 11 — perf SLO + Performance Coach + backfill.
     app.include_router(v2_perf_router.router)
     app.include_router(v2_backfill_router.router)
+    # Phase 6 Wave 1 — Public API Connector (Source/API workbench backend).
+    app.include_router(v2_connectors_router.router)
 
     # Phase 4.2.5 — Public API sub-app: /public/docs / /public/v1/*
     public_app = FastAPI(

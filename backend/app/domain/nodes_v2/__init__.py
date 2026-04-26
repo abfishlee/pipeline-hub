@@ -100,6 +100,7 @@ def get_v2_runner(node_type: str) -> NodeV2Protocol:
         load_target,
         map_fields,
         ocr_transform,
+        public_api_fetch,
         sql_asset_transform,
         sql_inline_transform,
         standardize,
@@ -117,6 +118,8 @@ def get_v2_runner(node_type: str) -> NodeV2Protocol:
         # provider registry 통합 2종.
         "OCR_TRANSFORM": ocr_transform,
         "CRAWL_FETCH": crawl_fetch,
+        # Phase 6 — public API generic fetcher.
+        "PUBLIC_API_FETCH": public_api_fetch,
         # namespace 표준화.
         "STANDARDIZE": standardize,
         # v1 compat 4종 (NodeV2Context → v1 NodeContext 변환 후 호출).
@@ -152,7 +155,7 @@ def get_v2_runner(node_type: str) -> NodeV2Protocol:
 
 
 def list_v2_node_types() -> list[str]:
-    """문서화 / UX 용 — 등록된 generic node_type 들 (13종)."""
+    """문서화 / UX 용 — 등록된 generic node_type 들 (14종, Phase 6 부터)."""
     return [
         "MAP_FIELDS",
         "SQL_INLINE_TRANSFORM",
@@ -162,6 +165,7 @@ def list_v2_node_types() -> list[str]:
         "LOAD_TARGET",
         "OCR_TRANSFORM",
         "CRAWL_FETCH",
+        "PUBLIC_API_FETCH",
         "STANDARDIZE",
         "SOURCE_DATA",
         "DEDUP",
