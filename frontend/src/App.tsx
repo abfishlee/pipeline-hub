@@ -28,8 +28,10 @@ import { EtlCanvasV2 } from "@/pages/v2/EtlCanvasV2";
 import { FieldMappingDesigner } from "@/pages/v2/FieldMappingDesigner";
 import { InboundChannelDesigner } from "@/pages/v2/InboundChannelDesigner";
 import { MartDesigner } from "@/pages/v2/MartDesigner";
+import { OperationsDashboard } from "@/pages/v2/OperationsDashboard";
 import { PublishApproval } from "@/pages/v2/PublishApproval";
 import { QualityWorkbench } from "@/pages/v2/QualityWorkbench";
+import { ServiceMartViewer } from "@/pages/v2/ServiceMartViewer";
 import { SourceApiDesigner } from "@/pages/v2/SourceApiDesigner";
 import { TransformDesigner } from "@/pages/v2/TransformDesigner";
 import { useAuthStore } from "@/store/auth";
@@ -141,6 +143,14 @@ export default function App() {
               <Route
                 path="/v2/marts/designer"
                 element={<MartDesigner />}
+              />
+              <Route
+                path="/v2/operations/dashboard"
+                element={<OperationsDashboard />}
+              />
+              <Route
+                path="/v2/service-mart"
+                element={<ServiceMartViewer />}
               />
               <Route
                 path="/v2/dryrun/workflow/:workflowId"

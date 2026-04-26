@@ -32,6 +32,10 @@ NodeType = Literal[
     "WEBHOOK_INGEST",
     "FILE_UPLOAD_INGEST",
     "DB_INCREMENTAL_FETCH",
+    # Phase 7 Wave 1B — OCR/Crawler push 결과
+    "OCR_RESULT_INGEST",
+    "CRAWLER_RESULT_INGEST",
+    "CDC_EVENT_FETCH",
 ]
 WorkflowStatus = Literal["DRAFT", "PUBLISHED", "ARCHIVED"]
 

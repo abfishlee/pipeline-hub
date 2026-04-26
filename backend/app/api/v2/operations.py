@@ -1,0 +1,328 @@
+"""HTTP — `/v2/operations` (Phase 7 Wave 5 — Operations Dashboard).
+
+15~20개 Canvas 프로세스 동시 운영 시 한눈에 볼 수 있는 채널/노드 단위 통합
+모니터링 endpoint.
+
+엔드포인트:
+  GET /v2/operations/summary       — 전체 workflow 24h 성공률 + pending replay
+  GET /v2/operations/channels      — 채널 (workflow) 별 상태
+  GET /v2/operations/heatmap       — workflow 의 노드별 24h status heatmap
+  POST /v1/pipelines/runs/{id}/replay-from?node_key=...  — 별도 라우터
+"""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime, timedelta
+from typing import Any
+
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.db.sync_session import get_sync_sessionmaker
+from app.deps import require_roles
+
+router = APIRouter(
+    prefix="/v2/operations",
+    tags=["v2-operations"],
+    dependencies=[
+        Depends(require_roles("ADMIN", "DOMAIN_ADMIN", "APPROVER", "OPERATOR"))
+    ],
+)
+
+
+class OperationsSummary(BaseModel):
+    workflow_count: int
+    runs_24h: int
+    success_24h: int
+    failed_24h: int
+    success_rate_pct: float
+    rows_ingested_24h: int
+    pending_replay: int
+    provider_failures_24h: int
+
+
+class ChannelStatusOut(BaseModel):
+    workflow_id: int
+    workflow_name: str
+    status: str
+    schedule_cron: str | None
+    schedule_enabled: bool
+    last_run_at: datetime | None
+    last_run_status: str | None
+    runs_24h: int
+    success_24h: int
+    failed_24h: int
+    rows_24h: int
+    success_rate_pct: float
+
+
+class NodeHeatmapCell(BaseModel):
+    node_key: str
+    node_type: str
+    success_count: int
+    failed_count: int
+    skipped_count: int
+
+
+def _run_in_sync(fn: Any) -> Any:
+    sm = get_sync_sessionmaker()
+    with sm() as session:
+        return fn(session)
+
+
+@router.get("/summary", response_model=OperationsSummary)
+async def get_summary() -> OperationsSummary:
+    def _do(s: Session) -> OperationsSummary:
+        since = datetime.utcnow() - timedelta(hours=24)
+        wf_count = int(
+            s.execute(
+                text(
+                    "SELECT COUNT(*) FROM wf.workflow_definition "
+                    "WHERE status = 'PUBLISHED'"
+                )
+            ).scalar_one()
+        )
+        runs = s.execute(
+            text(
+                "SELECT status, COUNT(*) AS cnt FROM run.pipeline_run "
+                "WHERE started_at >= :since "
+                "GROUP BY status"
+            ),
+            {"since": since},
+        ).all()
+        run_map = {str(r.status): int(r.cnt) for r in runs}
+        runs_24h = sum(run_map.values())
+        success = run_map.get("SUCCESS", 0)
+        failed = run_map.get("FAILED", 0)
+        rate = (success / runs_24h * 100.0) if runs_24h > 0 else 100.0
+
+        rows_ingested = int(
+            s.execute(
+                text(
+                    "SELECT COALESCE(SUM(output_count), 0) "
+                    "FROM ctl.ingest_job WHERE finished_at >= :since"
+                ),
+                {"since": since},
+            ).scalar_one()
+            or 0
+        )
+        pending_replay = int(
+            s.execute(
+                text(
+                    "SELECT COUNT(*) FROM run.pipeline_run "
+                    "WHERE status IN ('FAILED','CANCELLED') "
+                    "  AND finished_at >= :since"
+                ),
+                {"since": since},
+            ).scalar_one()
+        )
+
+        try:
+            provider_failures = int(
+                s.execute(
+                    text(
+                        "SELECT COALESCE(SUM(error_count), 0) "
+                        "FROM audit.provider_usage "
+                        "WHERE occurred_at >= :since"
+                    ),
+                    {"since": since},
+                ).scalar_one()
+                or 0
+            )
+        except Exception:
+            provider_failures = 0
+
+        return OperationsSummary(
+            workflow_count=wf_count,
+            runs_24h=runs_24h,
+            success_24h=success,
+            failed_24h=failed,
+            success_rate_pct=round(rate, 1),
+            rows_ingested_24h=rows_ingested,
+            pending_replay=pending_replay,
+            provider_failures_24h=provider_failures,
+        )
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+@router.get("/channels", response_model=list[ChannelStatusOut])
+async def list_channels(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[ChannelStatusOut]:
+    """모든 PUBLISHED workflow 를 채널처럼 나열 + 24h aggregate."""
+
+    def _do(s: Session) -> list[ChannelStatusOut]:
+        since = datetime.utcnow() - timedelta(hours=24)
+        # workflow + 24h 통계 + 최근 run
+        rows = s.execute(
+            text(
+                """
+                WITH stats AS (
+                  SELECT workflow_id,
+                         COUNT(*) AS runs_24h,
+                         COUNT(*) FILTER (WHERE status='SUCCESS') AS success_24h,
+                         COUNT(*) FILTER (WHERE status='FAILED') AS failed_24h,
+                         MAX(started_at) AS last_run_at
+                    FROM run.pipeline_run
+                   WHERE started_at >= :since
+                   GROUP BY workflow_id
+                ),
+                latest AS (
+                  SELECT DISTINCT ON (workflow_id) workflow_id, status AS last_status
+                    FROM run.pipeline_run
+                   WHERE started_at >= :since
+                   ORDER BY workflow_id, started_at DESC
+                )
+                SELECT w.workflow_id, w.name, w.status, w.schedule_cron, w.schedule_enabled,
+                       COALESCE(s.runs_24h, 0) AS runs_24h,
+                       COALESCE(s.success_24h, 0) AS success_24h,
+                       COALESCE(s.failed_24h, 0) AS failed_24h,
+                       s.last_run_at,
+                       l.last_status
+                  FROM wf.workflow_definition w
+                  LEFT JOIN stats s ON w.workflow_id = s.workflow_id
+                  LEFT JOIN latest l ON w.workflow_id = l.workflow_id
+                 WHERE w.status IN ('PUBLISHED', 'DRAFT')
+                 ORDER BY (s.runs_24h IS NULL), s.last_run_at DESC NULLS LAST,
+                          w.workflow_id DESC
+                 LIMIT :lim
+                """
+            ),
+            {"since": since, "lim": limit},
+        ).all()
+        out: list[ChannelStatusOut] = []
+        for r in rows:
+            runs = int(r.runs_24h or 0)
+            success = int(r.success_24h or 0)
+            rate = (success / runs * 100.0) if runs > 0 else 100.0
+            out.append(
+                ChannelStatusOut(
+                    workflow_id=int(r.workflow_id),
+                    workflow_name=str(r.name),
+                    status=str(r.status),
+                    schedule_cron=(
+                        str(r.schedule_cron) if r.schedule_cron else None
+                    ),
+                    schedule_enabled=bool(r.schedule_enabled),
+                    last_run_at=r.last_run_at,
+                    last_run_status=(
+                        str(r.last_status) if r.last_status else None
+                    ),
+                    runs_24h=runs,
+                    success_24h=success,
+                    failed_24h=int(r.failed_24h or 0),
+                    rows_24h=0,  # 노드 단위 row 집계는 별도 endpoint
+                    success_rate_pct=round(rate, 1),
+                )
+            )
+        return out
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+@router.get("/heatmap/{workflow_id}", response_model=list[NodeHeatmapCell])
+async def get_workflow_heatmap(
+    workflow_id: int, days: int = Query(default=7, ge=1, le=30)
+) -> list[NodeHeatmapCell]:
+    """workflow 의 노드별 N일 status heatmap."""
+
+    def _do(s: Session) -> list[NodeHeatmapCell]:
+        since = datetime.utcnow() - timedelta(days=days)
+        rows = s.execute(
+            text(
+                """
+                SELECT nr.node_key, nr.node_type,
+                       COUNT(*) FILTER (WHERE nr.status = 'SUCCESS') AS success_count,
+                       COUNT(*) FILTER (WHERE nr.status = 'FAILED') AS failed_count,
+                       COUNT(*) FILTER (WHERE nr.status = 'SKIPPED') AS skipped_count
+                  FROM run.node_run nr
+                  JOIN run.pipeline_run pr ON nr.pipeline_run_id = pr.pipeline_run_id
+                 WHERE pr.workflow_id = :wid AND pr.started_at >= :since
+                 GROUP BY nr.node_key, nr.node_type
+                 ORDER BY nr.node_key
+                """
+            ),
+            {"wid": workflow_id, "since": since},
+        ).all()
+        return [
+            NodeHeatmapCell(
+                node_key=str(r.node_key),
+                node_type=str(r.node_type),
+                success_count=int(r.success_count),
+                failed_count=int(r.failed_count),
+                skipped_count=int(r.skipped_count),
+            )
+            for r in rows
+        ]
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 Wave 6 — outbox dispatch (manual trigger 우선)
+# ---------------------------------------------------------------------------
+class DispatchSummary(BaseModel):
+    pending_before: int
+    dispatched: int
+    manual: int
+    failed: int
+    pending_after: int
+    items: list[dict[str, Any]]
+
+
+@router.post("/dispatch-pending", response_model=DispatchSummary)
+async def dispatch_pending_envelopes(
+    limit: int = Query(default=50, ge=1, le=500),
+) -> DispatchSummary:
+    """RECEIVED 상태의 inbound envelope 을 일괄 처리 → workflow trigger.
+
+    Wave 6 의 manual 트리거 endpoint. 이후 Dramatiq actor 가 cron 으로 호출.
+    """
+    from app.domain.inbound_dispatch import (
+        dispatch_received_envelopes,
+        fetch_pending_envelope_count,
+    )
+
+    def _do() -> DispatchSummary:
+        sm = get_sync_sessionmaker()
+        with sm() as session:
+            try:
+                pending_before = fetch_pending_envelope_count(session)
+                results = dispatch_received_envelopes(session, limit=limit)
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+        with sm() as session2:
+            pending_after = fetch_pending_envelope_count(session2)
+
+        dispatched = sum(1 for r in results if r.status == "dispatched")
+        manual = sum(1 for r in results if r.status == "manual")
+        failed = sum(1 for r in results if r.status == "failed")
+        return DispatchSummary(
+            pending_before=pending_before,
+            dispatched=dispatched,
+            manual=manual,
+            failed=failed,
+            pending_after=pending_after,
+            items=[
+                {
+                    "envelope_id": r.envelope_id,
+                    "channel_code": r.channel_code,
+                    "workflow_id": r.workflow_id,
+                    "pipeline_run_id": r.pipeline_run_id,
+                    "status": r.status,
+                    "error": r.error,
+                }
+                for r in results
+            ],
+        )
+
+    return await asyncio.to_thread(_do)
+
+
+__all__ = ["router"]

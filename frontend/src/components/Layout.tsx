@@ -15,6 +15,7 @@ import {
   Server,
   Shield,
   ShieldCheck,
+  ShoppingBag,
   Sigma,
   Users,
   Workflow,
@@ -94,11 +95,13 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/pipelines/releases", label: "Releases", icon: GitBranch },
 
   // ─── 3. Operate — 실 운영 (수집/검수/머지) ─────────────────────
+  { to: "/v2/service-mart", label: "Service Mart Viewer", icon: ShoppingBag, operatorOk: true },
   { to: "/raw-objects", label: "Raw Objects", icon: FileBox },
   { to: "/jobs", label: "Collection Jobs", icon: ListChecks },
   { to: "/master-merge", label: "Master Merge", icon: GitMerge, approverOk: true },
   { to: "/sql-studio", label: "SQL Studio", icon: Sigma, operatorOk: true },
   { to: "/crowd-tasks", label: "Review Queue", icon: ClipboardCheck, reviewerOk: true },
+  { to: "/v2/operations/dashboard", label: "Operations Dashboard", icon: Activity },
   { to: "/runtime", label: "Runtime Monitor", icon: Activity },
 
   // ─── 4. Admin — 시스템 관리 ────────────────────────────────────
@@ -209,6 +212,10 @@ function currentTitle(pathname: string): string {
     return "Quality Workbench";
   if (pathname.startsWith("/v2/marts/designer"))
     return "Mart Workbench";
+  if (pathname.startsWith("/v2/operations/dashboard"))
+    return "Operations Dashboard";
+  if (pathname.startsWith("/v2/service-mart"))
+    return "Service Mart Viewer";
   if (pathname.startsWith("/v2/dryrun/workflow"))
     return "Dry-run Results";
   if (pathname.startsWith("/v2/publish/"))

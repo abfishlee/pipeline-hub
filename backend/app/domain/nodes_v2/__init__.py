@@ -95,12 +95,14 @@ def get_v2_runner(node_type: str) -> NodeV2Protocol:
     from app.domain.nodes import source_api as v1_source_api
     from app.domain.nodes_v2 import (
         crawl_fetch,
+        crawler_result_ingest,
         db_incremental_fetch,
         file_upload_ingest,
         function_transform,
         http_transform,
         load_target,
         map_fields,
+        ocr_result_ingest,
         ocr_transform,
         public_api_fetch,
         sql_asset_transform,
@@ -127,6 +129,9 @@ def get_v2_runner(node_type: str) -> NodeV2Protocol:
         "WEBHOOK_INGEST": webhook_ingest,
         "FILE_UPLOAD_INGEST": file_upload_ingest,
         "DB_INCREMENTAL_FETCH": db_incremental_fetch,
+        # Phase 7 Wave 1B — OCR/Crawler push 결과 수신.
+        "OCR_RESULT_INGEST": ocr_result_ingest,
+        "CRAWLER_RESULT_INGEST": crawler_result_ingest,
         # namespace 표준화.
         "STANDARDIZE": standardize,
         # v1 compat 4종 (NodeV2Context → v1 NodeContext 변환 후 호출).
@@ -177,6 +182,9 @@ def list_v2_node_types() -> list[str]:
         "WEBHOOK_INGEST",
         "FILE_UPLOAD_INGEST",
         "DB_INCREMENTAL_FETCH",
+        # Phase 7 Wave 1B
+        "OCR_RESULT_INGEST",
+        "CRAWLER_RESULT_INGEST",
         "STANDARDIZE",
         "SOURCE_DATA",
         "DEDUP",
