@@ -8,6 +8,7 @@ import {
   GitBranch,
   Archive,
   GitMerge,
+  Globe,
   KeyRound,
   ListChecks,
   LogOut,
@@ -40,6 +41,12 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "대시보드", icon: Gauge },
   { to: "/sources", label: "데이터 소스", icon: Database },
+  {
+    to: "/v2/connectors/public-api",
+    label: "Public API Connector",
+    icon: Globe,
+    operatorOk: true,
+  },
   { to: "/jobs", label: "수집 작업", icon: ListChecks },
   { to: "/raw-objects", label: "원천 데이터", icon: FileBox },
   { to: "/pipelines/runs", label: "파이프라인 실행", icon: Workflow },
@@ -149,6 +156,8 @@ export function Layout(_: PropsWithChildren) {
 function currentTitle(pathname: string): string {
   if (pathname === "/") return "대시보드";
   if (pathname.startsWith("/sources")) return "데이터 소스";
+  if (pathname.startsWith("/v2/connectors/public-api"))
+    return "Public API Connector";
   if (pathname.startsWith("/jobs")) return "수집 작업";
   if (pathname.startsWith("/raw-objects")) return "원천 데이터";
   if (pathname.startsWith("/pipelines/runs/")) return "파이프라인 실행 상세";

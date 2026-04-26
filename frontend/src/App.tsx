@@ -23,6 +23,7 @@ import { MasterMergePage } from "@/pages/MasterMergePage";
 import { SecurityEventsPage } from "@/pages/SecurityEventsPage";
 import { SourcesPage } from "@/pages/SourcesPage";
 import { UsersPage } from "@/pages/UsersPage";
+import { SourceApiDesigner } from "@/pages/v2/SourceApiDesigner";
 import { useAuthStore } from "@/store/auth";
 
 const queryClient = new QueryClient({
@@ -92,6 +93,22 @@ export default function App() {
                 element={<PipelineDesigner />}
               />
               <Route path="/master-merge" element={<MasterMergePage />} />
+            </Route>
+          </Route>
+
+          {/* Phase 6 Wave 1 — v2 Source/API Designer (workbench 1) */}
+          <Route
+            element={
+              <ProtectedRoute
+                requireAnyRole={["ADMIN", "APPROVER", "OPERATOR"]}
+              />
+            }
+          >
+            <Route element={<Layout />}>
+              <Route
+                path="/v2/connectors/public-api"
+                element={<SourceApiDesigner />}
+              />
             </Route>
           </Route>
 
