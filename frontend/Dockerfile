@@ -40,9 +40,16 @@ COPY --from=builder /build/dist /usr/share/nginx/html
 # nginx 설정 — SPA fallback + /v1 backend proxy + healthz
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 
-# non-root: nginx alpine 이미지는 nginx 유저(101) 가 이미 있음
-# 이 단계에서 권한 조정만 — listen 80 은 unprivileged 가능
-RUN chown -R nginx:nginx /usr/share/nginx/html /var/cache/nginx /var/log/nginx \
+# non-root: nginx alpine 이미지는 nginx 유저(101) 가 이미 있음.
+# nginx 1.27 의 default nginx.conf 가 `pid /run/nginx.pid;` 를 사용하므로
+# /run 도 nginx 가 쓸 수 있어야 함. /etc/nginx/conf.d 도 entrypoint 가
+# envsubst 시도하므로 쓰기 권한 필요.
+RUN chown -R nginx:nginx \
+        /usr/share/nginx/html \
+        /var/cache/nginx \
+        /var/log/nginx \
+        /run \
+        /etc/nginx/conf.d \
  && chmod -R 755 /usr/share/nginx/html
 
 # unprivileged 포트 (80 포함) — 실제 NKS 에서는 ingress 가 외부 노출.
