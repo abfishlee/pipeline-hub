@@ -41,9 +41,29 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
+from app.domain.guardrails.sql_guard import (
+    NodeKind,
+    SqlGuardError,
+    SqlNodeContext,
+    guard_sql,
+)
 from app.integrations.sqlglot_validator import SqlValidationError, validate
 from app.models.audit import SqlExecutionLog
 from app.models.wf import SqlQuery, SqlQueryVersion
+
+
+def _v1_guard_then_validate(sql: str) -> tuple[object, set[str]]:
+    """Phase 5.2.0 강화 — v1 SQL Studio 도 위험 구문 차단 (DROP/TRUNCATE/ALTER 등) 통과.
+
+    1. guard_sql(V1_SQL_STUDIO) — 신규 strict 키워드 차단 + SELECT only
+    2. validate() — 기존 sqlglot_validator 의 도메인별 schema/function 검증
+    """
+    try:
+        guard_sql(sql, ctx=SqlNodeContext(node_kind=NodeKind.V1_SQL_STUDIO))
+    except SqlGuardError as exc:
+        # SqlGuardError 는 SqlValidationError 의 하위 — caller 의 except 가 받음.
+        raise SqlValidationError(str(exc)) from exc
+    return validate(sql)
 
 # ---------------------------------------------------------------------------
 # 결과 타입
@@ -140,7 +160,7 @@ class ValidateOutcome:
 def validate_with_audit(session: Session, *, user_id: int, sql: str) -> ValidateOutcome:
     """3.2.4 의 validate 와 동등하지만 audit row 를 남기고 referenced_tables 도 정렬해 반환."""
     try:
-        _ast, refs = validate(sql)
+        _ast, refs = _v1_guard_then_validate(sql)
     except SqlValidationError as exc:
         session.add(
             _audit_row(
@@ -184,7 +204,7 @@ def preview(
     started = datetime.now(UTC)
     t0 = time.monotonic()
     try:
-        _ast, _refs = validate(sql)
+        _ast, _refs = _v1_guard_then_validate(sql)
     except SqlValidationError as exc:
         _commit_audit(
             session,
@@ -288,7 +308,7 @@ def explain(
     started = datetime.now(UTC)
     t0 = time.monotonic()
     try:
-        validate(sql)
+        _v1_guard_then_validate(sql)
     except SqlValidationError as exc:
         _commit_audit(
             session,
@@ -372,7 +392,7 @@ def create_query(
 
     # validate 는 정적 통과 보장 — referenced_tables 까지 추출.
     try:
-        _ast, refs = validate(sql_text)
+        _ast, refs = _v1_guard_then_validate(sql_text)
         referenced = sorted(refs)
     except SqlValidationError as exc:
         raise ValidationError(str(exc)) from exc
@@ -416,7 +436,7 @@ def add_version(
         raise ValidationError("only the owner can add a new draft version")
 
     try:
-        _ast, refs = validate(sql_text)
+        _ast, refs = _v1_guard_then_validate(sql_text)
         referenced = sorted(refs)
     except SqlValidationError as exc:
         raise ValidationError(str(exc)) from exc
