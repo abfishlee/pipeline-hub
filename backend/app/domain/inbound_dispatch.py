@@ -85,20 +85,11 @@ def dispatch_received_envelopes(
             run_row = session.execute(
                 text(
                     "INSERT INTO run.pipeline_run "
-                    "(workflow_id, run_date, status, "
-                    " trigger_kind, parameters_json) "
-                    "VALUES (:wid, CURRENT_DATE, 'PENDING', "
-                    "        'event', CAST(:p AS JSONB)) "
+                    "(workflow_id, run_date, status) "
+                    "VALUES (:wid, CURRENT_DATE, 'PENDING') "
                     "RETURNING pipeline_run_id"
                 ),
-                {
-                    "wid": wf_id,
-                    "p": (
-                        '{"trigger_source": "inbound_event", '
-                        f'"envelope_id": {envelope_id}, '
-                        f'"channel_code": "{r.channel_code}"}}'
-                    ),
-                },
+                {"wid": wf_id},
             ).first()
             assert run_row is not None
             run_id = int(run_row[0])

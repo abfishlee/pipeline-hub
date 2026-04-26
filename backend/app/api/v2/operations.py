@@ -103,7 +103,7 @@ async def get_summary() -> OperationsSummary:
             s.execute(
                 text(
                     "SELECT COALESCE(SUM(output_count), 0) "
-                    "FROM ctl.ingest_job WHERE finished_at >= :since"
+                    "FROM run.ingest_job WHERE finished_at >= :since"
                 ),
                 {"since": since},
             ).scalar_one()
