@@ -23,6 +23,7 @@ import { MasterMergePage } from "@/pages/MasterMergePage";
 import { SecurityEventsPage } from "@/pages/SecurityEventsPage";
 import { SourcesPage } from "@/pages/SourcesPage";
 import { UsersPage } from "@/pages/UsersPage";
+import { FieldMappingDesigner } from "@/pages/v2/FieldMappingDesigner";
 import { SourceApiDesigner } from "@/pages/v2/SourceApiDesigner";
 import { useAuthStore } from "@/store/auth";
 
@@ -108,6 +109,10 @@ export default function App() {
               <Route
                 path="/v2/connectors/public-api"
                 element={<SourceApiDesigner />}
+              />
+              <Route
+                path="/v2/mappings/designer"
+                element={<FieldMappingDesigner />}
               />
             </Route>
           </Route>
