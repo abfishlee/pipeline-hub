@@ -367,11 +367,50 @@ class SqlAsset(Base):
     )
 
 
+class MartDesignDraft(Base):
+    """Mart Designer 의 migration 초안 (Phase 5.2.4 STEP 7 Q2).
+
+    UI 가 컬럼/타입/key/partition 폼 → DDL 텍스트 + diff 요약 → DRAFT 등록.
+    상태머신 (DRAFT→REVIEW→APPROVED→PUBLISHED→ROLLED_BACK) 은 ctl.approval_request
+    가 이력 보관.
+    """
+
+    __tablename__ = "mart_design_draft"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('DRAFT','REVIEW','APPROVED','PUBLISHED','ROLLED_BACK')",
+            name="ck_mart_design_draft_status",
+        ),
+        {"schema": "domain"},
+    )
+
+    draft_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    domain_code: Mapped[str] = mapped_column(
+        Text, ForeignKey("domain.domain_definition.domain_code"), nullable=False
+    )
+    target_table: Mapped[str] = mapped_column(Text, nullable=False)
+    ddl_text: Mapped[str] = mapped_column(Text, nullable=False)
+    diff_summary: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    created_by: Mapped[int | None] = mapped_column(BigInteger)
+    approved_by: Mapped[int | None] = mapped_column(BigInteger)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="DRAFT")
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 __all__ = [
     "DomainDefinition",
     "DqRule",
     "FieldMapping",
     "LoadPolicy",
+    "MartDesignDraft",
     "ProviderDefinition",
     "ResourceDefinition",
     "SourceContract",

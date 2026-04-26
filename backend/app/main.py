@@ -39,9 +39,13 @@ from app.api.v1 import sources as sources_router
 from app.api.v1 import sql_studio as sql_studio_router
 from app.api.v1 import sse as sse_router
 from app.api.v1 import users as users_router
+from app.api.v2 import checklist as v2_checklist_router
 from app.api.v2 import contracts as v2_contracts_router
 from app.api.v2 import domains as v2_domains_router
+from app.api.v2 import dq_rules as v2_dq_rules_router
+from app.api.v2 import dryrun as v2_dryrun_router
 from app.api.v2 import mappings as v2_mappings_router
+from app.api.v2 import permissions as v2_permissions_router
 from app.api.v2 import providers as v2_providers_router
 from app.config import Settings, get_settings
 from app.core.access_log import AccessLogMiddleware
@@ -299,6 +303,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(v2_contracts_router.router)
     app.include_router(v2_mappings_router.router)
     app.include_router(v2_providers_router.router)
+    # Phase 5.2.4 STEP 7 — ETL UX MVP backend.
+    app.include_router(v2_permissions_router.router)
+    app.include_router(v2_dryrun_router.router)
+    app.include_router(v2_dq_rules_router.router)
+    app.include_router(v2_checklist_router.router)
 
     # Phase 4.2.5 — Public API sub-app: /public/docs / /public/v1/*
     public_app = FastAPI(

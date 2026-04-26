@@ -228,13 +228,119 @@ class PartitionArchiveLog(Base):
     )
 
 
+class UserDomainRole(Base):
+    """user × domain 권한 매트릭스 (Phase 5.2.4 STEP 7).
+
+    role 위계: VIEWER < EDITOR < APPROVER < ADMIN.
+    전역 ADMIN(ctl.role) 은 모든 도메인 ADMIN 권한 자동 보유 — 본 테이블 미경유.
+    """
+
+    __tablename__ = "user_domain_role"
+    __table_args__ = (
+        PrimaryKeyConstraint("user_id", "domain_code"),
+        CheckConstraint(
+            "role IN ('VIEWER','EDITOR','APPROVER','ADMIN')",
+            name="ck_user_domain_role_role",
+        ),
+        {"schema": "ctl"},
+    )
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("ctl.app_user.user_id", ondelete="CASCADE")
+    )
+    domain_code: Mapped[str] = mapped_column(
+        Text, ForeignKey("domain.domain_definition.domain_code", ondelete="CASCADE")
+    )
+    role: Mapped[str] = mapped_column(Text, nullable=False)
+    granted_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("ctl.app_user.user_id")
+    )
+    granted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class PublishChecklistRun(Base):
+    """publish 시점의 7항목 체크리스트 결과 (Phase 5.2.4 STEP 7 Q5)."""
+
+    __tablename__ = "publish_checklist_run"
+    __table_args__ = (
+        CheckConstraint(
+            "entity_type IN ('source_contract','field_mapping','dq_rule',"
+            "                'mart_load_policy','sql_asset','load_policy')",
+            name="ck_pcr_entity_type",
+        ),
+        {"schema": "ctl"},
+    )
+
+    checklist_id: Mapped[int] = mapped_column(
+        BigInteger, primary_key=True, autoincrement=True
+    )
+    entity_type: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    entity_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    domain_code: Mapped[str | None] = mapped_column(Text)
+    requested_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("ctl.app_user.user_id")
+    )
+    checks_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    all_passed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    failed_check_codes: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default="{}"
+    )
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class DryRunRecord(Base):
+    """dry-run 결과 보존 (Phase 5.2.4 STEP 7 Q4)."""
+
+    __tablename__ = "dry_run_record"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('field_mapping','load_target','dq_rule','sql_asset',"
+            "         'mart_designer','custom')",
+            name="ck_dry_run_kind",
+        ),
+        {"schema": "ctl"},
+    )
+
+    dry_run_id: Mapped[int] = mapped_column(
+        BigInteger, primary_key=True, autoincrement=True
+    )
+    requested_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("ctl.app_user.user_id")
+    )
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    domain_code: Mapped[str | None] = mapped_column(Text)
+    target_summary: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    row_counts: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    errors: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default="{}"
+    )
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 __all__ = [
     "ApiKey",
     "AppUser",
     "CdcSubscription",
     "Connector",
     "DataSource",
+    "DryRunRecord",
     "PartitionArchiveLog",
+    "PublishChecklistRun",
     "Role",
+    "UserDomainRole",
     "UserRole",
 ]

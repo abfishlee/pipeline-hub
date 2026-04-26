@@ -98,6 +98,8 @@ select = [
 ignore = [
   "E501",            # line length (line-length 이미 적용)
   "B008",            # FastAPI Depends() 허용
+  "RUF002",          # 한글 문서/주석의 의도적 유니코드 (×, –, …)
+  "RUF003",          # 동상 (comments)
 ]
 
 [tool.ruff.lint.per-file-ignores]
