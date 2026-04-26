@@ -1,0 +1,49 @@
+# Phase 5.2.6 STEP 9 — pos (POS 거래 로그) 도메인 정의 ★ 추상화 검증.
+#
+# 목적 (PHASE_5_PROMPTS.md STEP 9):
+#   * v2 generic platform 의 추상화 적정성 검증.
+#   * agri (가격 fact) 와 데이터 모양이 다른 *거래 이벤트* 도메인.
+#   * mock 데이터로 시작 (Q2). 실 외부 API 는 Phase 6 Field Validation 에서.
+#
+# 핵심 차이 vs agri:
+#   - 데이터 모양 = append 성격의 transaction event (master 가 아닌 fact 중심).
+#   - 표준화 핵심 = payment_method (5~10종 alias 매핑).
+#   - 임베딩 미사용 — 1차 표준화는 alias/code 매핑으로 충분.
+
+domain_code: pos
+name: POS 거래 로그
+description: |
+  매장/터미널/결제수단 별 거래 이벤트 도메인. Phase 5.2.6 추상화 검증의
+  *시험지* — 농축산물과 데이터 모양이 충분히 다르되 3주 내 검증 가능.
+
+resources:
+  - resource_code: TRANSACTION
+    fact_table: pos_mart.pos_transaction
+    standard_code_namespace: PAYMENT_METHOD
+    aliases:
+      - POS_TRANSACTION
+      - TRANSACTION
+
+  - resource_code: STORE
+    canonical_table: pos_mart.pos_store
+    standard_code_namespace: STORE_CHANNEL
+    aliases:
+      - POS_STORE
+      - STORE
+
+  - resource_code: TERMINAL
+    canonical_table: pos_mart.pos_terminal
+    aliases:
+      - POS_TERMINAL
+
+standard_code_namespaces:
+  - name: PAYMENT_METHOD
+    description: |
+      결제 수단 7종 표준 코드 (Q3 답변).
+      CARD / CASH / MOBILE_PAY / POINT / VOUCHER / COUPON / OTHER.
+      alias 매핑이 핵심 — 임베딩 미사용.
+    std_code_table: pos_mart.std_payment_method
+
+  - name: STORE_CHANNEL
+    description: 매장 채널 (HYPERMARKET / SUPERMARKET / CONVENIENCE / ONLINE 등).
+    std_code_table: pos_mart.std_store_channel
