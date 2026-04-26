@@ -28,6 +28,7 @@ import { EtlCanvasV2 } from "@/pages/v2/EtlCanvasV2";
 import { FieldMappingDesigner } from "@/pages/v2/FieldMappingDesigner";
 import { MartDesigner } from "@/pages/v2/MartDesigner";
 import { PublishApproval } from "@/pages/v2/PublishApproval";
+import { QualityWorkbench } from "@/pages/v2/QualityWorkbench";
 import { SourceApiDesigner } from "@/pages/v2/SourceApiDesigner";
 import { TransformDesigner } from "@/pages/v2/TransformDesigner";
 import { useAuthStore } from "@/store/auth";
@@ -127,6 +128,10 @@ export default function App() {
               <Route
                 path="/v2/transforms/designer"
                 element={<TransformDesigner />}
+              />
+              <Route
+                path="/v2/quality/designer"
+                element={<QualityWorkbench />}
               />
               <Route
                 path="/v2/marts/designer"

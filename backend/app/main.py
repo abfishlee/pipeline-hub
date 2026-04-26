@@ -50,6 +50,7 @@ from app.api.v2 import dryrun as v2_dryrun_router
 from app.api.v2 import load_policies as v2_load_policies_router
 from app.api.v2 import mappings as v2_mappings_router
 from app.api.v2 import mart_drafts as v2_mart_drafts_router
+from app.api.v2 import namespaces as v2_namespaces_router
 from app.api.v2 import perf as v2_perf_router
 from app.api.v2 import permissions as v2_permissions_router
 from app.api.v2 import providers as v2_providers_router
@@ -330,6 +331,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(v2_mart_drafts_router.router)
     app.include_router(v2_load_policies_router.router)
     app.include_router(v2_resources_router.router)
+    # Phase 6 Wave 6 — Quality Workbench (Standardization 탭).
+    app.include_router(v2_namespaces_router.router)
 
     # Phase 4.2.5 — Public API sub-app: /public/docs / /public/v1/*
     public_app = FastAPI(

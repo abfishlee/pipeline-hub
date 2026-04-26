@@ -14,6 +14,7 @@ import {
   LogOut,
   Server,
   Shield,
+  ShieldCheck,
   Sigma,
   Users,
   Workflow,
@@ -57,6 +58,12 @@ const NAV_ITEMS: NavItem[] = [
     to: "/v2/transforms/designer",
     label: "Transform Designer",
     icon: Sigma,
+    operatorOk: true,
+  },
+  {
+    to: "/v2/quality/designer",
+    label: "Quality Workbench",
+    icon: ShieldCheck,
     operatorOk: true,
   },
   {
@@ -186,6 +193,8 @@ function currentTitle(pathname: string): string {
     return "Field Mapping Designer";
   if (pathname.startsWith("/v2/transforms/designer"))
     return "Transform Designer";
+  if (pathname.startsWith("/v2/quality/designer"))
+    return "Quality Workbench";
   if (pathname.startsWith("/v2/marts/designer"))
     return "Mart Workbench";
   if (pathname.startsWith("/v2/dryrun/workflow"))
