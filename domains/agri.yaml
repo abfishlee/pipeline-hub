@@ -22,14 +22,22 @@ resources:
     embedding_model: hyperclova
     embedding_table: mart.standard_code
     embedding_dim: 1536
+    aliases:
+      - AGRI_PRICE_FACT      # v2 logical alias (Q5 답변)
+      - PRICE                # v1 endpoint compatibility
 
   - resource_code: DAILY_AGG
     fact_table: mart.price_daily_agg
     standard_code_namespace: AGRI_FOOD
+    aliases:
+      - AGRI_PRICE_DAILY
 
   - resource_code: PRODUCT_MAPPING
     canonical_table: mart.product_mapping
     standard_code_namespace: AGRI_FOOD
+    aliases:
+      - AGRI_PRODUCT
+      - PRODUCT
 
 standard_code_namespaces:
   - name: AGRI_FOOD
