@@ -242,6 +242,16 @@ dead_letter_pending_total = Gauge(
 
 
 # ---------------------------------------------------------------------------
+# Security events (Phase 4.2.6)
+# ---------------------------------------------------------------------------
+security_events_total = Counter(
+    "security_events_total",
+    "abuse_detector 가 적재한 audit.security_event 누적 (kind/severity).",
+    labelnames=("kind", "severity"),
+)
+
+
+# ---------------------------------------------------------------------------
 # HTTP 미들웨어
 # ---------------------------------------------------------------------------
 def _resolve_route_path(request: Request) -> str:
@@ -327,6 +337,7 @@ __all__ = [
     "pipeline_runs_total",
     "price_fact_inserts_total",
     "price_fact_observed_to_inserted_seconds",
+    "security_events_total",
     "standardization_confidence",
     "standardization_requests_total",
 ]

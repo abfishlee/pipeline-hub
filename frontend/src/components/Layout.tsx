@@ -10,6 +10,7 @@ import {
   ListChecks,
   LogOut,
   Server,
+  Shield,
   Sigma,
   Users,
   Workflow,
@@ -53,6 +54,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/runtime", label: "Runtime 모니터", icon: Activity },
   { to: "/users", label: "사용자 관리", icon: Users, adminOnly: true },
   { to: "/api-keys", label: "API Keys", icon: KeyRound, adminOnly: true },
+  { to: "/security-events", label: "보안 이벤트", icon: Shield, adminOnly: true },
 ];
 
 export function Layout(_: PropsWithChildren) {
@@ -155,5 +157,6 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/runtime")) return "Runtime 모니터";
   if (pathname.startsWith("/users")) return "사용자 관리";
   if (pathname.startsWith("/api-keys")) return "API Keys";
+  if (pathname.startsWith("/security-events")) return "보안 이벤트";
   return "";
 }

@@ -6,6 +6,7 @@ docs/03_DATA_MODEL.md 3.9 정합. access_log 는 월 파티션.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
@@ -16,7 +17,7 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
     Text,
 )
-from sqlalchemy.dialects.postgresql import INET
+from sqlalchemy.dialects.postgresql import INET, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -120,4 +121,42 @@ class PublicApiUsage(Base):
     )
 
 
-__all__ = ["AccessLog", "DownloadLog", "PublicApiUsage", "SqlExecutionLog"]
+class SecurityEvent(Base):
+    """Phase 4.2.6 — abuse_detector 가 적재. SecurityEventsPage 가 조회."""
+
+    __tablename__ = "security_event"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('IP_MULTI_KEY','KEY_HIGH_4XX','IP_BURST','TLS_FAIL','OTHER')",
+            name="ck_security_event_kind",
+        ),
+        CheckConstraint(
+            "severity IN ('INFO','WARN','ERROR','CRITICAL')",
+            name="ck_security_event_severity",
+        ),
+        {"schema": "audit"},
+    )
+
+    event_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(Text, nullable=False, server_default="WARN")
+    api_key_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("ctl.api_key.api_key_id")
+    )
+    ip_addr: Mapped[str | None] = mapped_column(INET)
+    user_agent: Mapped[str | None] = mapped_column(Text)
+    details_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+__all__ = [
+    "AccessLog",
+    "DownloadLog",
+    "PublicApiUsage",
+    "SecurityEvent",
+    "SqlExecutionLog",
+]

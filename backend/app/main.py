@@ -32,6 +32,7 @@ from app.api.v1 import jobs as jobs_router
 from app.api.v1 import pipelines as pipelines_router
 from app.api.v1 import public as public_router
 from app.api.v1 import raw as raw_router
+from app.api.v1 import security_events as security_events_router
 from app.api.v1 import sources as sources_router
 from app.api.v1 import sql_studio as sql_studio_router
 from app.api.v1 import sse as sse_router
@@ -89,12 +90,14 @@ class PublicApiUsageMiddleware(BaseHTTPMiddleware):
         endpoint = getattr(request.state, "public_api_endpoint", None)
         scope = getattr(request.state, "public_api_scope", None)
         if api_key_id is not None and endpoint is not None:
+            import contextlib
+
             from app.api.v1.public import record_usage_async
+            from app.core.abuse_detector import evaluate_request
 
             ip = request.client.host if request.client else None
-            # 직접 await — 응답이 streaming 이 아닌 일반 JSON 이라 1 INSERT 의 latency
-            # 영향 무시 가능. TestClient 환경에서도 안정적.
-            try:
+            user_agent = request.headers.get("user-agent")
+            with contextlib.suppress(Exception):
                 await record_usage_async(
                     api_key_id=int(api_key_id),
                     endpoint=str(endpoint),
@@ -103,9 +106,14 @@ class PublicApiUsageMiddleware(BaseHTTPMiddleware):
                     duration_ms=duration_ms,
                     ip_addr=ip,
                 )
-            except Exception:  # noqa: BLE001
-                # audit 실패가 응답을 깨뜨리지 않도록 swallow.
-                pass
+            # Phase 4.2.6 — abuse 평가 (Redis 미가동 시 fail-open).
+            with contextlib.suppress(Exception):
+                await evaluate_request(
+                    api_key_id=int(api_key_id),
+                    status_code=response.status_code,
+                    ip=ip,
+                    user_agent=user_agent,
+                )
         return response
 
 
@@ -274,6 +282,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sql_studio_router.router)
     # Phase 4.2.5 — api_key admin CRUD (ADMIN 만).
     app.include_router(api_keys_router.router)
+    # Phase 4.2.6 — security events 조회 (ADMIN 만).
+    app.include_router(security_events_router.router)
 
     # Phase 4.2.5 — Public API sub-app: /public/docs / /public/v1/*
     public_app = FastAPI(

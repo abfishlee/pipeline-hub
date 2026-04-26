@@ -18,6 +18,7 @@ import { SqlStudio } from "@/pages/SqlStudio";
 import { RawObjectsPage } from "@/pages/RawObjectsPage";
 import { RuntimeMonitor } from "@/pages/RuntimeMonitor";
 import { ApiKeysPage } from "@/pages/ApiKeysPage";
+import { SecurityEventsPage } from "@/pages/SecurityEventsPage";
 import { SourcesPage } from "@/pages/SourcesPage";
 import { UsersPage } from "@/pages/UsersPage";
 import { useAuthStore } from "@/store/auth";
@@ -105,6 +106,7 @@ export default function App() {
             <Route element={<Layout />}>
               <Route path="/users" element={<UsersPage />} />
               <Route path="/api-keys" element={<ApiKeysPage />} />
+              <Route path="/security-events" element={<SecurityEventsPage />} />
               <Route path="/dead-letters" element={<DeadLetterQueue />} />
             </Route>
           </Route>

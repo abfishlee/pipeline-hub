@@ -377,13 +377,47 @@ Phase 3 의 5-role (`ADMIN`/`APPROVER`/`OPERATOR`/`REVIEWER`/`VIEWER`) 위에 Ph
 - 만료/revoked 키 → 401 ✅
 - audit.public_api_usage row 적재 → daily view refresh 시 일별 집계 row 증가 ✅
 
-### 4.2.6 Gateway / 보안 [W7]
+### 4.2.6 Gateway / 보안 [W7] ✅ 옵션 2 완료 (2026-04-26)
 
-- [ ] 옵션 1: NCP API Gateway에 docs + 인증 위임
-- [ ] 옵션 2: nginx 단에서 /public/ 만 별도 도메인 (`api.datapipeline.co.kr`)
-- [ ] HTTPS + HSTS
-- [ ] 1개 키당 동시 연결 제한
-- [ ] 악용 탐지: 동일 IP 여러 키 사용 시 알람
+**채택 옵션:** 옵션 2 — nginx 별 도메인 분리 (운영 단순성). NCP API Gateway 는
+ADR-0015 § 6 회수 조건 만족 시 재평가.
+
+- [x] **`infra/nginx/`**:
+  - `api.datapipeline.co.kr.conf` — `/public/` 외 모든 path 404. limit_conn/limit_req
+    이중 가드.
+  - `app.datapipeline.co.kr.conf` — `/public/` 역방향 차단 + 내부 라우트 + frontend
+    + SSE.
+  - `common.conf` — TLS 1.2+, HSTS preload-ready (max-age=63072000), X-Frame=DENY,
+    X-Content=nosniff, Referrer-Policy, Permissions-Policy. limit_zone 정의 (ip/api_key).
+  - `certbot-renew.sh` — 매일 04:00 cron (Let's Encrypt deploy-hook nginx reload).
+- [x] **migration 0027** — `audit.security_event` (kind/severity check + 인덱스).
+- [x] **`backend/app/core/abuse_detector.py`** — Redis sliding window:
+  - `IP_MULTI_KEY` (분당 5+ distinct key) / `KEY_HIGH_4XX` (분당 200+ 4xx)
+  - SETNX 패턴으로 분당 알람 1번만 (Slack 폭주 방지)
+  - record_event() — security_event INSERT + outbox NOTIFY (sync session)
+  - Redis 미가동 시 fail-open
+- [x] **`PublicApiUsageMiddleware`** 가 응답 종료 시 `evaluate_request` 호출
+  (Phase 4.2.5 미들웨어 확장).
+- [x] **`backend/app/api/v1/security_events.py`** — ADMIN 전용 GET 목록 + 필터.
+- [x] **`backend/app/core/metrics.py`** — `security_events_total{kind, severity}`
+  Counter (Prometheus → Grafana 패널 추가 후속).
+- [x] **frontend `SecurityEventsPage.tsx`** + `api/security_events.ts` — 목록 +
+  kind/severity 필터 + 상세 modal (request 메타 + details_json). ADMIN 만.
+  Layout 사이드바에 Shield 아이콘.
+- [x] **ADR-0015** — nginx 별 도메인 vs NCP API Gateway 트레이드오프 + 회수 조건 +
+  abuse_detector 정책 정당화.
+- [x] **`infra/nginx/tests/test_headers.sh`** — curl -I 로 HSTS / X-Frame /
+  X-Content / HTTP→301 자동 검증.
+- [x] **`tests/integration/test_abuse_detector.py`** 4 케이스: IP_MULTI_KEY 발화 +
+  outbox NOTIFY / KEY_HIGH_4XX 발화 / 정상 트래픽 무알람 / 분당 중복 억제.
+
+**Acceptance 충족 확인**:
+- api.datapipeline.co.kr 도메인이 /public/v1/* 만 노출 (다른 path 404) ✅ (nginx conf)
+- app.datapipeline.co.kr 도메인이 내부 라우트만 노출 ✅ (nginx conf)
+- HSTS / X-Frame / X-Content 응답 헤더 ✅ (test_headers.sh)
+- 동일 IP 가 5+ distinct api_key → audit.security_event 1건 + outbox NOTIFY ✅
+- 동일 api_key 가 분당 200+ 4xx → 동일 처리 ✅
+- HTTP → 301 redirect (HTTPS only) ✅ (nginx conf)
 
 ### 4.2.7 Partition Archive 자동화 [W8]
 

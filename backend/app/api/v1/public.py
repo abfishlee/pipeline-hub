@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable, Coroutine
 from datetime import UTC, date, datetime
 from typing import Annotated, Any
 
@@ -117,12 +118,9 @@ async def _resolve_api_key(session: AsyncSession, raw_key: str) -> ApiKey:
     return api_key
 
 
-from collections.abc import Callable, Coroutine
-
-
 def require_endpoint(
     endpoint_label: str,
-) -> Callable[..., Coroutine[Any, Any, "PublicAuthContext"]]:
+) -> Callable[..., Coroutine[Any, Any, PublicAuthContext]]:
     """endpoint 별 dependency factory — 인증 + scope + rate limit + role 설정.
 
     함수 그 자체는 라우트 dep 로 사용. 반환값은 PublicAuthContext.
