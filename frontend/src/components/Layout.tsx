@@ -53,6 +53,12 @@ const NAV_ITEMS: NavItem[] = [
     icon: Workflow,
     operatorOk: true,
   },
+  {
+    to: "/v2/transforms/designer",
+    label: "Transform Designer",
+    icon: Sigma,
+    operatorOk: true,
+  },
   { to: "/jobs", label: "수집 작업", icon: ListChecks },
   { to: "/raw-objects", label: "원천 데이터", icon: FileBox },
   { to: "/pipelines/runs", label: "파이프라인 실행", icon: Workflow },
@@ -166,6 +172,8 @@ function currentTitle(pathname: string): string {
     return "Public API Connector";
   if (pathname.startsWith("/v2/mappings/designer"))
     return "Field Mapping Designer";
+  if (pathname.startsWith("/v2/transforms/designer"))
+    return "Transform Designer";
   if (pathname.startsWith("/jobs")) return "수집 작업";
   if (pathname.startsWith("/raw-objects")) return "원천 데이터";
   if (pathname.startsWith("/pipelines/runs/")) return "파이프라인 실행 상세";

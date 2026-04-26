@@ -25,6 +25,7 @@ import { SourcesPage } from "@/pages/SourcesPage";
 import { UsersPage } from "@/pages/UsersPage";
 import { FieldMappingDesigner } from "@/pages/v2/FieldMappingDesigner";
 import { SourceApiDesigner } from "@/pages/v2/SourceApiDesigner";
+import { TransformDesigner } from "@/pages/v2/TransformDesigner";
 import { useAuthStore } from "@/store/auth";
 
 const queryClient = new QueryClient({
@@ -113,6 +114,10 @@ export default function App() {
               <Route
                 path="/v2/mappings/designer"
                 element={<FieldMappingDesigner />}
+              />
+              <Route
+                path="/v2/transforms/designer"
+                element={<TransformDesigner />}
               />
             </Route>
           </Route>

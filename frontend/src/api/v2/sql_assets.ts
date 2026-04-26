@@ -1,0 +1,91 @@
+// Phase 6 Wave 2B — SQL Asset Designer client.
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "../client";
+
+export type AssetStatus = "DRAFT" | "REVIEW" | "APPROVED" | "PUBLISHED";
+
+export interface SqlAsset {
+  asset_id: number;
+  asset_code: string;
+  domain_code: string;
+  version: number;
+  sql_text: string;
+  checksum: string;
+  output_table: string | null;
+  description: string | null;
+  status: AssetStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SqlAssetIn {
+  asset_code: string;
+  domain_code: string;
+  sql_text: string;
+  output_table?: string | null;
+  description?: string | null;
+  version?: number;
+}
+
+export interface SqlAssetUpdate {
+  sql_text?: string;
+  output_table?: string | null;
+  description?: string | null;
+}
+
+const BASE = "/v2/sql-assets";
+
+export interface ListSqlAssetsParams {
+  domain_code?: string;
+  status?: AssetStatus;
+  asset_code?: string;
+}
+
+export function useSqlAssets(params: ListSqlAssetsParams = {}) {
+  return useQuery({
+    queryKey: ["v2-sql-assets", params],
+    queryFn: () => apiRequest<SqlAsset[]>(BASE, { params: { ...params } }),
+  });
+}
+
+export function useCreateSqlAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: SqlAssetIn) =>
+      apiRequest<SqlAsset>(BASE, { method: "POST", body: req }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2-sql-assets"] }),
+  });
+}
+
+export function useUpdateSqlAsset(assetId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (req: SqlAssetUpdate) =>
+      apiRequest<SqlAsset>(`${BASE}/${assetId}`, {
+        method: "PATCH",
+        body: req,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2-sql-assets"] }),
+  });
+}
+
+export function useDeleteSqlAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (assetId: number) =>
+      apiRequest<void>(`${BASE}/${assetId}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2-sql-assets"] }),
+  });
+}
+
+export function useTransitionSqlAsset(assetId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (target_status: AssetStatus) =>
+      apiRequest<SqlAsset>(`${BASE}/${assetId}/transition`, {
+        method: "POST",
+        body: { target_status },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2-sql-assets"] }),
+  });
+}

@@ -52,6 +52,7 @@ from app.api.v2 import perf as v2_perf_router
 from app.api.v2 import permissions as v2_permissions_router
 from app.api.v2 import providers as v2_providers_router
 from app.api.v2 import public_router as v2_public_router
+from app.api.v2 import sql_assets as v2_sql_assets_router
 from app.config import Settings, get_settings
 from app.core.access_log import AccessLogMiddleware
 from app.core.errors import DomainError
@@ -320,6 +321,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(v2_backfill_router.router)
     # Phase 6 Wave 1 — Public API Connector (Source/API workbench backend).
     app.include_router(v2_connectors_router.router)
+    # Phase 6 Wave 2B — SQL Asset CRUD (Transform Designer SQL 탭).
+    app.include_router(v2_sql_assets_router.router)
 
     # Phase 4.2.5 — Public API sub-app: /public/docs / /public/v1/*
     public_app = FastAPI(
