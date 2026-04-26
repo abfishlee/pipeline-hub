@@ -171,23 +171,38 @@ async def list_channels(
                    WHERE started_at >= :since
                    GROUP BY workflow_id
                 ),
+                row_stats AS (
+                  SELECT pr.workflow_id,
+                         SUM(COALESCE((nr.output_json->>'row_count')::bigint, 0))
+                           AS rows_24h
+                    FROM run.pipeline_run pr
+                    JOIN run.node_run nr USING (pipeline_run_id, run_date)
+                   WHERE pr.started_at >= :since
+                     AND nr.node_type IN ('LOAD_TARGET','LOAD_MASTER')
+                   GROUP BY pr.workflow_id
+                ),
                 latest AS (
                   SELECT DISTINCT ON (workflow_id) workflow_id, status AS last_status
                     FROM run.pipeline_run
                    WHERE started_at >= :since
                    ORDER BY workflow_id, started_at DESC
                 )
-                SELECT w.workflow_id, w.name, w.status, w.schedule_cron, w.schedule_enabled,
+                SELECT w.workflow_id, w.name, w.status, w.schedule_cron,
+                       w.schedule_enabled,
                        COALESCE(s.runs_24h, 0) AS runs_24h,
                        COALESCE(s.success_24h, 0) AS success_24h,
                        COALESCE(s.failed_24h, 0) AS failed_24h,
+                       COALESCE(rs.rows_24h, 0) AS rows_24h,
                        s.last_run_at,
                        l.last_status
                   FROM wf.workflow_definition w
                   LEFT JOIN stats s ON w.workflow_id = s.workflow_id
+                  LEFT JOIN row_stats rs ON w.workflow_id = rs.workflow_id
                   LEFT JOIN latest l ON w.workflow_id = l.workflow_id
                  WHERE w.status IN ('PUBLISHED', 'DRAFT')
-                 ORDER BY (s.runs_24h IS NULL), s.last_run_at DESC NULLS LAST,
+                 ORDER BY (COALESCE(s.failed_24h, 0) > 0) DESC,
+                          (s.runs_24h IS NULL),
+                          s.last_run_at DESC NULLS LAST,
                           w.workflow_id DESC
                  LIMIT :lim
                 """
@@ -215,7 +230,7 @@ async def list_channels(
                     runs_24h=runs,
                     success_24h=success,
                     failed_24h=int(r.failed_24h or 0),
-                    rows_24h=0,  # 노드 단위 row 집계는 별도 endpoint
+                    rows_24h=int(getattr(r, "rows_24h", 0) or 0),
                     success_rate_pct=round(rate, 1),
                 )
             )
@@ -255,6 +270,95 @@ async def get_workflow_heatmap(
                 success_count=int(r.success_count),
                 failed_count=int(r.failed_count),
                 skipped_count=int(r.skipped_count),
+            )
+            for r in rows
+        ]
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+# ---------------------------------------------------------------------------
+# Phase 8.1 — 실패 원인 분류 (Operations Dashboard 보강)
+# ---------------------------------------------------------------------------
+class FailureCategoryRow(BaseModel):
+    category: str
+    failed_count: int
+    sample_error: str | None
+    sample_workflow_name: str | None
+    last_failed_at: datetime | None
+
+
+@router.get("/failure-summary", response_model=list[FailureCategoryRow])
+async def failure_summary() -> list[FailureCategoryRow]:
+    """24h 실패 원인 분류 — node_type 별 집계 + 최근 샘플."""
+
+    def _do(s: Session) -> list[FailureCategoryRow]:
+        since = datetime.utcnow() - timedelta(hours=24)
+        rows = s.execute(
+            text(
+                """
+                WITH cats AS (
+                  SELECT
+                    CASE nr.node_type
+                      WHEN 'PUBLIC_API_FETCH' THEN '외부 API 실패'
+                      WHEN 'WEBHOOK_INGEST' THEN 'Inbound 수신 실패'
+                      WHEN 'FILE_UPLOAD_INGEST' THEN '업로드 실패'
+                      WHEN 'OCR_RESULT_INGEST' THEN 'OCR 결과 실패'
+                      WHEN 'CRAWLER_RESULT_INGEST' THEN '크롤러 결과 실패'
+                      WHEN 'DB_INCREMENTAL_FETCH' THEN 'DB 증분 실패'
+                      WHEN 'MAP_FIELDS' THEN '매핑 실패'
+                      WHEN 'DQ_CHECK' THEN 'DQ 실패'
+                      WHEN 'STANDARDIZE' THEN '표준화 실패'
+                      WHEN 'LOAD_TARGET' THEN '마트 적재 실패'
+                      WHEN 'LOAD_MASTER' THEN '마스터 적재 실패'
+                      WHEN 'HTTP_TRANSFORM' THEN '외부 API 변환 실패'
+                      WHEN 'SQL_INLINE_TRANSFORM' THEN 'SQL 변환 실패'
+                      WHEN 'SQL_ASSET_TRANSFORM' THEN 'SQL 자산 실패'
+                      ELSE nr.node_type
+                    END AS category,
+                    nr.error_message,
+                    pr.workflow_id,
+                    nr.finished_at
+                    FROM run.node_run nr
+                    JOIN run.pipeline_run pr USING (pipeline_run_id, run_date)
+                   WHERE nr.status = 'FAILED'
+                     AND pr.started_at >= :since
+                ),
+                grouped AS (
+                  SELECT category,
+                         COUNT(*) AS failed_count,
+                         MAX(finished_at) AS last_failed_at
+                    FROM cats
+                   GROUP BY category
+                ),
+                samples AS (
+                  SELECT DISTINCT ON (category)
+                         category, error_message, workflow_id
+                    FROM cats
+                   ORDER BY category, finished_at DESC
+                )
+                SELECT g.category, g.failed_count, g.last_failed_at,
+                       s.error_message AS sample_error,
+                       w.name AS sample_workflow_name
+                  FROM grouped g
+                  LEFT JOIN samples s ON g.category = s.category
+                  LEFT JOIN wf.workflow_definition w ON s.workflow_id = w.workflow_id
+                 ORDER BY g.failed_count DESC, g.category
+                """
+            ),
+            {"since": since},
+        ).all()
+        return [
+            FailureCategoryRow(
+                category=str(r.category),
+                failed_count=int(r.failed_count),
+                sample_error=(
+                    str(r.sample_error)[:200] if r.sample_error else None
+                ),
+                sample_workflow_name=(
+                    str(r.sample_workflow_name) if r.sample_workflow_name else None
+                ),
+                last_failed_at=r.last_failed_at,
             )
             for r in rows
         ]

@@ -36,6 +36,22 @@ export interface NodeHeatmapCell {
   skipped_count: number;
 }
 
+export interface FailureCategoryRow {
+  category: string;
+  failed_count: number;
+  sample_error: string | null;
+  sample_workflow_name: string | null;
+  last_failed_at: string | null;
+}
+
+export function useFailureSummary() {
+  return useQuery({
+    queryKey: ["v2-operations-failure-summary"],
+    queryFn: () => apiRequest<FailureCategoryRow[]>("/v2/operations/failure-summary"),
+    refetchInterval: 30_000,
+  });
+}
+
 export interface DispatchSummary {
   pending_before: number;
   dispatched: number;

@@ -180,14 +180,30 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:
         log.warning("object_storage.init_failed", error=str(exc))
 
+    # Phase 8.1 — Inbound dispatcher background task 시작.
+    inbound_stop = asyncio.Event()
+    inbound_task: asyncio.Task[None] | None = None
+    if settings.env != "test":
+        from app.workers.inbound_dispatcher import inbound_dispatcher_loop
+
+        inbound_task = asyncio.create_task(
+            inbound_dispatcher_loop(inbound_stop)
+        )
+        log.info("inbound_dispatcher.scheduled")
+
     log.info("startup.complete")
     try:
         yield
     finally:
         # SIGTERM 시 이 finally 블록이 실행된다.
         log.info("shutdown.begin")
+        if inbound_task is not None:
+            inbound_stop.set()
+            try:
+                await asyncio.wait_for(inbound_task, timeout=10.0)
+            except (TimeoutError, asyncio.CancelledError):
+                inbound_task.cancel()
         await db_session.dispose_engine()
-        # TODO(Phase 2): outbox publisher 정리, background task drain, Redis pool close
         log.info("shutdown.complete")
 
 

@@ -94,6 +94,7 @@ def get_v2_runner(node_type: str) -> NodeV2Protocol:
     from app.domain.nodes import notify as v1_notify
     from app.domain.nodes import source_api as v1_source_api
     from app.domain.nodes_v2 import (
+        cdc_event_fetch,
         crawl_fetch,
         crawler_result_ingest,
         db_incremental_fetch,
@@ -132,6 +133,8 @@ def get_v2_runner(node_type: str) -> NodeV2Protocol:
         # Phase 7 Wave 1B — OCR/Crawler push 결과 수신.
         "OCR_RESULT_INGEST": ocr_result_ingest,
         "CRAWLER_RESULT_INGEST": crawler_result_ingest,
+        # Phase 8.1 stub — CDC 정식은 Phase 9 backlog.
+        "CDC_EVENT_FETCH": cdc_event_fetch,
         # namespace 표준화.
         "STANDARDIZE": standardize,
         # v1 compat 4종 (NodeV2Context → v1 NodeContext 변환 후 호출).
@@ -185,6 +188,7 @@ def list_v2_node_types() -> list[str]:
         # Phase 7 Wave 1B
         "OCR_RESULT_INGEST",
         "CRAWLER_RESULT_INGEST",
+        "CDC_EVENT_FETCH",
         "STANDARDIZE",
         "SOURCE_DATA",
         "DEDUP",

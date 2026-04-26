@@ -23,6 +23,7 @@ import {
   useServicePrices,
   useStdProducts,
 } from "@/api/v2/service_mart";
+import { PriceCompareCard } from "@/components/service_mart/PriceCompareCard";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -94,6 +95,14 @@ export function ServiceMartViewer() {
     );
   }, [prices.data, search]);
 
+  const selectedStdName = useMemo(() => {
+    if (!selectedStd || !std.data) return null;
+    return (
+      std.data.find((p) => p.std_product_code === selectedStd)
+        ?.std_product_name ?? null
+    );
+  }, [selectedStd, std.data]);
+
   return (
     <div className="space-y-4">
       <div className="space-y-1">
@@ -149,6 +158,14 @@ export function ServiceMartViewer() {
           </Card>
         )}
       </div>
+
+      {/* Phase 8.1 — 표준품목 선택 시 4 유통사 가격 비교 카드 */}
+      {selectedStd && filteredPrices.length > 0 && (
+        <PriceCompareCard
+          prices={filteredPrices}
+          stdProductName={selectedStdName}
+        />
+      )}
 
       {/* Filter row */}
       <Card>

@@ -54,6 +54,7 @@ import {
   useUpdateWorkflow,
   useWorkflowDetail,
 } from "@/api/pipelines";
+import { CanvasProgressBar } from "@/components/canvas/CanvasProgressBar";
 import {
   type DesignerNodeDataV2,
   NodeConfigPanelV2,
@@ -596,6 +597,8 @@ function DesignerInner() {
           )}
         </CardContent>
       </Card>
+
+      <CanvasProgressBar nodeTypes={nodes.map((n) => n.data.node_type)} />
 
       <div className="flex flex-1 overflow-hidden rounded-lg border border-border bg-background">
         <NodePaletteV2 onAdd={handlePaletteAdd} />

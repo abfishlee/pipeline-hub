@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { ApiError } from "@/api/client";
 import {
   useDispatchPending,
+  useFailureSummary,
   useOperationsChannels,
   useOperationsSummary,
   useWorkflowHeatmap,
@@ -56,6 +57,7 @@ function statusVariant(
 export function OperationsDashboard() {
   const summary = useOperationsSummary();
   const channels = useOperationsChannels(100);
+  const failures = useFailureSummary();
   const dispatch = useDispatchPending();
   const [selectedWfId, setSelectedWfId] = useState<number | null>(null);
   const heatmap = useWorkflowHeatmap(selectedWfId);
@@ -147,6 +149,45 @@ export function OperationsDashboard() {
           }
         />
       </div>
+
+      {/* Failure Categories — Phase 8.1 */}
+      {failures.data && failures.data.length > 0 && (
+        <Card>
+          <CardContent className="space-y-2 p-4">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+              실패 원인 분류 (24h)
+            </div>
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+              {failures.data.map((f) => (
+                <div
+                  key={f.category}
+                  className="rounded-md border border-rose-200 bg-rose-50 p-2 text-xs"
+                >
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-semibold text-rose-700">
+                      {f.category}
+                    </span>
+                    <span className="ml-auto text-base font-semibold text-rose-700">
+                      {f.failed_count}
+                    </span>
+                  </div>
+                  {f.sample_workflow_name && (
+                    <div className="mt-0.5 text-[10px] text-rose-700/80">
+                      {f.sample_workflow_name}
+                    </div>
+                  )}
+                  {f.sample_error && (
+                    <div className="mt-1 line-clamp-2 text-[10px] text-rose-700/80">
+                      {f.sample_error}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Channels + heatmap */}
       <div className="grid grid-cols-3 gap-4">

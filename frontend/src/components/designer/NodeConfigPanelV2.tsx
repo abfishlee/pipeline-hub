@@ -118,11 +118,13 @@ export function NodeConfigPanelV2({ selected, onChange, onDelete }: Props) {
         onPatch={patchConfig}
       />
 
-      {/* JSON editor (모든 노드 공통 fallback) */}
-      <Card>
-        <CardContent className="space-y-2 p-3 text-xs">
-          <div className="flex items-center justify-between">
-            <label className="font-semibold">config_json (raw)</label>
+      {/* JSON editor — 고급 설정 (기본 닫힘) */}
+      <details className="rounded-md border border-border bg-background text-xs">
+        <summary className="cursor-pointer px-3 py-2 font-semibold text-muted-foreground hover:bg-secondary">
+          🔧 고급 설정 (raw JSON)
+        </summary>
+        <div className="space-y-2 px-3 pb-3 pt-2">
+          <div className="flex items-center justify-end">
             <Button
               variant="ghost"
               size="sm"
@@ -144,8 +146,8 @@ export function NodeConfigPanelV2({ selected, onChange, onDelete }: Props) {
           <p className="text-[10px] text-muted-foreground">
             ※ 자산 dropdown 변경은 자동 반영. raw JSON 편집 후 "적용" 클릭.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </details>
 
       {onDelete && (
         <Button variant="destructive" size="sm" onClick={onDelete}>
