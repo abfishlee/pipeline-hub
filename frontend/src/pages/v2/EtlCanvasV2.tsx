@@ -55,6 +55,7 @@ import {
   useWorkflowDetail,
 } from "@/api/pipelines";
 import { CanvasProgressBar } from "@/components/canvas/CanvasProgressBar";
+import { CanvasReadinessChecklist } from "@/components/canvas/CanvasReadinessChecklist";
 import {
   type DesignerNodeDataV2,
   NodeConfigPanelV2,
@@ -599,6 +600,10 @@ function DesignerInner() {
       </Card>
 
       <CanvasProgressBar nodeTypes={nodes.map((n) => n.data.node_type)} />
+
+      {nodes.length > 0 && (
+        <CanvasReadinessChecklist nodes={nodes} edges={edges} />
+      )}
 
       <div className="flex flex-1 overflow-hidden rounded-lg border border-border bg-background">
         <NodePaletteV2 onAdd={handlePaletteAdd} />

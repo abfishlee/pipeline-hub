@@ -33,6 +33,10 @@ import {
   useUpdateDqRule,
 } from "@/api/v2/dq_rules";
 import { useNamespaceCodes, useNamespaces } from "@/api/v2/namespaces";
+import {
+  DqRuleTemplates,
+  type DqRuleTemplate,
+} from "@/components/quality/DqRuleTemplates";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -370,6 +374,18 @@ function DqRuleEditDialog({
     setRuleJsonText(JSON.stringify(def, null, 2));
   }
 
+  function applyTemplate(t: DqRuleTemplate) {
+    setForm({
+      ...form,
+      rule_kind: t.rule_kind,
+      rule_json: t.rule_json,
+      severity: t.severity,
+      description: t.description,
+    });
+    setRuleJsonText(JSON.stringify(t.rule_json, null, 2));
+    toast.success(`템플릿 적용: ${t.label}`);
+  }
+
   function commitRuleJson() {
     try {
       const parsed = ruleJsonText.trim() ? JSON.parse(ruleJsonText) : {};
@@ -449,6 +465,13 @@ function DqRuleEditDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          {mode === "create" && (
+            <DqRuleTemplates
+              targetTable={form.target_table || "{target_table}"}
+              onSelect={applyTemplate}
+            />
+          )}
+
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="text-xs text-muted-foreground">도메인</label>
@@ -654,6 +677,12 @@ function defaultRuleJson(kind: DqRuleKind): Record<string, unknown> {
       return {
         sql: "SELECT COUNT(*) FROM agri_mart.kamis_price WHERE unit_price IS NULL",
       };
+    case "freshness":
+      return { max_age_minutes: 1440 };
+    case "anomaly_zscore":
+      return { column: "unit_price", threshold: 3.0 };
+    case "drift":
+      return { column: "unit_price", method: "kl_divergence", threshold: 0.2 };
   }
 }
 
@@ -668,6 +697,12 @@ function RuleHint({ kind }: { kind: DqRuleKind }) {
       "{column: 'item_code', ref: 'mart.item_master.code'}  // FK-like 검증",
     range:
       "{column: 'unit_price', min: 0, max: 10000000}  // 값 범위",
+    freshness:
+      "{max_age_minutes: 1440}  // 24시간 내 데이터 도착",
+    anomaly_zscore:
+      "{column: 'unit_price', threshold: 3.0}  // 평균±3σ 이탈",
+    drift:
+      "{column: 'unit_price', method: 'kl_divergence', threshold: 0.2}",
     custom_sql:
       "{sql: 'SELECT ...'}  // SELECT 만 허용. row_count 가 0 이면 통과",
   };

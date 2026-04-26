@@ -16,7 +16,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -273,6 +273,97 @@ async def get_workflow_heatmap(
             )
             for r in rows
         ]
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+# ---------------------------------------------------------------------------
+# Phase 8.2 — 24h 시간별 success/failed 추이
+# ---------------------------------------------------------------------------
+class HourlyTrendBucket(BaseModel):
+    bucket_hour: datetime
+    success: int
+    failed: int
+    total: int
+
+
+@router.get("/hourly-trend", response_model=list[HourlyTrendBucket])
+async def hourly_trend() -> list[HourlyTrendBucket]:
+    def _do(s: Session) -> list[HourlyTrendBucket]:
+        since = datetime.utcnow() - timedelta(hours=24)
+        rows = s.execute(
+            text(
+                """
+                SELECT date_trunc('hour', started_at) AS bucket,
+                       COUNT(*) FILTER (WHERE status='SUCCESS') AS success,
+                       COUNT(*) FILTER (WHERE status='FAILED') AS failed,
+                       COUNT(*) AS total
+                  FROM run.pipeline_run
+                 WHERE started_at >= :since
+                 GROUP BY bucket
+                 ORDER BY bucket
+                """
+            ),
+            {"since": since},
+        ).all()
+        return [
+            HourlyTrendBucket(
+                bucket_hour=r.bucket,
+                success=int(r.success),
+                failed=int(r.failed),
+                total=int(r.total),
+            )
+            for r in rows
+        ]
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+# ---------------------------------------------------------------------------
+# Phase 8.2 — workflow 재실행 (PENDING run 즉시 생성)
+# ---------------------------------------------------------------------------
+class TriggerRerunRequest(BaseModel):
+    workflow_id: int
+    reason: str | None = None
+
+
+class TriggerRerunResult(BaseModel):
+    pipeline_run_id: int
+    workflow_id: int
+    status: str
+
+
+@router.post("/trigger-rerun", response_model=TriggerRerunResult)
+async def trigger_rerun(body: TriggerRerunRequest) -> TriggerRerunResult:
+    def _do(s: Session) -> TriggerRerunResult:
+        wf = s.execute(
+            text(
+                "SELECT workflow_id, status FROM wf.workflow_definition "
+                "WHERE workflow_id = :w"
+            ),
+            {"w": body.workflow_id},
+        ).first()
+        if wf is None:
+            raise HTTPException(404, detail=f"workflow {body.workflow_id} not found")
+        if wf.status != "PUBLISHED":
+            raise HTTPException(
+                422,
+                detail=f"workflow status={wf.status} — PUBLISHED 만 재실행 가능",
+            )
+        run_id = s.execute(
+            text(
+                "INSERT INTO run.pipeline_run "
+                "(workflow_id, run_date, status) "
+                "VALUES (:w, CURRENT_DATE, 'PENDING') "
+                "RETURNING pipeline_run_id"
+            ),
+            {"w": body.workflow_id},
+        ).scalar_one()
+        return TriggerRerunResult(
+            pipeline_run_id=int(run_id),
+            workflow_id=body.workflow_id,
+            status="PENDING",
+        )
 
     return await asyncio.to_thread(_run_in_sync, _do)
 

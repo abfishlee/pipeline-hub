@@ -31,6 +31,7 @@ import {
   useTransitionLoadPolicy,
   useUpdateLoadPolicy,
 } from "@/api/v2/load_policies";
+import { MartTemplates, type MartTemplate } from "@/components/mart/MartTemplates";
 import {
   type MartColumnSpec,
   type MartDraft,
@@ -362,6 +363,20 @@ function MartDesignDialog({ open, onClose }: MartDesignDialogProps) {
     );
   }
 
+  function applyTemplate(t: MartTemplate) {
+    // {domain} 토큰을 현재 도메인으로 치환
+    const dom = domainCode || "agri";
+    setTargetTable(t.example_target.replace("{domain}", dom));
+    setDescription(t.description);
+    setColumns(t.columns.map((c) => ({ ...c })));
+    setPrimaryKey([...t.primary_key]);
+    setPartitionKey(t.partition_key ?? "");
+    setIndexes(t.indexes.map((i) => ({ ...i, columns: [...i.columns] })));
+    toast.success(
+      `템플릿 적용: ${t.label} (${t.columns.length} 컬럼, mode=${t.recommended_load_mode})`,
+    );
+  }
+
   async function runDryRun() {
     setDdlPreview(null);
     setDiffPreview(null);
@@ -404,6 +419,8 @@ function MartDesignDialog({ open, onClose }: MartDesignDialogProps) {
         </DialogHeader>
 
         <div className="space-y-4">
+          <MartTemplates onSelect={applyTemplate} />
+
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="text-xs text-muted-foreground">도메인</label>

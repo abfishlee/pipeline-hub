@@ -472,10 +472,46 @@ function ConnectorEditDialog({
           {/* 2. HTTP */}
           <Section title="2. HTTP">
             <FieldText
-              label="Endpoint URL"
+              label="Endpoint URL — query string (?param=value) 자동 감지"
               value={form.endpoint_url}
-              onChange={(v) => setForm({ ...form, endpoint_url: v })}
-              placeholder="http://example.gov.kr/api/v1/data"
+              onChange={(v) => {
+                // Phase 8.2 — URL 의 query string 자동 분리
+                if (v.includes("?") && !isReadOnly) {
+                  const [base, qs] = v.split("?", 2);
+                  if (qs) {
+                    try {
+                      const params = new URLSearchParams(qs);
+                      const newQt: Record<string, unknown> = {
+                        ...(form.query_template ?? {}),
+                      };
+                      let added = 0;
+                      params.forEach((val, key) => {
+                        if (newQt[key] === undefined) {
+                          newQt[key] = val;
+                          added++;
+                        }
+                      });
+                      if (added > 0) {
+                        toast.success(
+                          `URL 의 query 파라미터 ${added}개를 query_template 으로 자동 추출`,
+                        );
+                        setForm({
+                          ...form,
+                          endpoint_url: base,
+                          query_template: newQt,
+                        });
+                        return;
+                      }
+                    } catch {
+                      // ignore parse error
+                    }
+                    setForm({ ...form, endpoint_url: base });
+                    return;
+                  }
+                }
+                setForm({ ...form, endpoint_url: v });
+              }}
+              placeholder="http://example.gov.kr/api/v1/data?category=fruit&limit=100"
               disabled={isReadOnly}
               testid="field-endpoint"
             />

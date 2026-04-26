@@ -36,6 +36,37 @@ export interface NodeHeatmapCell {
   skipped_count: number;
 }
 
+export interface HourlyTrendBucket {
+  bucket_hour: string;
+  success: number;
+  failed: number;
+  total: number;
+}
+
+export function useHourlyTrend() {
+  return useQuery({
+    queryKey: ["v2-operations-hourly-trend"],
+    queryFn: () =>
+      apiRequest<HourlyTrendBucket[]>("/v2/operations/hourly-trend"),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useTriggerRerun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (workflow_id: number) =>
+      apiRequest<{ pipeline_run_id: number; workflow_id: number; status: string }>(
+        "/v2/operations/trigger-rerun",
+        { method: "POST", body: { workflow_id } },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2-operations-summary"] });
+      qc.invalidateQueries({ queryKey: ["v2-operations-channels"] });
+    },
+  });
+}
+
 export interface FailureCategoryRow {
   category: string;
   failed_count: number;

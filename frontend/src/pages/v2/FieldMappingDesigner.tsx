@@ -36,6 +36,7 @@ import {
   useTransitionMapping,
   useUpdateMapping,
 } from "@/api/v2/mappings";
+import { JsonPathPicker } from "@/components/mapping/JsonPathPicker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -409,7 +410,7 @@ function MappingEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>
             {mode === "create"
@@ -422,6 +423,24 @@ function MappingEditDialog({
           <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
             DRAFT 만 직접 수정 가능. APPROVED/PUBLISHED 는 새 버전 (Phase 7).
           </div>
+        )}
+
+        {/* Phase 8.2 — sample JSON picker (생성 모드 only) */}
+        {mode === "create" && !isReadOnly && (
+          <JsonPathPicker
+            onPick={(path, recommended) => {
+              setForm({
+                ...form,
+                source_path: path,
+                transform_expr: recommended ?? form.transform_expr ?? "",
+              });
+              toast.success(
+                recommended
+                  ? `source_path = ${path}, 변환 = ${recommended}`
+                  : `source_path = ${path}`,
+              );
+            }}
+          />
         )}
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

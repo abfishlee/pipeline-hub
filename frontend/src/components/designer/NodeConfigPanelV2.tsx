@@ -218,6 +218,9 @@ interface AssetProps {
 function PublicApiFetchAsset({ config, onPatch }: AssetProps) {
   const connectors = useConnectors();
   const current = (config.connector_id as number | undefined) ?? null;
+  const selectedConnector = connectors.data?.find(
+    (c) => c.connector_id === current,
+  );
   return (
     <Card>
       <CardContent className="space-y-2 p-3 text-xs">
@@ -246,6 +249,7 @@ function PublicApiFetchAsset({ config, onPatch }: AssetProps) {
             </option>
           ))}
         </select>
+        {selectedConnector && <AssetStatusBadge status={selectedConnector.status} />}
         {connectors.data?.length === 0 && (
           <p className="text-[10px] text-muted-foreground">
             등록된 connector 가 없습니다. 위 링크로 등록.
@@ -256,9 +260,42 @@ function PublicApiFetchAsset({ config, onPatch }: AssetProps) {
   );
 }
 
+// Phase 8.2 — 자산 상태 뱃지 (DRAFT 일 경우 운영 배포 차단 경고).
+function AssetStatusBadge({ status }: { status: string }) {
+  const isPublished = status === "PUBLISHED";
+  const isDraft = status === "DRAFT";
+  return (
+    <div
+      className={
+        "rounded-md px-2 py-1 text-[10px] " +
+        (isPublished
+          ? "bg-green-100 text-green-800"
+          : isDraft
+            ? "bg-rose-100 text-rose-800 border border-rose-300"
+            : "bg-amber-100 text-amber-800")
+      }
+    >
+      <span className="font-semibold">선택된 자산: {status}</span>
+      {isDraft && (
+        <span className="ml-1">
+          ⚠ DRAFT 자산 — 운영 PUBLISH 시 차단됩니다. APPROVED 까지 전이 후 재선택.
+        </span>
+      )}
+      {!isPublished && !isDraft && (
+        <span className="ml-1">
+          {status} — PUBLISHED 가 아닌 자산은 운영 시 차단될 수 있습니다.
+        </span>
+      )}
+    </div>
+  );
+}
+
 function MapFieldsAsset({ config, onPatch }: AssetProps) {
   const contracts = useContractsLight();
   const current = (config.contract_id as number | undefined) ?? null;
+  const selectedContract = contracts.data?.find(
+    (c) => c.contract_id === current,
+  );
   return (
     <Card>
       <CardContent className="space-y-2 p-3 text-xs">
@@ -287,6 +324,9 @@ function MapFieldsAsset({ config, onPatch }: AssetProps) {
             </option>
           ))}
         </select>
+        {selectedContract && (
+          <AssetStatusBadge status={selectedContract.status} />
+        )}
         <div>
           <label className="mb-1 block font-semibold">source_table</label>
           <Input
@@ -310,6 +350,19 @@ function SqlAssetAsset({ config, onPatch }: AssetProps) {
     if (!current || !assets.data) return [];
     return assets.data.filter((a) => a.asset_code === current);
   }, [current, assets.data]);
+  const currentVersion = (config.version as number | undefined) ?? null;
+  const selectedAsset = useMemo(() => {
+    if (!current || !assets.data) return null;
+    if (currentVersion) {
+      return (
+        assets.data.find(
+          (a) => a.asset_code === current && a.version === currentVersion,
+        ) ?? null
+      );
+    }
+    // 최신 버전
+    return versions[0] ?? null;
+  }, [assets.data, current, currentVersion, versions]);
 
   return (
     <Card>
@@ -361,6 +414,7 @@ function SqlAssetAsset({ config, onPatch }: AssetProps) {
             </select>
           </div>
         )}
+        {selectedAsset && <AssetStatusBadge status={selectedAsset.status} />}
         <p className="text-[10px] text-muted-foreground">
           ※ APPROVED/PUBLISHED sql_asset 만 실행. DRAFT/REVIEW 는 차단.
         </p>
@@ -372,6 +426,7 @@ function SqlAssetAsset({ config, onPatch }: AssetProps) {
 function LoadTargetAsset({ config, onPatch }: AssetProps) {
   const policies = useLoadPolicies();
   const current = (config.policy_id as number | undefined) ?? null;
+  const selectedPolicy = policies.data?.find((p) => p.policy_id === current);
   return (
     <Card>
       <CardContent className="space-y-2 p-3 text-xs">
@@ -401,6 +456,7 @@ function LoadTargetAsset({ config, onPatch }: AssetProps) {
             </option>
           ))}
         </select>
+        {selectedPolicy && <AssetStatusBadge status={selectedPolicy.status} />}
         <div>
           <label className="mb-1 block font-semibold">source_table</label>
           <Input
@@ -425,6 +481,7 @@ function InboundChannelAsset({
 }: InboundChannelAssetProps) {
   const channels = useInboundChannels({ channel_kind: channelKindFilter });
   const current = (config.channel_code as string | undefined) ?? "";
+  const selectedChannel = channels.data?.find((c) => c.channel_code === current);
   return (
     <Card>
       <CardContent className="space-y-2 p-3 text-xs">
@@ -449,6 +506,7 @@ function InboundChannelAsset({
             </option>
           ))}
         </select>
+        {selectedChannel && <AssetStatusBadge status={selectedChannel.status} />}
         {channels.data?.length === 0 && (
           <p className="text-[10px] text-muted-foreground">
             등록된 {channelKindFilter} channel 이 없습니다. 위 링크로 등록.

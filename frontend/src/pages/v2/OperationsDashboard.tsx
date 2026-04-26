@@ -22,10 +22,13 @@ import { ApiError } from "@/api/client";
 import {
   useDispatchPending,
   useFailureSummary,
+  useHourlyTrend,
   useOperationsChannels,
   useOperationsSummary,
+  useTriggerRerun,
   useWorkflowHeatmap,
 } from "@/api/v2/operations";
+import { HourlyTrendChart } from "@/components/dashboard/HourlyTrendChart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -58,7 +61,9 @@ export function OperationsDashboard() {
   const summary = useOperationsSummary();
   const channels = useOperationsChannels(100);
   const failures = useFailureSummary();
+  const hourlyTrend = useHourlyTrend();
   const dispatch = useDispatchPending();
+  const rerun = useTriggerRerun();
   const [selectedWfId, setSelectedWfId] = useState<number | null>(null);
   const heatmap = useWorkflowHeatmap(selectedWfId);
 
@@ -77,6 +82,19 @@ export function OperationsDashboard() {
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : (e as Error).message;
       toast.error(`dispatch 실패: ${msg}`);
+    }
+  }
+
+  async function handleRerun(workflowId: number, name: string) {
+    if (!confirm(`${name} 워크플로를 재실행할까요?`)) return;
+    try {
+      const res = await rerun.mutateAsync(workflowId);
+      toast.success(
+        `재실행 트리거됨 (run_id=${res.pipeline_run_id}, status=${res.status})`,
+      );
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : (e as Error).message;
+      toast.error(`재실행 실패: ${msg}`);
     }
   }
 
@@ -149,6 +167,9 @@ export function OperationsDashboard() {
           }
         />
       </div>
+
+      {/* Hourly Trend Chart — Phase 8.2 */}
+      <HourlyTrendChart data={hourlyTrend.data} />
 
       {/* Failure Categories — Phase 8.1 */}
       {failures.data && failures.data.length > 0 && (
@@ -280,7 +301,29 @@ export function OperationsDashboard() {
                       {selectedChannel.schedule_enabled ? "(enabled)" : ""}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleRerun(
+                          selectedChannel.workflow_id,
+                          selectedChannel.workflow_name,
+                        )
+                      }
+                      disabled={
+                        rerun.isPending ||
+                        selectedChannel.status !== "PUBLISHED"
+                      }
+                      className="rounded-md bg-primary px-2 py-1 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                      title={
+                        selectedChannel.status === "PUBLISHED"
+                          ? "이 워크플로 즉시 재실행"
+                          : "PUBLISHED 워크플로만 재실행 가능"
+                      }
+                    >
+                      <PlayCircle className="mr-0.5 inline h-3 w-3" />
+                      재실행
+                    </button>
                     <Link
                       to={`/v2/pipelines/designer/${selectedChannel.workflow_id}`}
                       className="text-xs text-primary hover:underline"

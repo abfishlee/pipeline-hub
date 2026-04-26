@@ -10,7 +10,11 @@ export type DqRuleKind =
   | "unique_columns"
   | "reference"
   | "range"
-  | "custom_sql";
+  | "custom_sql"
+  // Phase 7 Wave 4 추가
+  | "freshness"
+  | "anomaly_zscore"
+  | "drift";
 
 export interface DqRule {
   rule_id: number;

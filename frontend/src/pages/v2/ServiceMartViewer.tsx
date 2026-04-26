@@ -17,6 +17,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   type ServicePriceRow,
   useChannelStats,
@@ -24,6 +25,7 @@ import {
   useStdProducts,
 } from "@/api/v2/service_mart";
 import { PriceCompareCard } from "@/components/service_mart/PriceCompareCard";
+import { PriceTrendChart } from "@/components/service_mart/PriceTrendChart";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -159,12 +161,18 @@ export function ServiceMartViewer() {
         )}
       </div>
 
-      {/* Phase 8.1 — 표준품목 선택 시 4 유통사 가격 비교 카드 */}
+      {/* Phase 8.1/8.2 — 표준품목 선택 시 4 유통사 비교 + 추이 차트 */}
       {selectedStd && filteredPrices.length > 0 && (
-        <PriceCompareCard
-          prices={filteredPrices}
-          stdProductName={selectedStdName}
-        />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <PriceCompareCard
+            prices={filteredPrices}
+            stdProductName={selectedStdName}
+          />
+          <PriceTrendChart
+            prices={filteredPrices}
+            stdProductName={selectedStdName}
+          />
+        </div>
       )}
 
       {/* Filter row */}
@@ -271,6 +279,7 @@ export function ServiceMartViewer() {
                     <Th>등급</Th>
                     <Th>conf</Th>
                     <Th>수집</Th>
+                    <Th>원천</Th>
                   </Tr>
                 </Thead>
                 <Tbody>
@@ -338,6 +347,24 @@ export function ServiceMartViewer() {
                       </Td>
                       <Td className="text-[10px] text-muted-foreground">
                         {formatDateTime(p.collected_at)}
+                      </Td>
+                      <Td className="text-[10px]">
+                        {/* Phase 8.2 — lineage 링크: 해당 유통사 raw / workflow */}
+                        <Link
+                          to={`/raw-objects?source_code=${p.retailer_code}_src`}
+                          className="text-primary hover:underline"
+                          title="이 row 의 원천 raw_object 조회"
+                        >
+                          raw
+                        </Link>
+                        {" · "}
+                        <Link
+                          to={`/v2/operations/dashboard`}
+                          className="text-primary hover:underline"
+                          title="이 채널의 운영 상태"
+                        >
+                          ops
+                        </Link>
                       </Td>
                     </Tr>
                   ))}
