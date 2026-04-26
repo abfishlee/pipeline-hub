@@ -39,6 +39,7 @@ from app.api.v1 import sources as sources_router
 from app.api.v1 import sql_studio as sql_studio_router
 from app.api.v1 import sse as sse_router
 from app.api.v1 import users as users_router
+from app.api.v2 import backfill as v2_backfill_router
 from app.api.v2 import checklist as v2_checklist_router
 from app.api.v2 import contracts as v2_contracts_router
 from app.api.v2 import cutover as v2_cutover_router
@@ -46,6 +47,7 @@ from app.api.v2 import domains as v2_domains_router
 from app.api.v2 import dq_rules as v2_dq_rules_router
 from app.api.v2 import dryrun as v2_dryrun_router
 from app.api.v2 import mappings as v2_mappings_router
+from app.api.v2 import perf as v2_perf_router
 from app.api.v2 import permissions as v2_permissions_router
 from app.api.v2 import providers as v2_providers_router
 from app.api.v2 import public_router as v2_public_router
@@ -312,6 +314,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(v2_checklist_router.router)
     # Phase 5.2.5 STEP 8 — v1 → v2 plugin shadow + cutover.
     app.include_router(v2_cutover_router.router)
+    # Phase 5.2.8 STEP 11 — perf SLO + Performance Coach + backfill.
+    app.include_router(v2_perf_router.router)
+    app.include_router(v2_backfill_router.router)
 
     # Phase 4.2.5 — Public API sub-app: /public/docs / /public/v1/*
     public_app = FastAPI(
