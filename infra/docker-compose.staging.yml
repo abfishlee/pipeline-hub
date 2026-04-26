@@ -167,7 +167,9 @@ services:
           --role ADMIN || echo "[migrate] admin seed skipped (already exists)"
         echo "[migrate] done"
     restart: "no"
+    # alembic.ini 의 script_location='../migrations' 를 /app 의 부모 (/migrations) 에 mount.
     volumes:
+      - ../migrations:/migrations:ro
       - ../scripts:/app/scripts:ro
       - ../domains:/app/domains:ro
 
