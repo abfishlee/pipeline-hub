@@ -48,6 +48,7 @@ from app.api.v2 import dryrun as v2_dryrun_router
 from app.api.v2 import mappings as v2_mappings_router
 from app.api.v2 import permissions as v2_permissions_router
 from app.api.v2 import providers as v2_providers_router
+from app.api.v2 import public_router as v2_public_router
 from app.config import Settings, get_settings
 from app.core.access_log import AccessLogMiddleware
 from app.core.errors import DomainError
@@ -327,6 +328,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return await _domain_error(request, exc)
 
     public_app.include_router(public_router.router)
+    # Phase 5.2.7 STEP 10 — multi-domain /public/v2/{domain}/*
+    public_app.include_router(v2_public_router.router)
     app.mount("/public", public_app)
 
     return app

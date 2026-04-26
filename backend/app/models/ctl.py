@@ -145,8 +145,16 @@ class ApiKey(Base):
     )
     expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Phase 4.2.4 — RLS allowlist (api_key 별 허용 retailer_id 셋).
+    # **DEPRECATED Phase 5.2.7** — agri 도메인의 domain_resource_allowlist 로
+    # 자동 매핑됨 (migration 0044). Phase 7 에서 제거 검토.
     retailer_allowlist: Mapped[list[int]] = mapped_column(
         ARRAY(BigInteger), nullable=False, server_default="{}"
+    )
+    # Phase 5.2.7 STEP 10 — multi-domain scope (확장형).
+    # 형식: {"agri":{"resources":{"prices":{"retailer_ids":[1,2]}}},
+    #        "pos": {"resources":{"transactions":{"shop_ids":[100]}}}}
+    domain_resource_allowlist: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
     )
     # Phase 4.2.5 — Public API 메타 (manage 라우트 + audit 결합).
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
