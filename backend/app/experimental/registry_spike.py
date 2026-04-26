@@ -83,7 +83,7 @@ def option_a_dynamic_orm_class(
     # 주의: dict key 가 `__xxx__` (dunder) 면 declarative 가 metadata 키로 인식 →
     # primary key 미감지 에러. 일반 이름 (`_dyn_pk`) 사용.
     pk_col = Column("_dyn_pk", Integer, primary_key=True, autoincrement=True)
-    extra_cols = []
+    extra_cols: list[tuple[str, Any]] = []
     for name, py_type in columns:
         sa_type = type_map.get(py_type, Text)
         extra_cols.append((name, Column(name, sa_type, nullable=True)))

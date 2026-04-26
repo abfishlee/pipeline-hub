@@ -325,6 +325,48 @@ class SourceProviderBinding(Base):
     )
 
 
+class SqlAsset(Base):
+    """등록·승인된 SQL artifact (Phase 5.2.2 STEP 5).
+
+    SQL_ASSET_TRANSFORM 노드의 backing — *PUBLISHED 만 production 실행 허용*.
+    INLINE 노드와 달리 검증·이력·재현이 필요한 SQL 은 본 테이블에 등록.
+    """
+
+    __tablename__ = "sql_asset"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('DRAFT','REVIEW','APPROVED','PUBLISHED')",
+            name="ck_sql_asset_status",
+        ),
+        CheckConstraint(
+            "asset_code ~ '^[a-z][a-z0-9_]{1,62}$'",
+            name="ck_sql_asset_code_format",
+        ),
+        UniqueConstraint("asset_code", "version", name="uq_sql_asset_code_version"),
+        {"schema": "domain"},
+    )
+
+    asset_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    asset_code: Mapped[str] = mapped_column(Text, nullable=False)
+    domain_code: Mapped[str] = mapped_column(
+        Text, ForeignKey("domain.domain_definition.domain_code"), nullable=False
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    sql_text: Mapped[str] = mapped_column(Text, nullable=False)
+    checksum: Mapped[str] = mapped_column(Text, nullable=False)
+    output_table: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="DRAFT")
+    created_by: Mapped[int | None] = mapped_column(BigInteger)
+    approved_by: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 __all__ = [
     "DomainDefinition",
     "DqRule",
@@ -334,5 +376,6 @@ __all__ = [
     "ResourceDefinition",
     "SourceContract",
     "SourceProviderBinding",
+    "SqlAsset",
     "StandardCodeNamespace",
 ]
