@@ -96,6 +96,11 @@ def vertical_slice_state() -> Iterator[dict[str, Any]]:
             ),
             {"d": TEST_DOMAIN, "r": TEST_RESOURCE},
         )
+        # ctl.data_source (test 전용)
+        session.execute(
+            text("DELETE FROM ctl.data_source WHERE source_code = :c"),
+            {"c": "kamis_ws_price_test_src"},
+        )
         session.commit()
     dispose_sync_engine()
 
@@ -131,8 +136,8 @@ def _seed_connector(session: Any) -> int:
                 "        '{}'::jsonb, "
                 "        '{\"action\":\"daily\",\"p_regday\":\"{ymd}\"}'::jsonb, "
                 "        NULL, "
-                "        'NONE', '{}'::jsonb, "
-                "        'XML', '$.response.body.items.item', "
+                "        'none', '{}'::jsonb, "
+                "        'xml', '$.response.body.items.item', "
                 "        15, 1, 30, "
                 "        'DRAFT', TRUE) "
                 "RETURNING connector_id"
@@ -143,16 +148,32 @@ def _seed_connector(session: Any) -> int:
 
 
 def _seed_contract_with_mappings(session: Any) -> int:
+    # source_id 가 NOT NULL FK — ctl.data_source 1건 생성 (멱등).
+    source_id = session.execute(
+        text(
+            "INSERT INTO ctl.data_source "
+            "(source_code, source_name, source_type, is_active) "
+            "VALUES (:c, :n, 'API', true) "
+            "ON CONFLICT (source_code) DO UPDATE SET source_name = EXCLUDED.source_name "
+            "RETURNING source_id"
+        ),
+        {"c": "kamis_ws_price_test_src", "n": "KAMIS vertical slice test source"},
+    ).scalar_one()
     contract_id = int(
         session.execute(
             text(
                 "INSERT INTO domain.source_contract "
-                "(domain_code, resource_code, name, schema_yaml, "
-                " status, schema_version) "
-                "VALUES (:d, :r, :n, '{}'::jsonb, 'PUBLISHED', 1) "
+                "(source_id, domain_code, resource_code, schema_version, "
+                " schema_json, description, status) "
+                "VALUES (:sid, :d, :r, 1, '{}'::jsonb, :desc, 'PUBLISHED') "
                 "RETURNING contract_id"
             ),
-            {"d": TEST_DOMAIN, "r": TEST_RESOURCE, "n": TEST_CONTRACT_NAME},
+            {
+                "sid": int(source_id),
+                "d": TEST_DOMAIN,
+                "r": TEST_RESOURCE,
+                "desc": TEST_CONTRACT_NAME,
+            },
         ).scalar_one()
     )
     mappings = [
@@ -208,15 +229,16 @@ def _seed_load_policy(session: Any) -> int:
 
 
 def _seed_dq_rule(session: Any) -> None:
+    # rule_json 의 ':' 를 SQLAlchemy bind param 으로 오인하지 않게 CAST 사용.
     session.execute(
         text(
             "INSERT INTO domain.dq_rule "
             "(domain_code, target_table, rule_kind, rule_json, severity, "
             " timeout_ms, sample_limit, status, version) "
-            "VALUES (:d, :t, 'row_count_min', '{\"min\":1}'::jsonb, "
+            "VALUES (:d, :t, 'row_count_min', CAST(:rj AS JSONB), "
             "        'ERROR', 30000, 10, 'PUBLISHED', 1)"
         ),
-        {"d": TEST_DOMAIN, "t": TEST_TARGET_TABLE},
+        {"d": TEST_DOMAIN, "t": TEST_TARGET_TABLE, "rj": '{"min":1}'},
     )
 
 

@@ -405,10 +405,76 @@ class MartDesignDraft(Base):
     )
 
 
+class InboundChannel(Base):
+    """외부 시스템 push 채널 등록 (Phase 7 Wave 1A).
+
+    크롤링 업체 / OCR 업체 / 소상공인 업로드 등 외부에서 우리에게 push 하는
+    데이터를 받기 위한 채널 정의. HMAC SHA256 + replay window 로 인증.
+    """
+
+    __tablename__ = "inbound_channel"
+    __table_args__ = (
+        CheckConstraint(
+            "channel_kind IN ('WEBHOOK','FILE_UPLOAD','OCR_RESULT','CRAWLER_RESULT')",
+            name="ck_inbound_channel_kind",
+        ),
+        CheckConstraint(
+            "auth_method IN ('hmac_sha256','api_key','mtls')",
+            name="ck_inbound_channel_auth",
+        ),
+        CheckConstraint(
+            "status IN ('DRAFT','REVIEW','APPROVED','PUBLISHED')",
+            name="ck_inbound_channel_status",
+        ),
+        {"schema": "domain"},
+    )
+
+    channel_id: Mapped[int] = mapped_column(
+        BigInteger, primary_key=True, autoincrement=True
+    )
+    channel_code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    domain_code: Mapped[str] = mapped_column(
+        Text, ForeignKey("domain.domain_definition.domain_code"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+
+    channel_kind: Mapped[str] = mapped_column(Text, nullable=False)
+    secret_ref: Mapped[str] = mapped_column(Text, nullable=False)
+    auth_method: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default="hmac_sha256"
+    )
+
+    expected_content_type: Mapped[str | None] = mapped_column(Text)
+    max_payload_bytes: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="10485760"
+    )
+    rate_limit_per_min: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="100"
+    )
+    replay_window_sec: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="300"
+    )
+
+    workflow_id: Mapped[int | None] = mapped_column(BigInteger)
+
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="DRAFT")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    created_by: Mapped[int | None] = mapped_column(BigInteger)
+    approved_by: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 __all__ = [
     "DomainDefinition",
     "DqRule",
     "FieldMapping",
+    "InboundChannel",
     "LoadPolicy",
     "MartDesignDraft",
     "ProviderDefinition",

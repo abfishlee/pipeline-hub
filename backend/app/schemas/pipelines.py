@@ -28,6 +28,10 @@ NodeType = Literal[
     "STANDARDIZE",
     "SOURCE_DATA",
     "PUBLIC_API_FETCH",
+    # Phase 7 Wave 1A — 외부 push / upload / DB 수집
+    "WEBHOOK_INGEST",
+    "FILE_UPLOAD_INGEST",
+    "DB_INCREMENTAL_FETCH",
 ]
 WorkflowStatus = Literal["DRAFT", "PUBLISHED", "ARCHIVED"]
 

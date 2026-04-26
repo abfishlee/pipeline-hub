@@ -53,6 +53,12 @@ const NAV_ITEMS: NavItem[] = [
     operatorOk: true,
   },
   {
+    to: "/v2/inbound-channels/designer",
+    label: "Inbound Channel",
+    icon: GitBranch,
+    operatorOk: true,
+  },
+  {
     to: "/v2/marts/designer",
     label: "Mart Workbench",
     icon: Database,
@@ -193,6 +199,8 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/sources")) return "Sources (legacy)";
   if (pathname.startsWith("/v2/connectors/public-api"))
     return "Source / API Connector";
+  if (pathname.startsWith("/v2/inbound-channels"))
+    return "Inbound Channel Designer";
   if (pathname.startsWith("/v2/mappings/designer"))
     return "Field Mapping Designer";
   if (pathname.startsWith("/v2/transforms/designer"))

@@ -22,7 +22,11 @@ export type NodeType =
   | "CRAWL_FETCH"
   | "STANDARDIZE"
   | "SOURCE_DATA"
-  | "PUBLIC_API_FETCH";
+  | "PUBLIC_API_FETCH"
+  // Phase 7 Wave 1A — 외부 push / upload / DB 수집
+  | "WEBHOOK_INGEST"
+  | "FILE_UPLOAD_INGEST"
+  | "DB_INCREMENTAL_FETCH";
 
 export interface NodeOut {
   node_id: number;

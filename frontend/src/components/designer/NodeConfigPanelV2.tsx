@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { NodeType } from "@/api/pipelines";
 import { useConnectors } from "@/api/v2/connectors";
+import { useInboundChannels } from "@/api/v2/inbound_channels";
 import { useLoadPolicies } from "@/api/v2/load_policies";
 import { useContractsLight } from "@/api/v2/mappings";
 import { useProviders } from "@/api/v2/providers";
@@ -176,6 +177,25 @@ function AssetSection({ node_type, config, onPatch }: AssetSectionProps) {
       return <LoadTargetAsset config={config} onPatch={onPatch} />;
     case "HTTP_TRANSFORM":
       return <HttpTransformAsset config={config} onPatch={onPatch} />;
+    // Phase 7 Wave 1A — inbound channel based 3 sources
+    case "WEBHOOK_INGEST":
+      return (
+        <InboundChannelAsset
+          config={config}
+          onPatch={onPatch}
+          channelKindFilter="WEBHOOK"
+        />
+      );
+    case "FILE_UPLOAD_INGEST":
+      return (
+        <InboundChannelAsset
+          config={config}
+          onPatch={onPatch}
+          channelKindFilter="FILE_UPLOAD"
+        />
+      );
+    case "DB_INCREMENTAL_FETCH":
+      return <DbIncrementalAsset config={config} onPatch={onPatch} />;
     default:
       return (
         <Card>
@@ -387,6 +407,115 @@ function LoadTargetAsset({ config, onPatch }: AssetProps) {
             placeholder="agri_stg.cleaned_2026_04"
           />
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface InboundChannelAssetProps extends AssetProps {
+  channelKindFilter: "WEBHOOK" | "FILE_UPLOAD" | "OCR_RESULT" | "CRAWLER_RESULT";
+}
+
+function InboundChannelAsset({
+  config,
+  onPatch,
+  channelKindFilter,
+}: InboundChannelAssetProps) {
+  const channels = useInboundChannels({ channel_kind: channelKindFilter });
+  const current = (config.channel_code as string | undefined) ?? "";
+  return (
+    <Card>
+      <CardContent className="space-y-2 p-3 text-xs">
+        <div className="flex items-center justify-between">
+          <label className="font-semibold">channel_code</label>
+          <Link
+            to="/v2/inbound-channels/designer"
+            className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />새 inbound channel
+          </Link>
+        </div>
+        <select
+          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+          value={current}
+          onChange={(e) => onPatch({ channel_code: e.target.value || null })}
+        >
+          <option value="">선택</option>
+          {channels.data?.map((c) => (
+            <option key={c.channel_id} value={c.channel_code}>
+              {c.channel_code} ({c.domain_code}) [{c.status}]
+            </option>
+          ))}
+        </select>
+        {channels.data?.length === 0 && (
+          <p className="text-[10px] text-muted-foreground">
+            등록된 {channelKindFilter} channel 이 없습니다. 위 링크로 등록.
+          </p>
+        )}
+        <div>
+          <label className="mb-1 block font-semibold">
+            max_envelopes (default 100)
+          </label>
+          <input
+            type="number"
+            className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+            value={(config.max_envelopes as number | undefined) ?? 100}
+            onChange={(e) =>
+              onPatch({ max_envelopes: Number(e.target.value) || 100 })
+            }
+            min={1}
+            max={1000}
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          ※ PUBLISHED + is_active=true channel 의 RECEIVED 상태 envelope 만 처리.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DbIncrementalAsset({ config, onPatch }: AssetProps) {
+  // 기존 v1 ctl.data_source 의 source_code 사용 (v1 설계 화면 그대로).
+  return (
+    <Card>
+      <CardContent className="space-y-2 p-3 text-xs">
+        <div className="flex items-center justify-between">
+          <label className="font-semibold">source_code (ctl.data_source)</label>
+          <Link
+            to="/sources"
+            className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />legacy Sources
+          </Link>
+        </div>
+        <input
+          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+          value={(config.source_code as string | undefined) ?? ""}
+          onChange={(e) =>
+            onPatch({ source_code: e.target.value || null })
+          }
+          placeholder="e.g. vendor_a_db"
+        />
+        <div>
+          <label className="mb-1 block font-semibold">
+            batch_size (default 1000)
+          </label>
+          <input
+            type="number"
+            className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+            value={(config.batch_size as number | undefined) ?? 1000}
+            onChange={(e) =>
+              onPatch({ batch_size: Number(e.target.value) || 1000 })
+            }
+            min={1}
+            max={100000}
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          ※ source_type=DB 이고 is_active=true 인 ctl.data_source 만 가능.
+          watermark 기반 incremental + raw_object 적재.
+        </p>
       </CardContent>
     </Card>
   );

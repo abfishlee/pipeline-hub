@@ -26,6 +26,7 @@ import { UsersPage } from "@/pages/UsersPage";
 import { DryRunResults } from "@/pages/v2/DryRunResults";
 import { EtlCanvasV2 } from "@/pages/v2/EtlCanvasV2";
 import { FieldMappingDesigner } from "@/pages/v2/FieldMappingDesigner";
+import { InboundChannelDesigner } from "@/pages/v2/InboundChannelDesigner";
 import { MartDesigner } from "@/pages/v2/MartDesigner";
 import { PublishApproval } from "@/pages/v2/PublishApproval";
 import { QualityWorkbench } from "@/pages/v2/QualityWorkbench";
@@ -120,6 +121,10 @@ export default function App() {
               <Route
                 path="/v2/connectors/public-api"
                 element={<SourceApiDesigner />}
+              />
+              <Route
+                path="/v2/inbound-channels/designer"
+                element={<InboundChannelDesigner />}
               />
               <Route
                 path="/v2/mappings/designer"

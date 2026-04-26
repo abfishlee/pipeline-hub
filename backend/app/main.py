@@ -34,6 +34,7 @@ from app.api.v1 import api_keys as api_keys_router
 from app.api.v1 import auth as auth_router
 from app.api.v1 import crowd as crowd_router
 from app.api.v1 import dead_letters as dl_router
+from app.api.v1 import inbound as inbound_router
 from app.api.v1 import ingest as ingest_router
 from app.api.v1 import internal as internal_router
 from app.api.v1 import jobs as jobs_router
@@ -54,6 +55,7 @@ from app.api.v2 import cutover as v2_cutover_router
 from app.api.v2 import domains as v2_domains_router
 from app.api.v2 import dq_rules as v2_dq_rules_router
 from app.api.v2 import dryrun as v2_dryrun_router
+from app.api.v2 import inbound_channels as v2_inbound_channels_router
 from app.api.v2 import load_policies as v2_load_policies_router
 from app.api.v2 import mappings as v2_mappings_router
 from app.api.v2 import mart_drafts as v2_mart_drafts_router
@@ -294,6 +296,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(users_router.router)
     app.include_router(sources_router.router)
     app.include_router(ingest_router.router)
+    # Phase 7 Wave 1A — 외부 push receiver (HMAC + idempotency).
+    app.include_router(inbound_router.router)
     app.include_router(jobs_router.router)
     app.include_router(raw_router.router)
     # Phase 4.2.1 — legacy /v1/crowd-tasks + 정식 /v1/crowd/tasks 두 router.
@@ -340,6 +344,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(v2_resources_router.router)
     # Phase 6 Wave 6 — Quality Workbench (Standardization 탭).
     app.include_router(v2_namespaces_router.router)
+    # Phase 7 Wave 1A — Inbound channel CRUD (외부 push 채널 등록).
+    app.include_router(v2_inbound_channels_router.router)
 
     # Phase 4.2.5 — Public API sub-app: /public/docs / /public/v1/*
     public_app = FastAPI(

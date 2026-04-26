@@ -95,6 +95,8 @@ def get_v2_runner(node_type: str) -> NodeV2Protocol:
     from app.domain.nodes import source_api as v1_source_api
     from app.domain.nodes_v2 import (
         crawl_fetch,
+        db_incremental_fetch,
+        file_upload_ingest,
         function_transform,
         http_transform,
         load_target,
@@ -104,6 +106,7 @@ def get_v2_runner(node_type: str) -> NodeV2Protocol:
         sql_asset_transform,
         sql_inline_transform,
         standardize,
+        webhook_ingest,
     )
     from app.domain.nodes_v2._v1_compat import V1WrappedRunner
 
@@ -120,6 +123,10 @@ def get_v2_runner(node_type: str) -> NodeV2Protocol:
         "CRAWL_FETCH": crawl_fetch,
         # Phase 6 — public API generic fetcher.
         "PUBLIC_API_FETCH": public_api_fetch,
+        # Phase 7 Wave 1A — 외부 push / upload / DB 수집 3종.
+        "WEBHOOK_INGEST": webhook_ingest,
+        "FILE_UPLOAD_INGEST": file_upload_ingest,
+        "DB_INCREMENTAL_FETCH": db_incremental_fetch,
         # namespace 표준화.
         "STANDARDIZE": standardize,
         # v1 compat 4종 (NodeV2Context → v1 NodeContext 변환 후 호출).
@@ -155,7 +162,7 @@ def get_v2_runner(node_type: str) -> NodeV2Protocol:
 
 
 def list_v2_node_types() -> list[str]:
-    """문서화 / UX 용 — 등록된 generic node_type 들 (14종, Phase 6 부터)."""
+    """문서화 / UX 용 — 등록된 generic node_type 들 (Phase 7 Wave 1A 부터 17종)."""
     return [
         "MAP_FIELDS",
         "SQL_INLINE_TRANSFORM",
@@ -166,6 +173,10 @@ def list_v2_node_types() -> list[str]:
         "OCR_TRANSFORM",
         "CRAWL_FETCH",
         "PUBLIC_API_FETCH",
+        # Phase 7 Wave 1A
+        "WEBHOOK_INGEST",
+        "FILE_UPLOAD_INGEST",
+        "DB_INCREMENTAL_FETCH",
         "STANDARDIZE",
         "SOURCE_DATA",
         "DEDUP",

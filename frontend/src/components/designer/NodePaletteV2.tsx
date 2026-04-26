@@ -6,16 +6,19 @@ import {
   Bell,
   Code2,
   Database,
+  DatabaseZap,
   Filter,
   FunctionSquare,
   Globe,
   HardDrive,
   Hash,
   Image,
+  Inbox,
   Network,
   ShieldCheck,
   Sigma,
   Sparkles,
+  Upload,
   Wand2,
 } from "lucide-react";
 import type { NodeType } from "@/api/pipelines";
@@ -47,8 +50,27 @@ const PALETTE: PaletteCategory[] = [
       {
         type: "PUBLIC_API_FETCH",
         label: "PUBLIC_API_FETCH",
-        description: "등록된 OpenAPI connector 호출",
+        description: "등록된 OpenAPI connector 호출 (pull)",
         icon: Globe,
+      },
+      // Phase 7 Wave 1A — 외부 push / upload / DB 수집 3종
+      {
+        type: "WEBHOOK_INGEST",
+        label: "WEBHOOK_INGEST",
+        description: "외부 시스템 push 수신 (HMAC + idempotency)",
+        icon: Inbox,
+      },
+      {
+        type: "FILE_UPLOAD_INGEST",
+        label: "FILE_UPLOAD_INGEST",
+        description: "사용자 multipart 업로드 (CSV / JSON)",
+        icon: Upload,
+      },
+      {
+        type: "DB_INCREMENTAL_FETCH",
+        label: "DB_INCREMENTAL_FETCH",
+        description: "외부 DB watermark 기반 incremental",
+        icon: DatabaseZap,
       },
       {
         type: "OCR_TRANSFORM",
