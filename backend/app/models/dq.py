@@ -32,6 +32,10 @@ class QualityResult(Base):
             "check_kind IN ('row_count_min','null_pct_max','unique_columns','custom_sql')",
             name="ck_dq_check_kind",
         ),
+        CheckConstraint(
+            "status IN ('PASS','WARN','FAIL')",
+            name="ck_dq_quality_status",
+        ),
         {"schema": "dq"},
     )
 
@@ -42,7 +46,11 @@ class QualityResult(Base):
     check_kind: Mapped[str] = mapped_column(Text, nullable=False)
     passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
     severity: Mapped[str] = mapped_column(Text, nullable=False, server_default="WARN")
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="PASS")
     details_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
+    sample_json: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB, nullable=False, server_default="[]"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

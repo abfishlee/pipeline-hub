@@ -113,6 +113,13 @@ class Settings(BaseSettings):
     # 동봉. 비어 있으면 internal endpoint 가 503 (개발 환경에서 cron 자동 실행 비활성).
     airflow_internal_token: SecretStr = SecretStr("")
 
+    # ---- Notify worker (Phase 4.2.2) ----
+    # Slack 기본 webhook URL. 비어 있으면 Slack 발송은 no-op (로그만).
+    notify_slack_webhook_url: SecretStr = SecretStr("")
+    # Email SMTP 미구성 — Phase 4.x 후속에서 Naver Cloud Mailer 도입 예정. 우선 stub.
+    notify_email_from: str = "noreply@pipeline-hub.local"
+    notify_http_timeout_sec: float = 5.0
+
     # ---- Sentry (Phase 2.2.9) — DSN 비어 있으면 init skip ----
     sentry_dsn: SecretStr = SecretStr("")
     # 환경 라벨 (env 와 분리). prod 만 보내고 싶을 때 sample_rate 0 으로 끌 수도 있음.

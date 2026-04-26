@@ -154,6 +154,7 @@ get_broker()
 from app.workers import (  # noqa: E402
     crawler_worker,
     db_incremental_worker,
+    notify_worker,
     ocr_worker,
     outbox_publisher,
     pipeline_node_worker,
@@ -166,6 +167,7 @@ __all__ = [
     "crawler_worker",
     "db_incremental_worker",
     "get_broker",
+    "notify_worker",
     "ocr_worker",
     "outbox_publisher",
     "pipeline_actor",

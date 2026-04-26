@@ -10,8 +10,13 @@ config:
       { "kind": "custom_sql", "sql": "SELECT COUNT(*)::int FROM ... WHERE ...", "expect": 0 }
   - `severity`: 'WARN' | 'ERROR' | 'BLOCK' (기본 'ERROR')
 
-ERROR/BLOCK 위반 시 NodeOutput status='failed'. WARN 은 통과(success) 하지만 DB 에는
-기록.
+ERROR/BLOCK 위반 시 NodeOutput status='failed' + payload['dq_hold']=True 로
+pipeline_runtime 에 ON_HOLD 신호 전달. WARN 은 통과(success) 하지만 DB 에는 기록.
+
+Phase 4.2.2 추가:
+  - 실패 시 최대 10 행 샘플을 `dq.quality_result.sample_json` 으로 저장 (운영자가
+    승인/반려 모달에서 검토).
+  - `quality_result.status` = PASS/WARN/FAIL.
 """
 
 from __future__ import annotations
@@ -35,6 +40,8 @@ name = "DQ_CHECK"
 _TABLE_RE = re.compile(r"^([a-zA-Z_][a-zA-Z0-9_]{0,62})\.([a-zA-Z_][a-zA-Z0-9_]{0,62})$")
 _COLUMN_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
 
+_SAMPLE_LIMIT = 10
+
 
 def _quote_table(table: str) -> str:
     m = _TABLE_RE.match(table)
@@ -51,18 +58,36 @@ def _quote_col(c: str) -> str:
     return f'"{c}"'
 
 
+def _rows_to_jsonable(rows: Any) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        try:
+            mapping = dict(r._mapping)
+        except AttributeError:
+            mapping = dict(r) if isinstance(r, Mapping) else {"value": r}
+        norm: dict[str, Any] = {}
+        for k, v in mapping.items():
+            if v is None or isinstance(v, str | int | float | bool):
+                norm[k] = v
+            else:
+                norm[k] = str(v)
+        out.append(norm)
+    return out
+
+
 def _check_row_count_min(
     session: Any, qualified: str, params: Mapping[str, Any]
-) -> tuple[bool, dict[str, Any]]:
+) -> tuple[bool, dict[str, Any], list[dict[str, Any]]]:
     minimum = int(params.get("min") or 0)
     actual = int(session.execute(text(f"SELECT COUNT(*) FROM {qualified}")).scalar_one() or 0)
-    return actual >= minimum, {"min": minimum, "actual": actual}
+    return actual >= minimum, {"min": minimum, "actual": actual}, []
 
 
 def _check_null_pct_max(
     session: Any, qualified: str, params: Mapping[str, Any]
-) -> tuple[bool, dict[str, Any]]:
-    column = _quote_col(str(params.get("column") or ""))
+) -> tuple[bool, dict[str, Any], list[dict[str, Any]]]:
+    column_name = str(params.get("column") or "")
+    column = _quote_col(column_name)
     max_pct = float(params.get("max_pct") or 0)
     row = session.execute(
         text(
@@ -72,22 +97,31 @@ def _check_null_pct_max(
         )
     ).first()
     if row is None:
-        return True, {"max_pct": max_pct, "actual_pct": 0.0, "rows": 0}
+        return True, {"max_pct": max_pct, "actual_pct": 0.0, "rows": 0}, []
     n = int(row.n or 0)
     nulls = int(row.nulls or 0)
     actual_pct = (nulls / n * 100.0) if n else 0.0
-    return actual_pct <= max_pct, {
+    passed = actual_pct <= max_pct
+    details: dict[str, Any] = {
         "max_pct": max_pct,
         "actual_pct": round(actual_pct, 4),
-        "column": str(params.get("column")),
+        "column": column_name,
         "rows": n,
         "nulls": nulls,
     }
+    samples: list[dict[str, Any]] = []
+    if not passed:
+        sample_rows = session.execute(
+            text(f"SELECT * FROM {qualified} WHERE {column} IS NULL LIMIT :limit"),
+            {"limit": _SAMPLE_LIMIT},
+        ).fetchall()
+        samples = _rows_to_jsonable(sample_rows)
+    return passed, details, samples
 
 
 def _check_unique_columns(
     session: Any, qualified: str, params: Mapping[str, Any]
-) -> tuple[bool, dict[str, Any]]:
+) -> tuple[bool, dict[str, Any], list[dict[str, Any]]]:
     columns = [str(c) for c in (params.get("columns") or [])]
     if not columns:
         raise NodeError("unique_columns requires `columns`")
@@ -100,10 +134,23 @@ def _check_unique_columns(
         )
     ).scalar_one()
     dup_count = int(dup or 0)
-    return dup_count == 0, {"columns": columns, "duplicate_groups": dup_count}
+    passed = dup_count == 0
+    samples: list[dict[str, Any]] = []
+    if not passed:
+        sample_rows = session.execute(
+            text(
+                f"SELECT {cols_quoted}, COUNT(*) AS dup_count FROM {qualified} "
+                f"GROUP BY {cols_quoted} HAVING COUNT(*) > 1 LIMIT :limit"
+            ),
+            {"limit": _SAMPLE_LIMIT},
+        ).fetchall()
+        samples = _rows_to_jsonable(sample_rows)
+    return passed, {"columns": columns, "duplicate_groups": dup_count}, samples
 
 
-def _check_custom_sql(session: Any, params: Mapping[str, Any]) -> tuple[bool, dict[str, Any]]:
+def _check_custom_sql(
+    session: Any, params: Mapping[str, Any]
+) -> tuple[bool, dict[str, Any], list[dict[str, Any]]]:
     sql = str(params.get("sql") or "").strip().rstrip(";")
     expect = params.get("expect")
     try:
@@ -111,7 +158,7 @@ def _check_custom_sql(session: Any, params: Mapping[str, Any]) -> tuple[bool, di
     except SqlValidationError as exc:
         raise NodeError(f"custom_sql validation failed: {exc}") from exc
     actual = session.execute(text(sql)).scalar()
-    return (actual == expect), {"sql": sql, "expect": expect, "actual": actual}
+    return (actual == expect), {"sql": sql, "expect": expect, "actual": actual}, []
 
 
 def run(context: NodeContext, config: Mapping[str, Any]) -> NodeOutput:
@@ -126,49 +173,64 @@ def run(context: NodeContext, config: Mapping[str, Any]) -> NodeOutput:
 
     failures: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
+    quality_result_ids: list[int] = []
 
     for idx, raw in enumerate(assertions):
         if not isinstance(raw, Mapping):
             raise NodeError(f"assertion[{idx}] must be a dict")
         kind = str(raw.get("kind") or "").lower()
         if kind == "row_count_min":
-            passed, details = _check_row_count_min(context.session, qualified, raw)
+            passed, details, samples = _check_row_count_min(context.session, qualified, raw)
         elif kind == "null_pct_max":
-            passed, details = _check_null_pct_max(context.session, qualified, raw)
+            passed, details, samples = _check_null_pct_max(context.session, qualified, raw)
         elif kind == "unique_columns":
-            passed, details = _check_unique_columns(context.session, qualified, raw)
+            passed, details, samples = _check_unique_columns(context.session, qualified, raw)
         elif kind == "custom_sql":
-            passed, details = _check_custom_sql(context.session, raw)
+            passed, details, samples = _check_custom_sql(context.session, raw)
         else:
             raise NodeError(f"unknown assertion kind: {kind!r}")
 
-        context.session.add(
-            QualityResult(
-                pipeline_run_id=context.pipeline_run_id,
-                node_run_id=context.node_run_id,
-                target_table=input_table,
-                check_kind=kind,
-                passed=passed,
-                severity=severity,
-                details_json=details,
-            )
+        # Phase 4.2.2 — status (PASS/WARN/FAIL) 결정.
+        if passed:
+            status_code = "PASS"
+        elif severity == "WARN":
+            status_code = "WARN"
+        else:
+            status_code = "FAIL"
+
+        qr = QualityResult(
+            pipeline_run_id=context.pipeline_run_id,
+            node_run_id=context.node_run_id,
+            target_table=input_table,
+            check_kind=kind,
+            passed=passed,
+            severity=severity,
+            status=status_code,
+            details_json=details,
+            sample_json=samples,
         )
+        context.session.add(qr)
+        context.session.flush()
+        quality_result_ids.append(qr.quality_result_id)
         results.append({"kind": kind, "passed": passed, "details": details})
         if not passed:
             failures.append({"kind": kind, "details": details})
 
-    context.session.flush()
-
     overall_failed = bool(failures) and severity in ("ERROR", "BLOCK")
+    payload: dict[str, Any] = {
+        "input_table": input_table,
+        "results": results,
+        "severity": severity,
+        "failed_count": len(failures),
+        "quality_result_ids": quality_result_ids,
+    }
+    if overall_failed:
+        # pipeline_runtime 가 이 플래그를 보고 ON_HOLD 전이 + cascade SKIPPED 차단.
+        payload["dq_hold"] = True
     return NodeOutput(
         status="failed" if overall_failed else "success",
         row_count=len(results),
-        payload={
-            "input_table": input_table,
-            "results": results,
-            "severity": severity,
-            "failed_count": len(failures),
-        },
+        payload=payload,
         error_message=(
             f"{len(failures)} of {len(results)} assertions failed (severity={severity})"
             if overall_failed

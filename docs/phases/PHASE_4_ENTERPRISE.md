@@ -225,19 +225,40 @@ Phase 3 의 5-role (`ADMIN`/`APPROVER`/`OPERATOR`/`REVIEWER`/`VIEWER`) 위에 Ph
 - [x] priority=9 task — 2명 검수 + 일치 시 자동 task_decision (DOUBLE_AGREED) + outbox 발행.
 - [x] 충돌 시 CONFLICT 상태 + 관리자 resolve → CONFLICT_RESOLVED + outbox 발행.
 
-### 4.2.2 DQ 게이트 [W3~W4]
+### 4.2.2 DQ 게이트 [W3~W4] ✅ 완료 (2026-04-26)
 
-- [ ] `app/domain/quality.py`:
-  - rule 실행 엔진 (rule_sql 실행 + 실패 row 수집)
-  - severity=ERROR 실패 시 `pipeline_run.status = ON_HOLD`
-  - `dq.quality_result.status='FAIL'` + sample_json 저장
-- [ ] 승인 UI:
-  - ON_HOLD pipeline_run 목록
-  - 실패 규칙 + 실패 row 샘플 확인
-  - 승인(강제 진행) 또는 거부(롤백)
-  - 승인자 = APPROVER role 필수
-- [ ] 승인 이력: `run.hold_decision` 테이블 (signer, reason, decision, occurred_at)
-- [ ] 자동 알림 (Slack/이메일): ON_HOLD 발생 시
+- [x] `app/domain/nodes/dq_check.py` 확장:
+  - row_count_min / null_pct_max / unique_columns / custom_sql 4 종 어서션
+  - 실패 시 최대 10 행 sample 캡처 (`dq.quality_result.sample_json`)
+  - `dq.quality_result.status` = PASS/WARN/FAIL
+  - severity=ERROR/BLOCK 실패 시 NodeOutput.payload['dq_hold']=True
+- [x] `app/domain/pipeline_runtime.py::complete_node` ON_HOLD 분기:
+  - dq_hold=True 면 후속 노드 SKIPPED cascade 차단 (PENDING 보존)
+  - `pipeline_run.status = ON_HOLD` + outbox `pipeline_run.on_hold` 발행
+- [x] `app/domain/dq_gate.py`:
+  - `approve_hold(pipeline_run_id, signer_user_id, reason)` — RUNNING 복귀
+    + 실패 DQ 직접 후속 READY + outbox `pipeline_run.hold_approved`
+  - `reject_hold(pipeline_run_id, signer_user_id, reason)` — CANCELLED
+    + 잔여 노드 CANCELLED + `stg.standard_record/price_observation`
+    `WHERE load_batch_id = pipeline_run_id` DELETE rollback
+    + outbox `pipeline_run.hold_rejected`
+- [x] 승인 UI (`PipelineRunsList.tsx`):
+  - ON_HOLD 목록 카드 + 실패 노드 키
+  - HoldDecisionModal: 실패 규칙 + sample 행 확인 + 승인/반려 + 사유
+  - APPROVER/ADMIN 만 승인/반려 버튼 노출
+- [x] `migrations/versions/0023_dq_gate_hold.py`:
+  - `pipeline_run.status` CHECK 에 ON_HOLD 추가
+  - `dq.quality_result` 에 status + sample_json 컬럼 + index
+  - `run.hold_decision` 신설 (signer FK, reason, decision, quality_result_ids, occurred_at)
+- [x] API: `GET /v1/pipelines/runs/on_hold` + `POST /runs/{id}/hold/{approve,reject}`
+  (APPROVER/ADMIN 권한)
+- [x] `app/workers/notify_worker.py` — outbox NOTIFY 이벤트 1배치 처리:
+  - `pipeline_run.on_hold` / `hold_approved` / `hold_rejected` / `notify.requested`
+  - Slack webhook (URL stdlib urllib) + email stub
+  - 실패 시 attempt_no++; max_attempts 초과 시 dead_letter
+- [x] `tests/integration/test_dq_gate.py` 6 케이스: ERROR → ON_HOLD / list /
+  APPROVE → RUNNING + READY / REJECT → CANCELLED + stg rollback / notify worker
+  PUBLISHED 마킹 / not-on-hold 거부.
 
 ### 4.2.3 CDC PoC [W4~W5]
 

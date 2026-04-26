@@ -281,6 +281,10 @@ def complete_node(
     metrics.pipeline_node_runs_total.labels(node_type=nr.node_type, status=status).inc()
     _publish_state(pubsub, pipeline_run=pr, node_run=nr, workflow_id=pr.workflow_id)
 
+    # Phase 4.2.2 — DQ_CHECK 노드가 ERROR/BLOCK 으로 실패하면 dq_hold=True 로 신호.
+    # 이 경우 cascade SKIPPED 를 차단하고 pipeline_run.status = ON_HOLD 로 전이.
+    dq_hold = bool(status == "FAILED" and (output_json or {}).get("dq_hold"))
+
     # 후속 노드 dispatch.
     siblings = _sibling_node_runs(session, nr.pipeline_run_id, nr.run_date)
     sibling_by_def = {s.node_definition_id: s for s in siblings}
@@ -302,7 +306,7 @@ def complete_node(
                 cand.status = "READY"
                 next_ready.append(cand.node_run_id)
                 _publish_state(pubsub, pipeline_run=pr, node_run=cand, workflow_id=pr.workflow_id)
-    elif status == "FAILED":
+    elif status == "FAILED" and not dq_hold:
         # 도달 가능한 모든 PENDING/READY 후속 노드를 SKIPPED 로 마킹.
         # (Kahn 진행 차단 — 단순 정책: from 이 FAILED 면 모든 도달 가능 후속 SKIP)
         adj: dict[int, list[int]] = defaultdict(list)
@@ -327,6 +331,36 @@ def complete_node(
                         pubsub, pipeline_run=pr, node_run=cand, workflow_id=pr.workflow_id
                     )
                     queue.append(d)
+
+    # Phase 4.2.2 — DQ hold 시 pipeline_run.status = ON_HOLD, 종결 판정 skip.
+    if dq_hold:
+        pr.status = "ON_HOLD"
+        metrics.pipeline_runs_total.labels(status="ON_HOLD").inc()
+        # outbox: NOTIFY 이벤트 (notify_worker 가 Slack/Email 발송).
+        from app.models.run import EventOutbox
+
+        session.add(
+            EventOutbox(
+                aggregate_type="pipeline_run",
+                aggregate_id=str(pr.pipeline_run_id),
+                event_type="pipeline_run.on_hold",
+                payload_json={
+                    "pipeline_run_id": pr.pipeline_run_id,
+                    "run_date": pr.run_date.isoformat(),
+                    "workflow_id": pr.workflow_id,
+                    "node_run_id": nr.node_run_id,
+                    "node_key": nr.node_key,
+                    "error_message": error_message,
+                    "quality_result_ids": (output_json or {}).get("quality_result_ids", []),
+                },
+            )
+        )
+        return NodeCompletion(
+            pipeline_run_id=pr.pipeline_run_id,
+            run_date=pr.run_date,
+            pipeline_status="ON_HOLD",
+            next_ready_node_run_ids=tuple(next_ready),
+        )
 
     # pipeline 종결 판정.
     siblings = _sibling_node_runs(session, nr.pipeline_run_id, nr.run_date)

@@ -27,6 +27,7 @@ from app.core import errors as app_errors
 from app.core.events import RedisPubSub
 from app.db.sync_session import get_sync_sessionmaker
 from app.deps import CurrentUserDep, SessionDep, require_roles
+from app.domain import dq_gate as dq_gate_domain
 from app.domain import pipeline_release as release_domain
 from app.domain import pipeline_runtime as runtime
 from app.domain import pipeline_schedule as schedule_domain
@@ -37,13 +38,17 @@ from app.schemas.pipelines import (
     BackfillResponse,
     EdgeChangeOut,
     EdgeOut,
+    HoldDecisionRequest,
+    HoldDecisionResponse,
     NodeChangeOut,
     NodeOut,
     NodeRunOut,
+    OnHoldRunOut,
     PipelineReleaseDetail,
     PipelineReleaseOut,
     PipelineRunDetail,
     PipelineRunOut,
+    QualityResultOut,
     RestartRequest,
     RestartResponse,
     ScheduleUpdate,
@@ -516,6 +521,164 @@ async def restart_run(
         new_run_date=result.new_run_date,
         ready_node_run_ids=list(result.ready_node_run_ids),
         seeded_success_node_keys=list(result.seeded_success_node_keys),
+    )
+
+
+# ---------------------------------------------------------------------------
+# DQ Gate (Phase 4.2.2) — ON_HOLD 검색 / 승인 / 반려.
+# 라우트 순서 주의: `/runs/on_hold` 가 `/runs/{id}` 보다 먼저 등록되어야 함.
+# ---------------------------------------------------------------------------
+@router.get("/runs/on_hold", response_model=list[OnHoldRunOut])
+async def list_on_hold_runs(
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[OnHoldRunOut]:
+    """ON_HOLD 상태 pipeline_run 목록 + 각 run 의 실패 DQ 결과 미리보기."""
+    from sqlalchemy import select
+
+    from app.models.dq import QualityResult
+    from app.models.run import NodeRun, PipelineRun
+
+    def _do(s: Session) -> list[OnHoldRunOut]:
+        runs = list(
+            s.execute(
+                select(PipelineRun)
+                .where(PipelineRun.status == "ON_HOLD")
+                .order_by(PipelineRun.pipeline_run_id.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+            .scalars()
+            .all()
+        )
+        out: list[OnHoldRunOut] = []
+        for pr in runs:
+            failed_nodes = list(
+                s.execute(
+                    select(NodeRun)
+                    .where(NodeRun.pipeline_run_id == pr.pipeline_run_id)
+                    .where(NodeRun.run_date == pr.run_date)
+                    .where(NodeRun.status == "FAILED")
+                    .where(NodeRun.node_type == "DQ_CHECK")
+                )
+                .scalars()
+                .all()
+            )
+            qrs = list(
+                s.execute(
+                    select(QualityResult)
+                    .where(QualityResult.pipeline_run_id == pr.pipeline_run_id)
+                    .where(QualityResult.status == "FAIL")
+                    .order_by(QualityResult.created_at.desc())
+                )
+                .scalars()
+                .all()
+            )
+            base = PipelineRunOut.model_validate(pr).model_dump()
+            out.append(
+                OnHoldRunOut(
+                    **base,
+                    failed_node_keys=[n.node_key for n in failed_nodes],
+                    quality_results=[QualityResultOut.model_validate(q) for q in qrs],
+                )
+            )
+        return out
+
+    return await _in_sync_session(_do)
+
+
+@router.post(
+    "/runs/{pipeline_run_id}/hold/approve",
+    response_model=HoldDecisionResponse,
+    dependencies=[Depends(require_roles("APPROVER", "ADMIN"))],
+)
+async def approve_hold_endpoint(
+    user: CurrentUserDep,
+    pipeline_run_id: int,
+    body: HoldDecisionRequest,
+) -> HoldDecisionResponse:
+    """ON_HOLD pipeline_run 을 승인하여 실행 재개. APPROVER/ADMIN 만 가능."""
+    pubsub = RedisPubSub.from_settings()
+    try:
+        def _do(s: Session) -> dq_gate_domain.HoldDecisionResult:
+            return dq_gate_domain.approve_hold(
+                s,
+                pipeline_run_id=pipeline_run_id,
+                signer_user_id=user.user_id,
+                reason=body.reason,
+                pubsub=pubsub,
+            )
+
+        try:
+            result = await _in_sync_session(_do)
+        except ValueError as exc:
+            raise app_errors.ValidationError(str(exc)) from exc
+    finally:
+        pubsub.close()
+
+    # 후속 ready 노드 enqueue (broker 미가동 시에도 200).
+    try:
+        from app.workers.pipeline_node_worker import process_node_event
+
+        for node_run_id in result.ready_node_run_ids:
+            process_node_event.send(
+                event_id=f"node-run-{node_run_id}-approve-{result.decision_id}",
+                node_run_id=node_run_id,
+                run_date_iso=result.run_date.isoformat(),
+            )
+    except Exception:
+        pass
+
+    return HoldDecisionResponse(
+        decision_id=result.decision_id,
+        pipeline_run_id=result.pipeline_run_id,
+        run_date=result.run_date,
+        decision="APPROVE",
+        pipeline_status=result.pipeline_status,
+        ready_node_run_ids=list(result.ready_node_run_ids),
+        cancelled_node_run_ids=[],
+        rollback_rows=0,
+    )
+
+
+@router.post(
+    "/runs/{pipeline_run_id}/hold/reject",
+    response_model=HoldDecisionResponse,
+    dependencies=[Depends(require_roles("APPROVER", "ADMIN"))],
+)
+async def reject_hold_endpoint(
+    user: CurrentUserDep,
+    pipeline_run_id: int,
+    body: HoldDecisionRequest,
+) -> HoldDecisionResponse:
+    """ON_HOLD pipeline_run 을 반려 → CANCELLED + stg rollback."""
+    pubsub = RedisPubSub.from_settings()
+    try:
+        def _do(s: Session) -> dq_gate_domain.HoldDecisionResult:
+            return dq_gate_domain.reject_hold(
+                s,
+                pipeline_run_id=pipeline_run_id,
+                signer_user_id=user.user_id,
+                reason=body.reason,
+                pubsub=pubsub,
+            )
+
+        try:
+            result = await _in_sync_session(_do)
+        except ValueError as exc:
+            raise app_errors.ValidationError(str(exc)) from exc
+    finally:
+        pubsub.close()
+
+    return HoldDecisionResponse(
+        decision_id=result.decision_id,
+        pipeline_run_id=result.pipeline_run_id,
+        run_date=result.run_date,
+        decision="REJECT",
+        pipeline_status=result.pipeline_status,
+        ready_node_run_ids=[],
+        cancelled_node_run_ids=list(result.cancelled_node_run_ids),
+        rollback_rows=result.rollback_rows,
     )
 
 

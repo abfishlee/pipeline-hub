@@ -2,8 +2,13 @@ import { Pencil, Plus } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  type OnHoldRunOut,
   type PipelineRunStatus,
+  type QualityResultOut,
   type WorkflowStatus,
+  useApproveHold,
+  useOnHoldRuns,
+  useRejectHold,
   useSearchRuns,
   useWorkflows,
 } from "@/api/pipelines";
@@ -18,6 +23,7 @@ import { useAuthStore } from "@/store/auth";
 const STATUS_COLORS: Record<PipelineRunStatus, string> = {
   PENDING: "text-muted-foreground",
   RUNNING: "text-amber-600",
+  ON_HOLD: "text-orange-600",
   SUCCESS: "text-emerald-600",
   FAILED: "text-rose-600",
   CANCELLED: "text-muted-foreground",
@@ -32,6 +38,7 @@ const WORKFLOW_BADGE: Record<WorkflowStatus, "default" | "muted" | "destructive"
 const STATUS_OPTIONS: PipelineRunStatus[] = [
   "PENDING",
   "RUNNING",
+  "ON_HOLD",
   "SUCCESS",
   "FAILED",
   "CANCELLED",
@@ -50,8 +57,12 @@ export function PipelineRunsList() {
     to: toDate || null,
     limit: 200,
   });
+  const onHoldRuns = useOnHoldRuns({ limit: 50 });
+  const [holdModal, setHoldModal] = useState<OnHoldRunOut | null>(null);
   const user = useAuthStore((s) => s.user);
   const canDesign =
+    !!user?.roles.some((r) => r === "ADMIN" || r === "APPROVER");
+  const canApprove =
     !!user?.roles.some((r) => r === "ADMIN" || r === "APPROVER");
 
   return (
@@ -192,6 +203,65 @@ export function PipelineRunsList() {
         </CardContent>
       </Card>
 
+      {(onHoldRuns.data?.length ?? 0) > 0 && (
+        <Card>
+          <CardContent className="space-y-2 p-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-orange-700">
+                ON_HOLD ({onHoldRuns.data?.length ?? 0})
+              </h3>
+              <span className="text-xs text-muted-foreground">
+                DQ 게이트에 걸린 실행 — APPROVER 승인 또는 반려가 필요합니다.
+              </span>
+            </div>
+            <Table>
+              <Thead>
+                <Tr>
+                  <Th>run_id</Th>
+                  <Th>workflow_id</Th>
+                  <Th>run_date</Th>
+                  <Th>failed_node</Th>
+                  <Th>fail_count</Th>
+                  <Th></Th>
+                </Tr>
+              </Thead>
+              <Tbody>
+                {onHoldRuns.data?.map((r) => (
+                  <Tr key={r.pipeline_run_id}>
+                    <Td className="font-mono">#{r.pipeline_run_id}</Td>
+                    <Td className="font-mono">{r.workflow_id}</Td>
+                    <Td>{r.run_date}</Td>
+                    <Td className="font-mono text-xs">
+                      {r.failed_node_keys.join(", ") || "-"}
+                    </Td>
+                    <Td className="text-rose-600">
+                      {r.quality_results.length}
+                    </Td>
+                    <Td>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setHoldModal(r)}
+                      >
+                        검토
+                      </Button>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {holdModal && (
+        <HoldDecisionModal
+          run={holdModal}
+          canApprove={canApprove}
+          onClose={() => setHoldModal(null)}
+        />
+      )}
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -245,6 +315,144 @@ export function PipelineRunsList() {
           </Table>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// HoldDecisionModal — DQ 게이트 승인/반려 (Phase 4.2.2)
+// ---------------------------------------------------------------------------
+function HoldDecisionModal({
+  run,
+  canApprove,
+  onClose,
+}: {
+  run: OnHoldRunOut;
+  canApprove: boolean;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const approve = useApproveHold();
+  const reject = useRejectHold();
+  const inFlight = approve.isPending || reject.isPending;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-3xl overflow-auto rounded-lg bg-background p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">
+            DQ 게이트 — run #{run.pipeline_run_id}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="mb-3 text-xs text-muted-foreground">
+          workflow {run.workflow_id} · {run.run_date} · failed nodes:{" "}
+          <span className="font-mono">{run.failed_node_keys.join(", ") || "-"}</span>
+        </div>
+
+        <div className="mb-4 space-y-3">
+          {run.quality_results.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              실패한 DQ 결과가 없습니다 (이미 처리되었을 수 있음).
+            </p>
+          )}
+          {run.quality_results.map((qr) => (
+            <FailedRuleCard key={qr.quality_result_id} qr={qr} />
+          ))}
+        </div>
+
+        <div className="mb-3">
+          <label
+            htmlFor="hold-reason"
+            className="mb-1 block text-xs font-medium text-muted-foreground"
+          >
+            사유 (선택)
+          </label>
+          <textarea
+            id="hold-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={2}
+            placeholder="검토 결과 요약 또는 반려 사유"
+            className="w-full rounded-md border border-input bg-background p-2 text-sm"
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={inFlight}>
+            닫기
+          </Button>
+          {canApprove ? (
+            <>
+              <Button
+                variant="destructive"
+                onClick={() =>
+                  reject.mutate(
+                    { runId: run.pipeline_run_id, reason: reason || null },
+                    { onSuccess: onClose },
+                  )
+                }
+                disabled={inFlight}
+              >
+                {reject.isPending ? "반려 중…" : "반려 (CANCEL + rollback)"}
+              </Button>
+              <Button
+                onClick={() =>
+                  approve.mutate(
+                    { runId: run.pipeline_run_id, reason: reason || null },
+                    { onSuccess: onClose },
+                  )
+                }
+                disabled={inFlight}
+              >
+                {approve.isPending ? "승인 중…" : "승인 (재개)"}
+              </Button>
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              승인/반려는 ADMIN/APPROVER 권한이 필요합니다.
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FailedRuleCard({ qr }: { qr: QualityResultOut }) {
+  return (
+    <div className="rounded-md border border-rose-200 bg-rose-50/40 p-3 text-xs">
+      <div className="mb-1 flex items-center gap-2">
+        <Badge variant="destructive">{qr.severity}</Badge>
+        <span className="font-mono">{qr.check_kind}</span>
+        <span className="text-muted-foreground">on {qr.target_table}</span>
+      </div>
+      <pre className="overflow-x-auto whitespace-pre-wrap text-[11px] text-foreground/80">
+        {JSON.stringify(qr.details_json, null, 2)}
+      </pre>
+      {qr.sample_json.length > 0 && (
+        <details className="mt-2">
+          <summary className="cursor-pointer text-muted-foreground">
+            failed sample rows ({qr.sample_json.length})
+          </summary>
+          <pre className="overflow-x-auto whitespace-pre-wrap text-[11px]">
+            {JSON.stringify(qr.sample_json, null, 2)}
+          </pre>
+        </details>
+      )}
     </div>
   );
 }

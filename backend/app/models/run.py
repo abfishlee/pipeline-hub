@@ -19,7 +19,7 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
     Text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -164,7 +164,7 @@ class PipelineRun(Base):
     __table_args__ = (
         PrimaryKeyConstraint("pipeline_run_id", "run_date", name="pk_pipeline_run"),
         CheckConstraint(
-            "status IN ('PENDING','RUNNING','SUCCESS','FAILED','CANCELLED')",
+            "status IN ('PENDING','RUNNING','ON_HOLD','SUCCESS','FAILED','CANCELLED')",
             name="ck_pipeline_run_status",
         ),
         {
@@ -229,10 +229,39 @@ class NodeRun(Base):
     )
 
 
+class HoldDecision(Base):
+    """ON_HOLD pipeline_run 의 승인/반려 결재 이력. Phase 4.2.2."""
+
+    __tablename__ = "hold_decision"
+    __table_args__ = (
+        CheckConstraint(
+            "decision IN ('APPROVE','REJECT')",
+            name="ck_hold_decision_decision",
+        ),
+        {"schema": "run"},
+    )
+
+    decision_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    pipeline_run_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    run_date: Mapped[date] = mapped_column(Date, nullable=False)
+    decision: Mapped[str] = mapped_column(Text, nullable=False)
+    signer_user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("ctl.app_user.user_id"), nullable=False
+    )
+    reason: Mapped[str | None] = mapped_column(Text)
+    quality_result_ids: Mapped[list[int]] = mapped_column(
+        ARRAY(BigInteger), nullable=False, server_default="{}"
+    )
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 __all__ = [
     "CrowdTask",
     "DeadLetter",
     "EventOutbox",
+    "HoldDecision",
     "IngestJob",
     "NodeRun",
     "PipelineRun",

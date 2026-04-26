@@ -218,21 +218,66 @@ class RestartResponse(BaseModel):
     seeded_success_node_keys: list[str]
 
 
+# ---------------------------------------------------------------------------
+# DQ Gate (Phase 4.2.2)
+# ---------------------------------------------------------------------------
+class HoldDecisionRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=2000)
+
+
+class QualityResultOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    quality_result_id: int
+    pipeline_run_id: int | None
+    node_run_id: int | None
+    target_table: str
+    check_kind: str
+    passed: bool
+    severity: str
+    status: str
+    details_json: dict[str, Any]
+    sample_json: list[dict[str, Any]]
+    created_at: datetime
+
+
+class HoldDecisionResponse(BaseModel):
+    decision_id: int
+    pipeline_run_id: int
+    run_date: date
+    decision: Literal["APPROVE", "REJECT"]
+    pipeline_status: str
+    ready_node_run_ids: list[int] = Field(default_factory=list)
+    cancelled_node_run_ids: list[int] = Field(default_factory=list)
+    rollback_rows: int = 0
+
+
+class OnHoldRunOut(PipelineRunOut):
+    """ON_HOLD pipeline_run 1건 + 실패 DQ 결과 미리보기."""
+
+    failed_node_keys: list[str] = Field(default_factory=list)
+    quality_results: list[QualityResultOut] = Field(default_factory=list)
+
+
 __all__ = [
     "BackfillRequest",
     "BackfillResponse",
     "EdgeChangeOut",
     "EdgeIn",
     "EdgeOut",
+    "HoldDecisionRequest",
+    "HoldDecisionResponse",
     "NodeChangeOut",
     "NodeIn",
     "NodeOut",
     "NodeRunOut",
     "NodeType",
+    "OnHoldRunOut",
     "PipelineReleaseDetail",
     "PipelineReleaseOut",
     "PipelineRunDetail",
     "PipelineRunOut",
+    "QualityResultOut",
     "RestartRequest",
     "RestartResponse",
     "ScheduleUpdate",

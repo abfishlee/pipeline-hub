@@ -59,6 +59,7 @@ export type NodeRunStatus =
 export type PipelineRunStatus =
   | "PENDING"
   | "RUNNING"
+  | "ON_HOLD"
   | "SUCCESS"
   | "FAILED"
   | "CANCELLED";
@@ -409,6 +410,90 @@ export function useRestartRun() {
         method: "POST",
         body: { from_node_key: from_node_key ?? null },
       }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pipelines", "runs"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// DQ Gate (Phase 4.2.2) — ON_HOLD list + approve/reject.
+// ---------------------------------------------------------------------------
+export interface QualityResultOut {
+  quality_result_id: number;
+  pipeline_run_id: number | null;
+  node_run_id: number | null;
+  target_table: string;
+  check_kind: string;
+  passed: boolean;
+  severity: string;
+  status: "PASS" | "WARN" | "FAIL";
+  details_json: Record<string, unknown>;
+  sample_json: Array<Record<string, unknown>>;
+  created_at: string;
+}
+
+export interface OnHoldRunOut extends PipelineRunOut {
+  failed_node_keys: string[];
+  quality_results: QualityResultOut[];
+}
+
+export interface HoldDecisionResponse {
+  decision_id: number;
+  pipeline_run_id: number;
+  run_date: string;
+  decision: "APPROVE" | "REJECT";
+  pipeline_status: string;
+  ready_node_run_ids: number[];
+  cancelled_node_run_ids: number[];
+  rollback_rows: number;
+}
+
+export function useOnHoldRuns(params: { limit?: number; offset?: number } = {}) {
+  return useQuery({
+    queryKey: ["pipelines", "runs", "on_hold", params],
+    queryFn: () =>
+      apiRequest<OnHoldRunOut[]>("/v1/pipelines/runs/on_hold", {
+        params: { limit: params.limit ?? 50, offset: params.offset ?? 0 },
+      }),
+    refetchInterval: 10_000,
+  });
+}
+
+export function useApproveHold() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      runId,
+      reason,
+    }: {
+      runId: number;
+      reason?: string | null;
+    }) =>
+      apiRequest<HoldDecisionResponse>(
+        `/v1/pipelines/runs/${runId}/hold/approve`,
+        { method: "POST", body: { reason: reason ?? null } },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pipelines", "runs"] });
+    },
+  });
+}
+
+export function useRejectHold() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      runId,
+      reason,
+    }: {
+      runId: number;
+      reason?: string | null;
+    }) =>
+      apiRequest<HoldDecisionResponse>(
+        `/v1/pipelines/runs/${runId}/hold/reject`,
+        { method: "POST", body: { reason: reason ?? null } },
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pipelines", "runs"] });
     },
