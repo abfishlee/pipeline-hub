@@ -1,0 +1,253 @@
+# Phase 5.1 — Staging compose (회사 서버 / 사내망 only / D-1 all-in-one).
+#
+# 결정 사항 (사용자 답변 2026-04-27):
+#   ssl_mode       = A (사내망 HTTP, 외부 노출 X)
+#   db_mode        = D-1 (docker PG/Redis/MinIO 모두 컨테이너)
+#   external       = internal_only (172.30.1.131 사내망에서만)
+#   admin_login    = admin
+#   secrets        = 모두 mock (CLOVA/Upstage/HyperCLOVA/Slack/Sentry off)
+#
+# 실행:
+#   cd /opt/datapipeline
+#   docker compose -f infra/docker-compose.staging.yml --env-file .env.staging up -d
+#
+# 사용자 접근:
+#   http://172.30.1.131:8080      ← frontend (nginx → backend 프록시)
+#   http://172.30.1.131:8000      ← backend 직접 (디버깅용)
+#   http://172.30.1.131:9001      ← MinIO console (관리자)
+#
+# 본 compose 는 dev (docker-compose.yml) 와 *완전 분리* 된 컨테이너 이름 + 볼륨
+# 사용 — 같은 호스트에 둘 다 띄워도 충돌 X.
+
+name: datapipeline-staging
+
+x-app-env: &app-env
+  APP_ENV: staging
+  APP_DEBUG: "false"
+  APP_LOG_JSON: "true"
+  APP_LOG_LEVEL: INFO
+  TZ: ${TZ:-Asia/Seoul}
+  APP_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-datapipeline}
+  APP_REDIS_URL: redis://redis:6379/0
+  APP_JWT_SECRET: ${APP_JWT_SECRET}
+  APP_JWT_ACCESS_TTL_SECONDS: "3600"
+  APP_JWT_REFRESH_TTL_SECONDS: "1209600"
+  APP_CORS_ORIGINS: ${APP_CORS_ORIGINS:-http://172.30.1.131:8080,http://localhost:8080}
+  APP_DRAMATIQ_QUEUE_PREFIX: dp_staging
+  # Object Storage — MinIO.
+  APP_OS_ENDPOINT: http://minio:9000
+  APP_OS_REGION: kr-standard
+  APP_OS_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+  APP_OS_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+  APP_OS_BUCKET: ${APP_OS_BUCKET:-datapipeline-staging}
+  APP_OS_USE_SSL: "false"
+  # 외부 API — 사용자 답변 모두 mock.
+  APP_CLOVA_OCR_URL: ""
+  APP_CLOVA_OCR_SECRET: ""
+  APP_UPSTAGE_OCR_URL: ""
+  APP_UPSTAGE_API_KEY: ""
+  APP_HYPERCLOVA_API_KEY: ""
+
+services:
+  # ----------------------------------------------------------------------
+  # PostgreSQL 16 + pgvector
+  # ----------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: dp_staging_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-datapipeline}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+      TZ: ${TZ:-Asia/Seoul}
+    ports:
+      # 사내망 only — 호스트 5434 노출 (디버깅 / migration 수동 실행).
+      - "${POSTGRES_HOST_PORT:-5434}:5432"
+    volumes:
+      - staging_postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-datapipeline}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ----------------------------------------------------------------------
+  # Redis 7
+  # ----------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: dp_staging_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    ports:
+      - "${REDIS_HOST_PORT:-6380}:6379"
+    volumes:
+      - staging_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ----------------------------------------------------------------------
+  # MinIO (S3 호환 — Object Storage)
+  # ----------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: dp_staging_minio
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_REGION: kr-standard
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - staging_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  minio-setup:
+    image: minio/mc:latest
+    container_name: dp_staging_minio_setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      APP_OS_BUCKET: ${APP_OS_BUCKET:-datapipeline-staging}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        mc mb --ignore-existing local/"$$APP_OS_BUCKET"
+        mc anonymous set none local/"$$APP_OS_BUCKET"
+        echo "[minio-setup] bucket ready: $$APP_OS_BUCKET"
+    restart: "no"
+
+  # ----------------------------------------------------------------------
+  # Migrate (alembic upgrade head + admin seed)
+  # ----------------------------------------------------------------------
+  migrate:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: dp_staging_migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        echo "[migrate] alembic upgrade head"
+        alembic upgrade head
+        echo "[migrate] seed admin user"
+        python /app/scripts/seed_admin.py \
+          --login_id "${ADMIN_LOGIN_ID:-admin}" \
+          --display_name "${ADMIN_DISPLAY_NAME:-Staging Admin}" \
+          --email "${ADMIN_EMAIL:-admin@example.com}" \
+          --password "${ADMIN_PASSWORD}" \
+          --role ADMIN || echo "[migrate] admin seed skipped (already exists)"
+        echo "[migrate] done"
+    restart: "no"
+    volumes:
+      - ../scripts:/app/scripts:ro
+      - ../domains:/app/domains:ro
+
+  # ----------------------------------------------------------------------
+  # Backend (FastAPI)
+  # ----------------------------------------------------------------------
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: dp_staging_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *app-env
+    ports:
+      - "${BACKEND_HOST_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  # ----------------------------------------------------------------------
+  # Workers (Phase 2.2.x — outbox / ocr / transform / price_fact / crawler)
+  # 단일 worker process 로 통합 — staging 부하 적음.
+  # ----------------------------------------------------------------------
+  worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: dp_staging_worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *app-env
+    command:
+      ["dramatiq", "app.workers", "--processes", "2", "--threads", "4"]
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'dramatiq app.workers' >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ----------------------------------------------------------------------
+  # Frontend (multi-stage build → nginx static + /v1 + /v2 backend proxy)
+  # ----------------------------------------------------------------------
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: dp_staging_frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      # 외부 사용자 진입점 — 사내망 only (172.30.1.131:8080).
+      - "${FRONTEND_HOST_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  staging_postgres_data:
+  staging_redis_data:
+  staging_minio_data:

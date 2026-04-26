@@ -34,6 +34,11 @@ def main() -> int:
     parser.add_argument("--password", default="admin")
     parser.add_argument("--display_name", default="Bootstrap Admin")
     parser.add_argument("--email", default="admin@example.local")
+    parser.add_argument(
+        "--role",
+        default="ADMIN",
+        help="role_code in ctl.role — default ADMIN",
+    )
     args = parser.parse_args()
 
     if args.password in {"admin", "password", "1234"}:
@@ -45,11 +50,12 @@ def main() -> int:
     settings = get_settings()
     sync_url = _sync_database_url(settings.database_url)
 
-    import psycopg  # 의존성은 backend pyproject 에 이미 있음.
+    import psycopg
 
     pw_hash = hash_password(args.password)
 
     with psycopg.connect(sync_url, autocommit=True) as conn, conn.cursor() as cur:
+        # 1. ctl.app_user UPSERT.
         cur.execute(
             """
             INSERT INTO ctl.app_user (login_id, display_name, email, password_hash, is_active)
@@ -67,16 +73,34 @@ def main() -> int:
         assert row is not None
         user_id = row[0]
 
+        # 2. role_id 조회 (Phase 4+ — ctl.role + ctl.user_role 분리).
+        cur.execute(
+            "SELECT role_id FROM ctl.role WHERE role_code = %s",
+            (args.role,),
+        )
+        role_row = cur.fetchone()
+        if role_row is None:
+            print(
+                f"[seed_admin] ERROR: role '{args.role}' not found in ctl.role. "
+                "Run alembic upgrade head first.",
+                file=sys.stderr,
+            )
+            return 2
+        role_id = role_row[0]
+
+        # 3. user_role 매핑 (idempotent).
         cur.execute(
             """
-            INSERT INTO ctl.app_user_role (user_id, role_code)
-            SELECT %s, 'ADMIN'
+            INSERT INTO ctl.user_role (user_id, role_id)
+            VALUES (%s, %s)
             ON CONFLICT DO NOTHING
             """,
-            (user_id,),
+            (user_id, role_id),
         )
 
-    print(f"[seed_admin] OK: user_id={user_id} login_id={args.login_id} role=ADMIN")
+    print(
+        f"[seed_admin] OK: user_id={user_id} login_id={args.login_id} role={args.role}"
+    )
     return 0
 
 
