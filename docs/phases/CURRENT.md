@@ -5,7 +5,45 @@
 - **Phase 4 (NKS 이관 + Public API + Crowd 정식 + CDC)** 는 운영팀과 함께 수행 (9월 이후).
 
 ## ✅ 지금 진행 중
-**Phase 4 — Enterprise + NKS 이관** (진입 준비)
+**Phase 5 — v2 Generic Platform** ✅ 완료 (2026-04-27)
+- 12 STEP 모두 commit + push (Spike → onboarding).
+- ADR-0017 / 0018 / 0019 / 0020 작성.
+- 누적 통합 테스트 100+ passing.
+- 운영자 onboarding 5종 + 5종 보조 문서 갱신.
+
+**다음**: Phase 6 — Field Validation (운영팀 6~7명 합류 후).
+- 시작 예정: 2026-09-02
+- 참조: [PHASE_6_FIELD_VALIDATION.md](./PHASE_6_FIELD_VALIDATION.md)
+- 첫 작업: 사업측 요청 도메인 1개 + 실 외부 API 연동 + staging shadow 1주.
+
+### 직전 Phase: Phase 5 — v2 Generic Platform ✅ 완료 (2026-04-27)
+
+| STEP | 완료일 | 핵심 산출물 | commit |
+|---|---|---|---|
+| 1 (Spike Hybrid ORM) | 2026-04-26 | ADR-0017 + experimental/registry_spike.py | 94ef1f1 |
+| 2 (가드레일 7종) | 2026-04-26 | sql_guard / state_machine / dry_run / publish_checklist | f4f360a |
+| 3 (domain.* schema) | 2026-04-26 | 9 ORM + v2 API 스켈레톤 + agri.yaml | f2ccb0b |
+| 4 (Provider Registry) | 2026-04-26 | 7 provider seed + 자체 circuit breaker + shadow runner | 297d695 |
+| 5 (nodes_v2 generic) | 2026-04-26 | 6 generic nodes + FUNCTION allowlist 26 + sql_asset | 1c53b73 |
+| 7 (ETL UX backend) | 2026-04-26 | user×domain 권한 + Mart Designer + DQ Builder + Mini Checklist | 736ffe6 |
+| 8 (v1→v2 shadow) | 2026-04-26 | shadow_diff + T0 sha256 partition + cutover_flag | 9a1eef1 |
+| 9 (POS 도메인 ★) | 2026-04-26 | pos.yaml + pos_mart + payment_method + ADR-0019 | 6a2b248 |
+| 10 (multi-domain public) | 2026-04-26 | api_key JSONB scope + /public/v2/{domain}/* | df76286 |
+| 11 (perf SLO + Coach) | 2026-04-27 | 10 SLO + EXPLAIN coach + 1년치 backfill + ADR-0020 | b560c36 |
+| 12 (onboarding + 회고) | 2026-04-27 | 5종+5종 docs + ADR-0018 + Phase 6 backlog | (이 commit) |
+
+### Phase 5 ADR
+- **ADR-0017** Hybrid ORM 전략 (v1=ORM, v2=Core+reflected) — `docs/adr/0017-resource-registry-orm-strategy.md`
+- **ADR-0018** v2 generic 회고 + 추상화 KPI 결과 ★ — `docs/adr/0018-phase5-v2-generic-retrospective.md`
+- **ADR-0019** POS 도메인 추가 KPI 검증 (1일 미만 / 코드 수정 0) — `docs/adr/0019-phase5-abstraction-validation-pos.md`
+- **ADR-0020** Kafka 도입 트리거 (현재 미도입) — `docs/adr/0020-kafka-introduction-triggers.md`
+
+### Phase 5 핵심 결과 (ADR-0018 요약)
+- ✅ 새 도메인 추가가 *yaml + migration + seed* 만으로 가능 (POS 검증).
+- ✅ Strangler Pattern — v1 동결 / v2 옆에 추가.
+- ⚠ Phase 6 backlog 8 종 ETL UX (Error Sample Viewer 1순위) + shadow 실측.
+
+### Phase 4 진입 (NKS / Public API / CDC) — Phase 6 와 병행 예정
 - 시작 예정: 2026-09-02 (운영팀 6~7명 합류 다음 날)
 - 참조: [PHASE_4_ENTERPRISE.md](./PHASE_4_ENTERPRISE.md)
 - 진입 게이트는 본 문서 "📌 Phase 4 진입 체크리스트" 참조.
