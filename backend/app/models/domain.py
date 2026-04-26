@@ -289,6 +289,7 @@ class ProviderDefinition(Base):
     provider_kind: Mapped[str] = mapped_column(Text, nullable=False)
     implementation_type: Mapped[str] = mapped_column(Text, nullable=False)
     config_schema: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
+    secret_ref: Mapped[str | None] = mapped_column(Text)
     description: Mapped[str | None] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
