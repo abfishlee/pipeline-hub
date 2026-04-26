@@ -19,6 +19,7 @@ import { RawObjectsPage } from "@/pages/RawObjectsPage";
 import { RuntimeMonitor } from "@/pages/RuntimeMonitor";
 import { AdminPartitionsPage } from "@/pages/AdminPartitionsPage";
 import { ApiKeysPage } from "@/pages/ApiKeysPage";
+import { MasterMergePage } from "@/pages/MasterMergePage";
 import { SecurityEventsPage } from "@/pages/SecurityEventsPage";
 import { SourcesPage } from "@/pages/SourcesPage";
 import { UsersPage } from "@/pages/UsersPage";
@@ -90,6 +91,7 @@ export default function App() {
                 path="/pipelines/designer/:workflowId"
                 element={<PipelineDesigner />}
               />
+              <Route path="/master-merge" element={<MasterMergePage />} />
             </Route>
           </Route>
 

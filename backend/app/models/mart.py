@@ -243,8 +243,40 @@ class MasterEntityHistory(Base):
     )
 
 
+class MasterMergeOp(Base):
+    """Phase 4.2.8 — N→1 머지 작업 1건 단위 이력. un-merge 시 본 행 마킹 + 신규 row.
+
+    `source_product_ids` 는 머지 전의 product_id 리스트 (target 포함). target_product_id
+    는 머지 후 생존한 product. product_mapping 의 product_id 는 *target 으로 통합*
+    되며, 원본 retailer_product_code 는 모두 보존.
+    """
+
+    __tablename__ = "master_merge_op"
+    __table_args__ = {"schema": "mart"}
+
+    merge_op_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_product_ids: Mapped[list[int]] = mapped_column(JSONB, nullable=False)
+    target_product_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("mart.product_master.product_id"), nullable=False
+    )
+    merged_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    merged_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("ctl.app_user.user_id")
+    )
+    reason: Mapped[str | None] = mapped_column(Text)
+    is_unmerged: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    unmerged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    unmerged_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("ctl.app_user.user_id")
+    )
+    mapping_count: Mapped[int | None] = mapped_column(Integer)
+
+
 __all__ = [
     "MasterEntityHistory",
+    "MasterMergeOp",
     "PriceDailyAgg",
     "PriceFact",
     "ProductMapping",

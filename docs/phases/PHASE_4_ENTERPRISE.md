@@ -459,14 +459,47 @@ ADMIN endpoint 또는 frontend 에서 1건씩 또는 일괄 승인. (자동 DROP
 - 1 partition 의 row 가 *수억 row* 로 커지면 single in-memory gzip 부담 → COPY TO
   STDOUT 또는 chunk parallel upload 로 교체 검토.
 
-### 4.2.8 Multi-source 머지 [W8~W9]
+### 4.2.8 Multi-source 머지 [W8~W9] ✅ 완료 (2026-04-26)
 
-- [ ] 동일 상품이 여러 유통사에서 관찰될 때 `mart.product_master` 에 하나로 수렴.
-- [ ] 머지 규칙:
-  - canonical_name 은 가장 빈도 높은 표현
-  - weight_g/grade/package_type 다수결
-  - 분쟁 시 crowd_task(PRODUCT_MATCHING) 자동 생성
-- [ ] 머지 이력: `mart.master_entity_history`
+- [x] **migration `0029_master_merge.py`** — `mart.master_merge_op` (source_product_ids
+  JSONB, target_product_id, merged_at/by, is_unmerged + unmerged_at/by, mapping_count).
+  master_entity_history 는 변경 없음 — N→1 머지는 SCD2 와 패턴이 다름 (별도 테이블).
+- [x] **`backend/app/domain/master_merge.py`** — 클러스터링 + 다수결 + 분쟁 분기:
+  - `find_merge_candidates`: 같은 std_code + (grade, package_type, sale_unit_norm)
+    동일 + weight_g ±5%
+  - `attempt_auto_merge`: target = mapping count 가 가장 많은 product / canonical_name
+    /grade/package_type/sale_unit_norm/weight_g = 다수결 / confidence_score = max /
+    product_mapping.product_id 통합 → source product DELETE → master_merge_op 적재
+  - 분쟁: cluster row >= 5 또는 grade 다수결 < 50% → `crowd.task` (task_kind=
+    PRODUCT_MATCHING) 자동 발급 (같은 std_code 의 미해결 작업 있으면 skip)
+  - `unmerge_op`: 새 product_id 부여 + master_merge_op.is_unmerged=true (원본 id
+    복원은 sequence 회피로 지원 X — ADR-0016 § 회수 조건)
+- [x] **`backend/app/api/v1/master_merge.py`** — ADMIN/APPROVER:
+  - `GET /v1/admin/master-merge/candidates`
+  - `POST /v1/admin/master-merge/run` (즉시 실행)
+  - `GET /v1/admin/master-merge/ops`
+  - `POST /v1/admin/master-merge/ops/{id}/unmerge`
+- [x] **`infra/airflow/dags/master_merge_daily.py`** — 매일 03:00 KST 후보 std_code 수
+  알람 (실제 머지는 운영자가 수동 — 보수적 정책).
+- [x] **frontend `MasterMergePage.tsx`** + `api/master_merge.ts` — 후보 카드
+  (cluster_size, 분쟁 뱃지) + 머지 이력 + un-merge 버튼. Layout 사이드바 GitMerge 아이콘
+  (ADMIN/APPROVER 권한).
+- [x] **ADR-0016** — 클러스터링 + 다수결 + 분쟁 임계 정당화 + 대안 (임베딩/Casbin)
+  비교 + 회수 조건.
+- [x] **`tests/integration/test_master_merge.py`** 5 케이스: 자동 머지 (3 product →
+  1, retailer_product_code 보존) / 5+ row 분쟁 (crowd_task 발급) / grade 다수결
+  분리 (cluster 자체가 분리) / weight_g ±5% 클러스터링 / unmerge 새 product_id 발급.
+
+**Acceptance 충족 확인**:
+- 같은 std_code 의 product 3개 (호환 grade/weight) → 자동 머지 → 1개 ✅
+- product_mapping 의 retailer_product_code 모두 보존 + product_id 가 target 으로 통합 ✅
+- ADMIN unmerge → master_merge_op.is_unmerged=true + 새 product_id 발급 ✅
+
+**한계 (ADR-0016 § 회수 조건)**:
+- 자동 머지율 60% 미만이면 임베딩 cosine 추가 검토.
+- weight_g ±5% 가 카테고리별로 부적합하면 category × tolerance 매트릭스.
+- un-merge 후 product_mapping 자동 재배치는 master_merge_op 에 mapping_snapshot
+  컬럼 추가 (후속 ADR).
 
 ### 4.2.8b NKS 이관 (운영팀 6~7명 합류 대비) [W1~W8, Phase 4 전반에 걸쳐 병행]
 

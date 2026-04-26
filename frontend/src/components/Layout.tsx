@@ -7,6 +7,7 @@ import {
   Gauge,
   GitBranch,
   Archive,
+  GitMerge,
   KeyRound,
   ListChecks,
   LogOut,
@@ -49,6 +50,7 @@ const NAV_ITEMS: NavItem[] = [
     approverOk: true,
   },
   { to: "/pipelines/releases", label: "배포 이력", icon: GitBranch },
+  { to: "/master-merge", label: "제품 머지", icon: GitMerge, approverOk: true },
   { to: "/sql-studio", label: "SQL Studio", icon: Sigma, operatorOk: true },
   { to: "/crowd-tasks", label: "검수 큐", icon: ClipboardCheck, reviewerOk: true },
   { to: "/dead-letters", label: "Dead Letter", icon: AlertTriangle, adminOnly: true },
@@ -161,5 +163,6 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/api-keys")) return "API Keys";
   if (pathname.startsWith("/security-events")) return "보안 이벤트";
   if (pathname.startsWith("/admin/partitions")) return "파티션 아카이브";
+  if (pathname.startsWith("/master-merge")) return "제품 머지";
   return "";
 }
