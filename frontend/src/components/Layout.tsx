@@ -39,13 +39,23 @@ interface NavItem {
   operatorOk?: boolean;
 }
 
+// 데이터 수집 워크플로 순서로 정렬 (Phase 6 Wave 6 — 메뉴 정리).
+// 숨겨진 라우트: /sources (v1 SourcesPage), /pipelines/designer (v1 ETL).
+//   기능 중복으로 메뉴에서 제외. 라우트는 backward compat 위해 App.tsx 유지.
 const NAV_ITEMS: NavItem[] = [
-  { to: "/", label: "대시보드", icon: Gauge },
-  { to: "/sources", label: "데이터 소스", icon: Database },
+  { to: "/", label: "Dashboard", icon: Gauge },
+
+  // ─── 1. Design — 자산 설계 (개발자 없이) ──────────────────────
   {
     to: "/v2/connectors/public-api",
-    label: "Public API Connector",
+    label: "Source / API Connector",
     icon: Globe,
+    operatorOk: true,
+  },
+  {
+    to: "/v2/marts/designer",
+    label: "Mart Workbench",
+    icon: Database,
     operatorOk: true,
   },
   {
@@ -66,37 +76,31 @@ const NAV_ITEMS: NavItem[] = [
     icon: ShieldCheck,
     operatorOk: true,
   },
-  {
-    to: "/v2/marts/designer",
-    label: "Mart Workbench",
-    icon: Database,
-    operatorOk: true,
-  },
-  { to: "/jobs", label: "수집 작업", icon: ListChecks },
-  { to: "/raw-objects", label: "원천 데이터", icon: FileBox },
-  { to: "/pipelines/runs", label: "파이프라인 실행", icon: Workflow },
-  {
-    to: "/pipelines/designer",
-    label: "Visual ETL Designer (v1)",
-    icon: Workflow,
-    approverOk: true,
-  },
+
+  // ─── 2. Compose & Release — 박스 조립 + 배포 ──────────────────
   {
     to: "/v2/pipelines/designer",
-    label: "ETL Canvas v2",
+    label: "ETL Canvas",
     icon: Workflow,
     approverOk: true,
   },
-  { to: "/pipelines/releases", label: "배포 이력", icon: GitBranch },
-  { to: "/master-merge", label: "제품 머지", icon: GitMerge, approverOk: true },
+  { to: "/pipelines/runs", label: "Pipeline Runs", icon: Workflow },
+  { to: "/pipelines/releases", label: "Releases", icon: GitBranch },
+
+  // ─── 3. Operate — 실 운영 (수집/검수/머지) ─────────────────────
+  { to: "/raw-objects", label: "Raw Objects", icon: FileBox },
+  { to: "/jobs", label: "Collection Jobs", icon: ListChecks },
+  { to: "/master-merge", label: "Master Merge", icon: GitMerge, approverOk: true },
   { to: "/sql-studio", label: "SQL Studio", icon: Sigma, operatorOk: true },
-  { to: "/crowd-tasks", label: "검수 큐", icon: ClipboardCheck, reviewerOk: true },
-  { to: "/dead-letters", label: "Dead Letter", icon: AlertTriangle, adminOnly: true },
-  { to: "/runtime", label: "Runtime 모니터", icon: Activity },
-  { to: "/users", label: "사용자 관리", icon: Users, adminOnly: true },
+  { to: "/crowd-tasks", label: "Review Queue", icon: ClipboardCheck, reviewerOk: true },
+  { to: "/runtime", label: "Runtime Monitor", icon: Activity },
+
+  // ─── 4. Admin — 시스템 관리 ────────────────────────────────────
+  { to: "/dead-letters", label: "Dead Letters", icon: AlertTriangle, adminOnly: true },
+  { to: "/users", label: "Users", icon: Users, adminOnly: true },
   { to: "/api-keys", label: "API Keys", icon: KeyRound, adminOnly: true },
-  { to: "/security-events", label: "보안 이벤트", icon: Shield, adminOnly: true },
-  { to: "/admin/partitions", label: "파티션 아카이브", icon: Archive, adminOnly: true },
+  { to: "/security-events", label: "Security Events", icon: Shield, adminOnly: true },
+  { to: "/admin/partitions", label: "Partition Archive", icon: Archive, adminOnly: true },
 ];
 
 export function Layout(_: PropsWithChildren) {
@@ -166,7 +170,7 @@ export function Layout(_: PropsWithChildren) {
             onClick={logout}
           >
             <LogOut className="h-4 w-4" />
-            로그아웃
+            Logout
           </Button>
         </div>
       </aside>
@@ -185,10 +189,10 @@ export function Layout(_: PropsWithChildren) {
 }
 
 function currentTitle(pathname: string): string {
-  if (pathname === "/") return "대시보드";
-  if (pathname.startsWith("/sources")) return "데이터 소스";
+  if (pathname === "/") return "Dashboard";
+  if (pathname.startsWith("/sources")) return "Sources (legacy)";
   if (pathname.startsWith("/v2/connectors/public-api"))
-    return "Public API Connector";
+    return "Source / API Connector";
   if (pathname.startsWith("/v2/mappings/designer"))
     return "Field Mapping Designer";
   if (pathname.startsWith("/v2/transforms/designer"))
@@ -201,21 +205,21 @@ function currentTitle(pathname: string): string {
     return "Dry-run Results";
   if (pathname.startsWith("/v2/publish/"))
     return "Publish Approval";
-  if (pathname.startsWith("/jobs")) return "수집 작업";
-  if (pathname.startsWith("/raw-objects")) return "원천 데이터";
-  if (pathname.startsWith("/pipelines/runs/")) return "파이프라인 실행 상세";
-  if (pathname.startsWith("/pipelines/runs")) return "파이프라인 실행 이력";
-  if (pathname.startsWith("/v2/pipelines/designer")) return "ETL Canvas v2";
-  if (pathname.startsWith("/pipelines/designer")) return "Visual ETL Designer";
-  if (pathname.startsWith("/pipelines/releases")) return "배포 이력";
+  if (pathname.startsWith("/jobs")) return "Collection Jobs";
+  if (pathname.startsWith("/raw-objects")) return "Raw Objects";
+  if (pathname.startsWith("/pipelines/runs/")) return "Pipeline Run Detail";
+  if (pathname.startsWith("/pipelines/runs")) return "Pipeline Runs";
+  if (pathname.startsWith("/v2/pipelines/designer")) return "ETL Canvas";
+  if (pathname.startsWith("/pipelines/designer")) return "Visual ETL Designer (legacy)";
+  if (pathname.startsWith("/pipelines/releases")) return "Releases";
   if (pathname.startsWith("/sql-studio")) return "SQL Studio";
-  if (pathname.startsWith("/crowd-tasks")) return "검수 큐";
-  if (pathname.startsWith("/dead-letters")) return "Dead Letter";
-  if (pathname.startsWith("/runtime")) return "Runtime 모니터";
-  if (pathname.startsWith("/users")) return "사용자 관리";
+  if (pathname.startsWith("/crowd-tasks")) return "Review Queue";
+  if (pathname.startsWith("/dead-letters")) return "Dead Letters";
+  if (pathname.startsWith("/runtime")) return "Runtime Monitor";
+  if (pathname.startsWith("/users")) return "Users";
   if (pathname.startsWith("/api-keys")) return "API Keys";
-  if (pathname.startsWith("/security-events")) return "보안 이벤트";
-  if (pathname.startsWith("/admin/partitions")) return "파티션 아카이브";
-  if (pathname.startsWith("/master-merge")) return "제품 머지";
+  if (pathname.startsWith("/security-events")) return "Security Events";
+  if (pathname.startsWith("/admin/partitions")) return "Partition Archive";
+  if (pathname.startsWith("/master-merge")) return "Master Merge";
   return "";
 }

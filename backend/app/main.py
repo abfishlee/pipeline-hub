@@ -10,10 +10,17 @@ NKS Ready 8계명 중 이 파일에서 충족되는 것:
 
 from __future__ import annotations
 
+import asyncio
+import sys
 import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+
+# Windows + psycopg async = SelectorEventLoop 강제 (Phase 6 Wave 6 로컬 dev fix).
+# ProactorEventLoop 는 psycopg async 와 비호환. NCP/NKS Linux 에는 영향 없음.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
