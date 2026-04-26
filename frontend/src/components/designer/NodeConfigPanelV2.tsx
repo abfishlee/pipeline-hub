@@ -1,0 +1,436 @@
+// Phase 6 Wave 4 — v2 Node config drawer with asset dropdowns.
+//
+// 박스 종류별로 *어떤 자산을 사용할지* dropdown 을 노출.
+// 자산이 없으면 "+ 새 자산 만들기" 버튼 → 해당 designer 로 이동.
+import { ExternalLink, Save } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import type { NodeType } from "@/api/pipelines";
+import { useConnectors } from "@/api/v2/connectors";
+import { useLoadPolicies } from "@/api/v2/load_policies";
+import { useContractsLight } from "@/api/v2/mappings";
+import { useProviders } from "@/api/v2/providers";
+import { useSqlAssets } from "@/api/v2/sql_assets";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+
+export interface DesignerNodeDataV2 {
+  node_key: string;
+  node_type: NodeType;
+  config_json: Record<string, unknown>;
+  position_x: number;
+  position_y: number;
+  [key: string]: unknown;
+}
+
+interface Props {
+  selected: DesignerNodeDataV2 | null;
+  onChange: (next: DesignerNodeDataV2) => void;
+  onDelete?: () => void;
+}
+
+export function NodeConfigPanelV2({ selected, onChange, onDelete }: Props) {
+  const [keyDraft, setKeyDraft] = useState("");
+  const [jsonDraft, setJsonDraft] = useState("{}");
+  const [jsonError, setJsonError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selected) {
+      setKeyDraft("");
+      setJsonDraft("{}");
+      setJsonError(null);
+      return;
+    }
+    setKeyDraft(selected.node_key);
+    setJsonDraft(JSON.stringify(selected.config_json ?? {}, null, 2));
+    setJsonError(null);
+  }, [selected]);
+
+  if (!selected) {
+    return (
+      <aside className="flex w-96 shrink-0 flex-col border-l border-border bg-background p-3 text-xs text-muted-foreground">
+        <div className="mb-2 text-xs font-semibold uppercase">노드 설정</div>
+        <p>좌측 캔버스에서 노드를 선택하면 자산을 연결할 수 있습니다.</p>
+      </aside>
+    );
+  }
+
+  const commitKey = () => {
+    if (keyDraft && keyDraft !== selected.node_key) {
+      onChange({ ...selected, node_key: keyDraft });
+    }
+  };
+
+  const commitJson = () => {
+    try {
+      const parsed = jsonDraft.trim() ? JSON.parse(jsonDraft) : {};
+      if (typeof parsed !== "object" || parsed == null || Array.isArray(parsed)) {
+        setJsonError("config_json 은 object 여야 합니다.");
+        return;
+      }
+      setJsonError(null);
+      onChange({ ...selected, config_json: parsed as Record<string, unknown> });
+    } catch (e) {
+      setJsonError(e instanceof Error ? e.message : "JSON 파싱 실패");
+    }
+  };
+
+  function patchConfig(patch: Record<string, unknown>) {
+    const merged = { ...selected!.config_json, ...patch };
+    setJsonDraft(JSON.stringify(merged, null, 2));
+    onChange({ ...selected!, config_json: merged });
+  }
+
+  return (
+    <aside className="flex w-96 shrink-0 flex-col gap-3 overflow-y-auto border-l border-border bg-background p-3">
+      <div className="text-xs font-semibold uppercase text-muted-foreground">
+        노드 설정 — {selected.node_type}
+      </div>
+
+      <Card>
+        <CardContent className="space-y-3 p-3 text-xs">
+          <div>
+            <label className="mb-1 block font-semibold">node_type</label>
+            <div className="rounded-md border border-input bg-muted/40 px-3 py-2 font-mono">
+              {selected.node_type}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block font-semibold">node_key</label>
+            <Input
+              value={keyDraft}
+              onChange={(e) => setKeyDraft(e.target.value)}
+              onBlur={commitKey}
+              placeholder="예: fetch_kamis"
+              className="h-9 text-xs font-mono"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 박스 종류별 자산 dropdown */}
+      <AssetSection
+        node_type={selected.node_type}
+        config={selected.config_json}
+        onPatch={patchConfig}
+      />
+
+      {/* JSON editor (모든 노드 공통 fallback) */}
+      <Card>
+        <CardContent className="space-y-2 p-3 text-xs">
+          <div className="flex items-center justify-between">
+            <label className="font-semibold">config_json (raw)</label>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={commitJson}
+              className="h-6 text-[10px]"
+            >
+              <Save className="h-3 w-3" />적용
+            </Button>
+          </div>
+          <textarea
+            value={jsonDraft}
+            onChange={(e) => setJsonDraft(e.target.value)}
+            spellCheck={false}
+            className="h-44 w-full resize-none rounded-md border border-input bg-background p-2 font-mono text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          {jsonError && (
+            <p className="text-[11px] text-rose-600">파싱 오류: {jsonError}</p>
+          )}
+          <p className="text-[10px] text-muted-foreground">
+            ※ 자산 dropdown 변경은 자동 반영. raw JSON 편집 후 "적용" 클릭.
+          </p>
+        </CardContent>
+      </Card>
+
+      {onDelete && (
+        <Button variant="destructive" size="sm" onClick={onDelete}>
+          노드 삭제
+        </Button>
+      )}
+    </aside>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 자산 dropdown
+// ---------------------------------------------------------------------------
+interface AssetSectionProps {
+  node_type: NodeType;
+  config: Record<string, unknown>;
+  onPatch: (patch: Record<string, unknown>) => void;
+}
+
+function AssetSection({ node_type, config, onPatch }: AssetSectionProps) {
+  switch (node_type) {
+    case "PUBLIC_API_FETCH":
+      return <PublicApiFetchAsset config={config} onPatch={onPatch} />;
+    case "MAP_FIELDS":
+      return <MapFieldsAsset config={config} onPatch={onPatch} />;
+    case "SQL_ASSET_TRANSFORM":
+      return <SqlAssetAsset config={config} onPatch={onPatch} />;
+    case "LOAD_TARGET":
+      return <LoadTargetAsset config={config} onPatch={onPatch} />;
+    case "HTTP_TRANSFORM":
+      return <HttpTransformAsset config={config} onPatch={onPatch} />;
+    default:
+      return (
+        <Card>
+          <CardContent className="p-3 text-xs text-muted-foreground">
+            <span className="font-semibold">{node_type}</span> 는 자산 dropdown
+            없음 — config_json 에 직접 입력.
+          </CardContent>
+        </Card>
+      );
+  }
+}
+
+interface AssetProps {
+  config: Record<string, unknown>;
+  onPatch: (patch: Record<string, unknown>) => void;
+}
+
+function PublicApiFetchAsset({ config, onPatch }: AssetProps) {
+  const connectors = useConnectors();
+  const current = (config.connector_id as number | undefined) ?? null;
+  return (
+    <Card>
+      <CardContent className="space-y-2 p-3 text-xs">
+        <div className="flex items-center justify-between">
+          <label className="font-semibold">connector_id</label>
+          <Link
+            to="/v2/connectors/public-api"
+            className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />새 connector
+          </Link>
+        </div>
+        <select
+          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+          value={current ?? ""}
+          onChange={(e) =>
+            onPatch({
+              connector_id: e.target.value ? Number(e.target.value) : null,
+            })
+          }
+        >
+          <option value="">선택</option>
+          {connectors.data?.map((c) => (
+            <option key={c.connector_id} value={c.connector_id}>
+              #{c.connector_id} {c.name} [{c.status}]
+            </option>
+          ))}
+        </select>
+        {connectors.data?.length === 0 && (
+          <p className="text-[10px] text-muted-foreground">
+            등록된 connector 가 없습니다. 위 링크로 등록.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MapFieldsAsset({ config, onPatch }: AssetProps) {
+  const contracts = useContractsLight();
+  const current = (config.contract_id as number | undefined) ?? null;
+  return (
+    <Card>
+      <CardContent className="space-y-2 p-3 text-xs">
+        <div className="flex items-center justify-between">
+          <label className="font-semibold">contract_id (mapping rows source)</label>
+          <Link
+            to="/v2/mappings/designer"
+            className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />매핑 편집
+          </Link>
+        </div>
+        <select
+          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+          value={current ?? ""}
+          onChange={(e) =>
+            onPatch({
+              contract_id: e.target.value ? Number(e.target.value) : null,
+            })
+          }
+        >
+          <option value="">선택</option>
+          {contracts.data?.map((c) => (
+            <option key={c.contract_id} value={c.contract_id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        <div>
+          <label className="mb-1 block font-semibold">source_table</label>
+          <Input
+            value={(config.source_table as string) ?? ""}
+            onChange={(e) => onPatch({ source_table: e.target.value })}
+            placeholder="agri_stg.raw_2026_04"
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          ※ APPROVED/PUBLISHED 매핑만 실행됨. DRAFT 는 dry-run 단계 차단.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SqlAssetAsset({ config, onPatch }: AssetProps) {
+  const assets = useSqlAssets();
+  const current = (config.asset_code as string | undefined) ?? "";
+  const versions = useMemo(() => {
+    if (!current || !assets.data) return [];
+    return assets.data.filter((a) => a.asset_code === current);
+  }, [current, assets.data]);
+
+  return (
+    <Card>
+      <CardContent className="space-y-2 p-3 text-xs">
+        <div className="flex items-center justify-between">
+          <label className="font-semibold">asset_code</label>
+          <Link
+            to="/v2/transforms/designer"
+            className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />새 SQL Asset
+          </Link>
+        </div>
+        <select
+          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+          value={current}
+          onChange={(e) =>
+            onPatch({
+              asset_code: e.target.value || null,
+              version: null,
+            })
+          }
+        >
+          <option value="">선택</option>
+          {Array.from(
+            new Set(assets.data?.map((a) => a.asset_code) ?? []),
+          ).map((code) => (
+            <option key={code} value={code}>
+              {code}
+            </option>
+          ))}
+        </select>
+        {current && versions.length > 0 && (
+          <div>
+            <label className="mb-1 block font-semibold">version</label>
+            <select
+              className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+              value={(config.version as number | undefined) ?? ""}
+              onChange={(e) =>
+                onPatch({ version: e.target.value ? Number(e.target.value) : null })
+              }
+            >
+              <option value="">자동 (최신 PUBLISHED)</option>
+              {versions.map((a) => (
+                <option key={a.asset_id} value={a.version}>
+                  v{a.version} [{a.status}]
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <p className="text-[10px] text-muted-foreground">
+          ※ APPROVED/PUBLISHED sql_asset 만 실행. DRAFT/REVIEW 는 차단.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LoadTargetAsset({ config, onPatch }: AssetProps) {
+  const policies = useLoadPolicies();
+  const current = (config.policy_id as number | undefined) ?? null;
+  return (
+    <Card>
+      <CardContent className="space-y-2 p-3 text-xs">
+        <div className="flex items-center justify-between">
+          <label className="font-semibold">policy_id (load_policy)</label>
+          <Link
+            to="/v2/marts/designer"
+            className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />Mart Workbench
+          </Link>
+        </div>
+        <select
+          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+          value={current ?? ""}
+          onChange={(e) =>
+            onPatch({
+              policy_id: e.target.value ? Number(e.target.value) : null,
+            })
+          }
+        >
+          <option value="">선택</option>
+          {policies.data?.map((p) => (
+            <option key={p.policy_id} value={p.policy_id}>
+              #{p.policy_id} resource={p.resource_id} mode={p.mode} v{p.version}{" "}
+              [{p.status}]
+            </option>
+          ))}
+        </select>
+        <div>
+          <label className="mb-1 block font-semibold">source_table</label>
+          <Input
+            value={(config.source_table as string) ?? ""}
+            onChange={(e) => onPatch({ source_table: e.target.value })}
+            placeholder="agri_stg.cleaned_2026_04"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function HttpTransformAsset({ config, onPatch }: AssetProps) {
+  const providers = useProviders("HTTP_TRANSFORM");
+  const current = (config.provider_code as string | undefined) ?? "";
+  return (
+    <Card>
+      <CardContent className="space-y-2 p-3 text-xs">
+        <div className="flex items-center justify-between">
+          <label className="font-semibold">provider_code</label>
+          <Link
+            to="/v2/transforms/designer"
+            className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />HTTP Provider 카탈로그
+          </Link>
+        </div>
+        <select
+          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+          value={current}
+          onChange={(e) => onPatch({ provider_code: e.target.value || null })}
+        >
+          <option value="">선택</option>
+          {providers.data?.map((p) => (
+            <option key={p.provider_code} value={p.provider_code}>
+              {p.provider_code} [{p.implementation_type}]
+            </option>
+          ))}
+        </select>
+        <div>
+          <label className="mb-1 block font-semibold">source_table</label>
+          <Input
+            value={(config.source_table as string) ?? ""}
+            onChange={(e) => onPatch({ source_table: e.target.value })}
+            placeholder="agri_stg.cleaned_2026_04"
+          />
+        </div>
+        <p className="text-[10px] text-muted-foreground">
+          ※ provider 의 secret_ref / config 는 source_provider_binding 가 결정.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}

@@ -3,13 +3,26 @@ import { apiRequest } from "./client";
 
 export type WorkflowStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type NodeType =
+  // v1 (Phase 3.2)
   | "NOOP"
   | "SOURCE_API"
   | "SQL_TRANSFORM"
   | "DEDUP"
   | "DQ_CHECK"
   | "LOAD_MASTER"
-  | "NOTIFY";
+  | "NOTIFY"
+  // v2 (Phase 5 generic + Phase 6 Wave 1)
+  | "MAP_FIELDS"
+  | "SQL_INLINE_TRANSFORM"
+  | "SQL_ASSET_TRANSFORM"
+  | "HTTP_TRANSFORM"
+  | "FUNCTION_TRANSFORM"
+  | "LOAD_TARGET"
+  | "OCR_TRANSFORM"
+  | "CRAWL_FETCH"
+  | "STANDARDIZE"
+  | "SOURCE_DATA"
+  | "PUBLIC_API_FETCH";
 
 export interface NodeOut {
   node_id: number;

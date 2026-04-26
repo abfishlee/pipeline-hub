@@ -23,6 +23,7 @@ import { MasterMergePage } from "@/pages/MasterMergePage";
 import { SecurityEventsPage } from "@/pages/SecurityEventsPage";
 import { SourcesPage } from "@/pages/SourcesPage";
 import { UsersPage } from "@/pages/UsersPage";
+import { EtlCanvasV2 } from "@/pages/v2/EtlCanvasV2";
 import { FieldMappingDesigner } from "@/pages/v2/FieldMappingDesigner";
 import { MartDesigner } from "@/pages/v2/MartDesigner";
 import { SourceApiDesigner } from "@/pages/v2/SourceApiDesigner";
@@ -94,6 +95,11 @@ export default function App() {
               <Route
                 path="/pipelines/designer/:workflowId"
                 element={<PipelineDesigner />}
+              />
+              <Route path="/v2/pipelines/designer" element={<EtlCanvasV2 />} />
+              <Route
+                path="/v2/pipelines/designer/:workflowId"
+                element={<EtlCanvasV2 />}
               />
               <Route path="/master-merge" element={<MasterMergePage />} />
             </Route>

@@ -70,7 +70,13 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/pipelines/runs", label: "파이프라인 실행", icon: Workflow },
   {
     to: "/pipelines/designer",
-    label: "Visual ETL Designer",
+    label: "Visual ETL Designer (v1)",
+    icon: Workflow,
+    approverOk: true,
+  },
+  {
+    to: "/v2/pipelines/designer",
+    label: "ETL Canvas v2",
     icon: Workflow,
     approverOk: true,
   },
@@ -186,6 +192,7 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/raw-objects")) return "원천 데이터";
   if (pathname.startsWith("/pipelines/runs/")) return "파이프라인 실행 상세";
   if (pathname.startsWith("/pipelines/runs")) return "파이프라인 실행 이력";
+  if (pathname.startsWith("/v2/pipelines/designer")) return "ETL Canvas v2";
   if (pathname.startsWith("/pipelines/designer")) return "Visual ETL Designer";
   if (pathname.startsWith("/pipelines/releases")) return "배포 이력";
   if (pathname.startsWith("/sql-studio")) return "SQL Studio";

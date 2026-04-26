@@ -1,3 +1,18 @@
+// Phase 6 Wave 4 — ETL Canvas v2 (workbench 5: 자산을 박스로 조립).
+//
+// 사용자 시나리오 (§ 13.5):
+//   1. 좌측 palette 에서 13종 v2 노드 박스 드래그 → 캔버스
+//   2. 박스 클릭 → 우측 drawer 에서 *어떤 자산* 사용할지 dropdown 선택
+//      - PUBLIC_API_FETCH → connector dropdown
+//      - MAP_FIELDS → contract_id dropdown
+//      - SQL_ASSET_TRANSFORM → asset_code + version
+//      - LOAD_TARGET → load_policy
+//      - HTTP_TRANSFORM → provider_code
+//   3. 자산이 없으면 "+ 새 자산 만들기" 버튼 → 해당 designer 로 이동 (별 탭)
+//   4. 화살표 연결 + 저장 → wf.workflow_definition 1건 / wf.node_definition N개
+//   5. PUBLISH → 스케줄/실행 (v1 와 동일 백엔드)
+//
+// 백엔드는 /v1/pipelines API 를 그대로 사용 (NodeType Literal 확장으로 v2 노드도 통과).
 import {
   addEdge,
   Background,
@@ -15,7 +30,14 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { CalendarRange, Clock, Loader2, PlayCircle, Save, Send } from "lucide-react";
+import {
+  CalendarRange,
+  Clock,
+  Loader2,
+  PlayCircle,
+  Save,
+  Send,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -32,34 +54,40 @@ import {
   useWorkflowDetail,
 } from "@/api/pipelines";
 import {
-  NODE_PALETTE_DRAG_MIME,
-  NodePalette,
-} from "@/components/designer/NodePalette";
+  type DesignerNodeDataV2,
+  NodeConfigPanelV2,
+} from "@/components/designer/NodeConfigPanelV2";
 import {
-  type DesignerNodeData,
-  NodeConfigPanel,
-} from "@/components/designer/NodeConfigPanel";
-import { SqlEditor } from "@/components/designer/SqlEditor";
+  NODE_PALETTE_V2_DRAG_MIME,
+  NodePaletteV2,
+} from "@/components/designer/NodePaletteV2";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-type DesignerFlowNode = Node<DesignerNodeData>;
+type DesignerFlowNode = Node<DesignerNodeDataV2>;
 
-// v1 노드 7종만 명시 — v2 는 별도 EtlCanvasV2 페이지에서 처리.
-const NEXT_KEY_PREFIX: Partial<Record<NodeType, string>> = {
-  NOOP: "noop",
-  SOURCE_API: "src_api",
-  SQL_TRANSFORM: "sql",
+// v2 노드 prefix — 신규 노드 key 자동 생성용.
+const V2_KEY_PREFIX: Partial<Record<NodeType, string>> = {
+  SOURCE_DATA: "src",
+  PUBLIC_API_FETCH: "fetch_api",
+  OCR_TRANSFORM: "ocr",
+  CRAWL_FETCH: "crawl",
+  MAP_FIELDS: "map",
+  SQL_INLINE_TRANSFORM: "sql_inline",
+  SQL_ASSET_TRANSFORM: "sql_asset",
+  HTTP_TRANSFORM: "http",
+  FUNCTION_TRANSFORM: "fn",
+  STANDARDIZE: "stdz",
   DEDUP: "dedup",
   DQ_CHECK: "dq",
-  LOAD_MASTER: "load",
+  LOAD_TARGET: "load",
   NOTIFY: "notify",
 };
 
 function defaultNodeKey(type: NodeType, existingKeys: Set<string>): string {
-  const prefix = NEXT_KEY_PREFIX[type] ?? type.toLowerCase();
+  const prefix = V2_KEY_PREFIX[type] ?? type.toLowerCase();
   let i = 1;
   while (existingKeys.has(`${prefix}_${i}`)) i += 1;
   return `${prefix}_${i}`;
@@ -69,22 +97,16 @@ function makeFlowNode(
   type: NodeType,
   position: { x: number; y: number },
   existingKeys: Set<string>,
-  configOverride?: Record<string, unknown>,
 ): DesignerFlowNode {
   const node_key = defaultNodeKey(type, existingKeys);
-  const data: DesignerNodeData = {
+  const data: DesignerNodeDataV2 = {
     node_key,
     node_type: type,
-    config_json: configOverride ?? {},
+    config_json: {},
     position_x: position.x,
     position_y: position.y,
   };
-  return {
-    id: node_key, // node_key 를 React Flow id 로 직접 사용 — 신규/기존 통합.
-    position,
-    data,
-    type: "default",
-  };
+  return { id: node_key, position, data, type: "default" };
 }
 
 function DesignerInner() {
@@ -100,6 +122,7 @@ function DesignerInner() {
   const trigger = useTriggerRun();
   const updateSchedule = useUpdateSchedule();
   const backfill = useBackfill();
+
   const [showBackfill, setShowBackfill] = useState(false);
   const [backfillStart, setBackfillStart] = useState("");
   const [backfillEnd, setBackfillEnd] = useState("");
@@ -114,7 +137,7 @@ function DesignerInner() {
   const [hydrated, setHydrated] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // 기존 워크플로 상세 → React Flow 상태로 hydrate (1회).
+  // hydrate from detail.
   useEffect(() => {
     if (!detail.data || hydrated) return;
     const wf = detail.data;
@@ -160,7 +183,6 @@ function DesignerInner() {
     [nodes],
   );
 
-  // ---- Drag & Drop from palette ----------------------------------------
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
@@ -170,7 +192,7 @@ function DesignerInner() {
     (event: React.DragEvent) => {
       event.preventDefault();
       const type = event.dataTransfer.getData(
-        NODE_PALETTE_DRAG_MIME,
+        NODE_PALETTE_V2_DRAG_MIME,
       ) as NodeType | "";
       if (!type) return;
       const bounds = wrapperRef.current?.getBoundingClientRect();
@@ -186,7 +208,6 @@ function DesignerInner() {
     [reactFlow, existingKeys, setNodes],
   );
 
-  // ---- Add via double-click (palette → center) -------------------------
   const handlePaletteAdd = useCallback(
     (type: NodeType) => {
       const center = reactFlow.screenToFlowPosition({
@@ -200,7 +221,6 @@ function DesignerInner() {
     [reactFlow, existingKeys, setNodes],
   );
 
-  // ---- Edge connect ----------------------------------------------------
   const onConnect: OnConnect = useCallback(
     (conn: Connection) => {
       if (!conn.source || !conn.target) return;
@@ -221,13 +241,10 @@ function DesignerInner() {
     [setEdges],
   );
 
-  // ---- Node click → select --------------------------------------------
   const onNodeClick: NodeMouseHandler = useCallback((_, node) => {
     setSelectedId(node.id);
   }, []);
 
-  // ---- Position changes — sync into data.position_{x,y} ---------------
-  // React Flow 의 onNodesChange 가 position 을 업데이트하지만 우리 data 도 같이 맞춰야 저장 시 정확.
   useEffect(() => {
     setNodes((curr) =>
       curr.map((n) =>
@@ -235,28 +252,29 @@ function DesignerInner() {
           ? n
           : {
               ...n,
-              data: { ...n.data, position_x: n.position.x, position_y: n.position.y },
+              data: {
+                ...n.data,
+                position_x: n.position.x,
+                position_y: n.position.y,
+              },
             },
       ),
     );
   }, [nodes.length, setNodes]);
 
-  // ---- Selected node mutations ----------------------------------------
   const selected = useMemo(
     () => nodes.find((n) => n.id === selectedId)?.data ?? null,
     [nodes, selectedId],
   );
 
   const updateSelected = useCallback(
-    (next: DesignerNodeData) => {
+    (next: DesignerNodeDataV2) => {
       setNodes((curr) =>
         curr.map((n) => {
           if (n.id !== selectedId) return n;
-          // node_key 가 바뀌면 React Flow id 도 바뀌고, 연결된 edge 도 재라우팅 필요.
           const newId = next.node_key;
           const oldId = n.id;
           if (newId !== oldId) {
-            // edge source/target 이름 갱신.
             setEdges((es) =>
               es.map((e) => ({
                 ...e,
@@ -287,7 +305,6 @@ function DesignerInner() {
     setSelectedId(null);
   }, [selectedId, setNodes, setEdges]);
 
-  // ---- Save ------------------------------------------------------------
   const buildPayload = useCallback(() => {
     const nodeIns: NodeIn[] = nodes.map((n) => ({
       node_key: n.data.node_key,
@@ -300,7 +317,12 @@ function DesignerInner() {
       from_node_key: e.source,
       to_node_key: e.target,
     }));
-    return { name, description: description || null, nodes: nodeIns, edges: edgeIns };
+    return {
+      name,
+      description: description || null,
+      nodes: nodeIns,
+      edges: edgeIns,
+    };
   }, [nodes, edges, name, description]);
 
   const handleSave = async () => {
@@ -323,7 +345,9 @@ function DesignerInner() {
       } else {
         const created = await create.mutateAsync(payload);
         toast.success(`생성 완료 (workflow_id=${created.workflow_id})`);
-        navigate(`/pipelines/designer/${created.workflow_id}`, { replace: true });
+        navigate(`/v2/pipelines/designer/${created.workflow_id}`, {
+          replace: true,
+        });
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "저장 실패");
@@ -340,7 +364,6 @@ function DesignerInner() {
       return;
     }
     try {
-      // Phase 3.2.6: 응답이 새 PUBLISHED 워크플로 + release 정보 동봉.
       const result = await transition.mutateAsync({
         workflowId: editingWorkflowId,
         status: "PUBLISHED",
@@ -349,8 +372,7 @@ function DesignerInner() {
       const rel = result.release;
       if (pub && rel) {
         toast.success(`v${pub.version} 배포 완료 (release #${rel.release_id})`);
-        // 새 PUBLISHED 워크플로 화면으로 이동 — 사용자가 그 위에서 실행 가능.
-        navigate(`/pipelines/designer/${pub.workflow_id}`);
+        navigate(`/v2/pipelines/designer/${pub.workflow_id}`);
       } else {
         toast.success("배포 완료");
       }
@@ -360,10 +382,7 @@ function DesignerInner() {
   };
 
   const handleSaveSchedule = async () => {
-    if (!editingWorkflowId) {
-      toast.error("먼저 저장해 주세요.");
-      return;
-    }
+    if (!editingWorkflowId) return;
     try {
       await updateSchedule.mutateAsync({
         workflowId: editingWorkflowId,
@@ -396,14 +415,9 @@ function DesignerInner() {
   };
 
   const handleRun = async () => {
-    if (!editingWorkflowId) {
-      toast.error("먼저 저장 후 PUBLISH 해주세요.");
-      return;
-    }
+    if (!editingWorkflowId) return;
     if (detail.data?.status !== "PUBLISHED") {
-      toast.error(
-        "PUBLISHED 워크플로만 실행 가능합니다. (DRAFT 면 PUBLISH 후 자동으로 새 워크플로 화면으로 이동합니다)",
-      );
+      toast.error("PUBLISHED 워크플로만 실행 가능합니다.");
       return;
     }
     try {
@@ -420,7 +434,6 @@ function DesignerInner() {
 
   return (
     <div className="flex h-full flex-col gap-3">
-      {/* Toolbar */}
       <Card>
         <CardContent className="flex flex-wrap items-center gap-3 p-3 text-sm">
           <Input
@@ -454,7 +467,7 @@ function DesignerInner() {
               onClick={handleSave}
               disabled={isReadonly || create.isPending || update.isPending}
             >
-              {(create.isPending || update.isPending) ? (
+              {create.isPending || update.isPending ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
                 <Save className="h-3 w-3" />
@@ -465,7 +478,11 @@ function DesignerInner() {
               size="sm"
               variant="secondary"
               onClick={handlePublish}
-              disabled={!editingWorkflowId || status !== "DRAFT" || transition.isPending}
+              disabled={
+                !editingWorkflowId ||
+                status !== "DRAFT" ||
+                transition.isPending
+              }
             >
               <Send className="h-3 w-3" />
               PUBLISH
@@ -485,7 +502,6 @@ function DesignerInner() {
             </p>
           )}
 
-          {/* Phase 3.2.7 — 스케줄 + Backfill 행. PUBLISHED 워크플로에서만 의미. */}
           {editingWorkflowId && status === "PUBLISHED" && (
             <div className="basis-full flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs">
               <Clock className="h-3 w-3 text-muted-foreground" />
@@ -523,7 +539,8 @@ function DesignerInner() {
               </Button>
               {detail.data?.schedule_cron && (
                 <span className="text-muted-foreground">
-                  현재: <code>{detail.data.schedule_cron}</code> · {detail.data.schedule_enabled ? "ON" : "OFF"}
+                  현재: <code>{detail.data.schedule_cron}</code> ·{" "}
+                  {detail.data.schedule_enabled ? "ON" : "OFF"}
                 </span>
               )}
             </div>
@@ -532,7 +549,7 @@ function DesignerInner() {
           {showBackfill && editingWorkflowId && status === "PUBLISHED" && (
             <div className="basis-full flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs">
               <span className="text-amber-800">
-                Backfill — 시작/종료 날짜의 모든 일자에 대해 PENDING run 을 생성합니다.
+                Backfill — 시작/종료 날짜의 모든 일자에 PENDING run 생성.
               </span>
               <Input
                 type="date"
@@ -550,9 +567,13 @@ function DesignerInner() {
               <Button
                 size="sm"
                 onClick={handleBackfill}
-                disabled={backfill.isPending || !backfillStart || !backfillEnd}
+                disabled={
+                  backfill.isPending || !backfillStart || !backfillEnd
+                }
               >
-                {backfill.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                {backfill.isPending && (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                )}
                 실행
               </Button>
             </div>
@@ -560,14 +581,21 @@ function DesignerInner() {
         </CardContent>
       </Card>
 
-      {/* Three-pane editor */}
       <div className="flex flex-1 overflow-hidden rounded-lg border border-border bg-background">
-        <NodePalette onAdd={handlePaletteAdd} />
-        <div ref={wrapperRef} className="flex-1" onDragOver={onDragOver} onDrop={onDrop}>
+        <NodePaletteV2 onAdd={handlePaletteAdd} />
+        <div
+          ref={wrapperRef}
+          className="flex-1"
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+        >
           <ReactFlow
             nodes={nodes.map((n) => ({
               ...n,
-              data: { ...n.data, label: `${n.data.node_key}\n[${n.data.node_type}]` },
+              data: {
+                ...n.data,
+                label: `${n.data.node_key}\n[${n.data.node_type}]`,
+              },
               selected: n.id === selectedId,
             }))}
             edges={edges}
@@ -588,35 +616,17 @@ function DesignerInner() {
             <MiniMap pannable zoomable />
           </ReactFlow>
         </div>
-        <NodeConfigPanel
+        <NodeConfigPanelV2
           selected={selected}
           onChange={updateSelected}
           onDelete={isReadonly ? undefined : deleteSelected}
         />
       </div>
-
-      {/* SQL Studio (always visible — useful even when no SQL_TRANSFORM is selected) */}
-      <SqlEditor
-        initialSql={
-          selected?.node_type === "SQL_TRANSFORM"
-            ? String(selected.config_json?.sql ?? "")
-            : ""
-        }
-        onValidated={(sql) => {
-          if (selected?.node_type === "SQL_TRANSFORM") {
-            updateSelected({
-              ...selected,
-              config_json: { ...selected.config_json, sql },
-            });
-            toast.success("SQL 이 선택된 노드 config_json.sql 에 반영되었습니다.");
-          }
-        }}
-      />
     </div>
   );
 }
 
-export function PipelineDesigner() {
+export function EtlCanvasV2() {
   return (
     <ReactFlowProvider>
       <DesignerInner />

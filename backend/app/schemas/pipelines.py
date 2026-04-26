@@ -8,6 +8,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 NodeType = Literal[
+    # v1 (Phase 3.2)
     "NOOP",
     "SOURCE_API",
     "SQL_TRANSFORM",
@@ -15,6 +16,18 @@ NodeType = Literal[
     "DQ_CHECK",
     "LOAD_MASTER",
     "NOTIFY",
+    # v2 (Phase 5 generic + Phase 6 Wave 1) — DB CHECK (migration 0047) 와 정렬
+    "MAP_FIELDS",
+    "SQL_INLINE_TRANSFORM",
+    "SQL_ASSET_TRANSFORM",
+    "HTTP_TRANSFORM",
+    "FUNCTION_TRANSFORM",
+    "LOAD_TARGET",
+    "OCR_TRANSFORM",
+    "CRAWL_FETCH",
+    "STANDARDIZE",
+    "SOURCE_DATA",
+    "PUBLIC_API_FETCH",
 ]
 WorkflowStatus = Literal["DRAFT", "PUBLISHED", "ARCHIVED"]
 

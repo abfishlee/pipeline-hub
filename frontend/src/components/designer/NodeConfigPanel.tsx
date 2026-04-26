@@ -27,7 +27,8 @@ interface Props {
 }
 
 // 노드 타입별 config_json 힌트 — 사용자 가이드용. 실제 검증은 백엔드 NodeExecutor.
-const CONFIG_HINTS: Record<NodeType, string> = {
+// v2 노드는 EtlCanvasV2 의 NodeConfigPanelV2 에서 자산 dropdown 으로 처리.
+const CONFIG_HINTS: Partial<Record<NodeType, string>> = {
   NOOP: '{}  // 옵션 없음',
   SOURCE_API: '{\n  "source_id": 1,\n  "limit": 100\n}',
   SQL_TRANSFORM: '{\n  "sql": "SELECT ... FROM stg.foo",\n  "target_table": "stg.bar"\n}',
@@ -56,7 +57,11 @@ export function NodeConfigPanel({ selected, onChange, onDelete }: Props) {
   }, [selected]);
 
   const hint = useMemo(
-    () => (selected ? CONFIG_HINTS[selected.node_type] : ""),
+    () =>
+      selected
+        ? (CONFIG_HINTS[selected.node_type] ??
+          `// ${selected.node_type} (v2 노드 — EtlCanvasV2 권장)`)
+        : "",
     [selected],
   );
 
