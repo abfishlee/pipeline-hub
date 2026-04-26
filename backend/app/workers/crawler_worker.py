@@ -14,6 +14,8 @@ from __future__ import annotations
 from contextlib import suppress
 from typing import Any
 
+from sqlalchemy import text
+
 from app.config import get_settings
 from app.db.sync_session import get_sync_sessionmaker
 from app.domain.crawl import fetch_and_store
@@ -44,6 +46,8 @@ def process_crawl_event(source_code: str, url: str) -> dict[str, Any]:
                 url=url,
             )
             session.commit()
+        # Phase 5.1 Wave 4 — shadow binding audit (fail-silent).
+        _record_crawler_shadow_binding(source_code=outcome.source_code)
         return {
             "source_code": outcome.source_code,
             "url": outcome.url,
@@ -56,6 +60,37 @@ def process_crawl_event(source_code: str, url: str) -> dict[str, Any]:
             import asyncio
 
             asyncio.run(spider.aclose())
+
+
+def _record_crawler_shadow_binding(*, source_code: str) -> None:
+    """v1 crawler 처리 후 registry binding 결정을 audit (Phase 5.1 Wave 4)."""
+    try:
+        sm = get_sync_sessionmaker()
+        with sm() as session:
+            row = session.execute(
+                text(
+                    "SELECT source_id FROM ctl.data_source WHERE source_code = :c"
+                ),
+                {"c": source_code},
+            ).first()
+            if row is None or row.source_id is None:
+                return
+            source_id = int(row.source_id)
+        from app.domain.providers.worker_hook import record_shadow_binding
+
+        record_shadow_binding(
+            source_id=source_id,
+            provider_kind="CRAWLER",
+            v1_provider_used="httpx_spider",
+        )
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "crawler shadow_binding hook failed for source=%s",
+            source_code,
+            exc_info=True,
+        )
 
 
 __all__ = ["process_crawl_event"]

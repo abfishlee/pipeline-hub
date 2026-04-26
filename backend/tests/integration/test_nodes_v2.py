@@ -252,17 +252,18 @@ def test_apply_expression_mini_dsl() -> None:
 # ===========================================================================
 # 2. dispatcher
 # ===========================================================================
-def test_dispatcher_lists_six_generic_types() -> None:
-    types = list_v2_node_types()
-    assert set(types) == {
+def test_dispatcher_lists_generic_core_types() -> None:
+    """Phase 5.1 Wave 2 — 6 → 13 노드로 확장. 6 generic 코어가 *부분집합* 으로 포함."""
+    types = set(list_v2_node_types())
+    assert {
         "MAP_FIELDS",
         "SQL_INLINE_TRANSFORM",
         "SQL_ASSET_TRANSFORM",
         "HTTP_TRANSFORM",
         "FUNCTION_TRANSFORM",
         "LOAD_TARGET",
-    }
-    for t in types:
+    }.issubset(types)
+    for t in list_v2_node_types():
         runner = get_v2_runner(t)
         assert runner.node_type == t
 

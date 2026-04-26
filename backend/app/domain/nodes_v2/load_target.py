@@ -266,10 +266,21 @@ def run(context: NodeV2Context, config: Mapping[str, Any]) -> NodeV2Output:
             update_cols=update_cols,
         )
     else:  # scd_type_2 / current_snapshot
+        # Phase 5.1 결정 — 안정화 우선. SCD2 / snapshot 은 Phase 6 STEP 11 이후.
+        # 호출자가 명확히 인식하도록 reason + recommended_mode 제공.
         return NodeV2Output(
             status="failed",
-            error_message=f"mode={mode} is not implemented yet (Phase 6)",
-            payload={"reason": "mode_not_implemented", "mode": mode},
+            error_message=(
+                f"mode={mode} is deferred to Phase 6 — "
+                f"use append_only or upsert for now"
+            ),
+            payload={
+                "reason": "mode_not_implemented",
+                "mode": mode,
+                "recommended_modes": ["append_only", "upsert"],
+                "phase": "6",
+                "backlog_doc": "docs/phases/PHASE_6_FIELD_VALIDATION.md",
+            },
         )
 
     # 가드: 생성된 INSERT 문도 sql_guard 통과 강제 — write target whitelist.

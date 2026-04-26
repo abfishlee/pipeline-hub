@@ -20,6 +20,8 @@ from datetime import date as DateType
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import text
+
 from app.config import get_settings
 from app.core.events import RedisStreamPublisher
 from app.db.sync_session import get_sync_sessionmaker
@@ -91,6 +93,8 @@ def process_ocr_event(
             return {"status": "skipped_idempotent", "event_id": event_id}
         outcome: OcrOutcome | None = result.value
         assert outcome is not None
+        # Phase 5.1 Wave 4 — shadow binding audit (fail-silent).
+        _record_ocr_shadow_binding(raw_object_id=outcome.raw_object_id, v1_provider=outcome.provider)
         return {
             "status": "processed",
             "event_id": event_id,
@@ -113,6 +117,41 @@ def process_ocr_event(
                 import asyncio
 
                 asyncio.run(close())
+
+
+def _record_ocr_shadow_binding(*, raw_object_id: int, v1_provider: str | None) -> None:
+    """v1 OCR 처리 후 registry binding 결정을 audit (Phase 5.1 Wave 4).
+
+    실 OCR 호출은 v1 path. 본 hook 은 *registry 가 어떤 provider 를 골랐을지* 만 기록.
+    cutover (feature flag) 이전에 1주 데이터 수집 → diff 분석.
+    """
+    try:
+        sm = get_sync_sessionmaker()
+        with sm() as session:
+            row = session.execute(
+                text(
+                    "SELECT source_id FROM raw.raw_object WHERE raw_object_id = :id"
+                ),
+                {"id": raw_object_id},
+            ).first()
+            if row is None or row.source_id is None:
+                return
+            source_id = int(row.source_id)
+        from app.domain.providers.worker_hook import record_shadow_binding
+
+        record_shadow_binding(
+            source_id=source_id,
+            provider_kind="OCR",
+            v1_provider_used=v1_provider,
+        )
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "shadow_binding hook failed for raw_object_id=%s",
+            raw_object_id,
+            exc_info=True,
+        )
 
 
 def _parse_date(iso: str) -> DateType:

@@ -82,23 +82,68 @@ class NodeV2Protocol(Protocol):
 
 
 def get_v2_runner(node_type: str) -> NodeV2Protocol:
-    """node_type → runner. 미지원/placeholder 는 NodeV2Error."""
+    """node_type → runner. 미지원/placeholder 는 NodeV2Error.
+
+    Phase 5.1 Wave 2 — 13 노드 모두 dispatcher 등록.
+    DEDUP/DQ_CHECK/NOTIFY/SOURCE_DATA = v1 모듈 thin wrapper.
+    """
+    from typing import cast
+
+    from app.domain.nodes import dedup as v1_dedup
+    from app.domain.nodes import dq_check as v1_dq_check
+    from app.domain.nodes import notify as v1_notify
+    from app.domain.nodes import source_api as v1_source_api
     from app.domain.nodes_v2 import (
+        crawl_fetch,
         function_transform,
         http_transform,
         load_target,
         map_fields,
+        ocr_transform,
         sql_asset_transform,
         sql_inline_transform,
+        standardize,
     )
+    from app.domain.nodes_v2._v1_compat import V1WrappedRunner
 
     registry: dict[str, NodeV2Protocol] = {
+        # generic 코어 6종.
         "MAP_FIELDS": map_fields,
         "SQL_INLINE_TRANSFORM": sql_inline_transform,
         "SQL_ASSET_TRANSFORM": sql_asset_transform,
         "HTTP_TRANSFORM": http_transform,
         "FUNCTION_TRANSFORM": function_transform,
         "LOAD_TARGET": load_target,
+        # provider registry 통합 2종.
+        "OCR_TRANSFORM": ocr_transform,
+        "CRAWL_FETCH": crawl_fetch,
+        # namespace 표준화.
+        "STANDARDIZE": standardize,
+        # v1 compat 4종 (NodeV2Context → v1 NodeContext 변환 후 호출).
+        "SOURCE_DATA": cast(
+            NodeV2Protocol,
+            V1WrappedRunner(
+                name="SOURCE_DATA",
+                node_type="SOURCE_DATA",
+                v1_module=v1_source_api,
+            ),
+        ),
+        "DEDUP": cast(
+            NodeV2Protocol,
+            V1WrappedRunner(name="DEDUP", node_type="DEDUP", v1_module=v1_dedup),
+        ),
+        "DQ_CHECK": cast(
+            NodeV2Protocol,
+            V1WrappedRunner(
+                name="DQ_CHECK", node_type="DQ_CHECK", v1_module=v1_dq_check
+            ),
+        ),
+        "NOTIFY": cast(
+            NodeV2Protocol,
+            V1WrappedRunner(
+                name="NOTIFY", node_type="NOTIFY", v1_module=v1_notify
+            ),
+        ),
     }
     runner = registry.get(node_type)
     if runner is None:
@@ -107,7 +152,7 @@ def get_v2_runner(node_type: str) -> NodeV2Protocol:
 
 
 def list_v2_node_types() -> list[str]:
-    """문서화 / UX 용 — 등록된 generic node_type 들."""
+    """문서화 / UX 용 — 등록된 generic node_type 들 (13종)."""
     return [
         "MAP_FIELDS",
         "SQL_INLINE_TRANSFORM",
@@ -115,6 +160,13 @@ def list_v2_node_types() -> list[str]:
         "HTTP_TRANSFORM",
         "FUNCTION_TRANSFORM",
         "LOAD_TARGET",
+        "OCR_TRANSFORM",
+        "CRAWL_FETCH",
+        "STANDARDIZE",
+        "SOURCE_DATA",
+        "DEDUP",
+        "DQ_CHECK",
+        "NOTIFY",
     ]
 
 
