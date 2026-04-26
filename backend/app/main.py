@@ -28,6 +28,7 @@ from app.api.v1 import ingest as ingest_router
 from app.api.v1 import internal as internal_router
 from app.api.v1 import jobs as jobs_router
 from app.api.v1 import pipelines as pipelines_router
+from app.api.v1 import public as public_router
 from app.api.v1 import raw as raw_router
 from app.api.v1 import sources as sources_router
 from app.api.v1 import sql_studio as sql_studio_router
@@ -225,6 +226,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(pipelines_router.router)
     app.include_router(sse_router.router)
     app.include_router(sql_studio_router.router)
+    # Phase 4.2.4 — Public API stub (api_key 인증 + RLS).
+    app.include_router(public_router.router)
 
     return app
 

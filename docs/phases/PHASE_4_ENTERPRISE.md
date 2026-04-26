@@ -284,17 +284,40 @@ Phase 3 의 5-role (`ADMIN`/`APPROVER`/`OPERATOR`/`REVIEWER`/`VIEWER`) 위에 Ph
 - [ ] CDC lag 모니터링 메트릭 + 알람
 - [ ] Snapshot + CDC 결합 시 business_key 기준 머지
 
-### 4.2.4 RLS + 컬럼 마스킹 [W5]
+### 4.2.4 RLS + 컬럼 마스킹 [W5] ✅ 완료 (2026-04-26)
 
-- [ ] 사용자 역할에 따라 `mart.retailer_master`, `mart.seller_master` 의 일부 컬럼 마스킹
-  - 예: 사업자번호는 ADMIN 외 `***-**-****`
-  - 내부 주소는 APPROVER/OPERATOR만 raw 접근
-- [ ] RLS 정책: `mart.seller_master` 에 retailer_allowlist 기반 제한 (외부 API 키별)
-- [ ] 운영 DB 유저 분리:
-  - `app_rw` — 일반 API
-  - `app_mart_write` — Mart upsert 전용
-  - `app_readonly` — SQL sandbox
-  - `app_public` — 외부 API 조회 전용 (RLS 적용)
+- [x] **Masking VIEW** (security_invoker=true, PG 15+):
+  - `mart.retailer_master_view` — `current_role IN (app_public, app_readonly)` 시
+    `business_no` 마스킹 (`regexp_replace(.., \\d, *)`) + `head_office_addr` NULL
+  - `mart.seller_master_view` — 동일 조건에서 `address` NULL (sido/sigungu 는 노출)
+- [x] **RLS 정책** (FORCE ROW LEVEL SECURITY):
+  - `mart.seller_master`, `mart.product_mapping` — retailer_id 컬럼 보유 테이블만
+  - `rls_*_full` (app_rw, app_mart_write) — USING true (모든 row 통과)
+  - `rls_*_allowlist` (app_public, app_readonly) — `retailer_id = ANY(NULLIF(
+    current_setting('app.retailer_allowlist', true), '')::bigint[])`
+  - **빈 allowlist = 0 row** (deny by default — "미포함 시 보이지 않음")
+- [x] **4 PG role 분리** (NOLOGIN, connection user `app` 의 멤버 — SET LOCAL ROLE):
+  - `app_rw` — 모든 schema CRUD (기존 동작 유지)
+  - `app_mart_write` — mart.* CRUD + 시퀀스 (LOAD_MASTER + APPROVED SQL)
+  - `app_readonly` — mart/wf/stg SELECT (SQL Studio sandbox)
+  - `app_public` — masking view + RLS 제한 SELECT
+- [x] **`ctl.api_key.retailer_allowlist BIGINT[]`** 컬럼 추가 — Public API 가
+  SET LOCAL `app.retailer_allowlist` 로 GUC 주입 → RLS 정책이 읽음.
+- [x] `backend/app/db/session.py` — `set_session_role(session, role)` /
+  `set_retailer_allowlist(session, ids)` / `reset_session_role` helper.
+- [x] `backend/app/api/v1/public.py` (Phase 4.2.5 정식 구현 전 stub):
+  - `GET /public/v1/retailers` / `/sellers` — `X-API-Key` 헤더 → SET LOCAL ROLE
+    app_public + allowlist GUC → masking view SELECT
+- [x] `migrations/versions/0024_rls_column_masking.py` (PG role + RLS + view 일괄)
+- [x] `docs/adr/0012-rls-column-masking-phase4.md` — 4 role 분리 + masking VIEW vs
+  컬럼 GRANT 의 트레이드오프 + 회수 조건
+- [x] `tests/integration/test_rls.py` 6 케이스: ADMIN 평문 / app_public 마스킹 /
+  빈 allowlist 0 row / 부분 매칭 / RESET ROLE 복귀 / `/public/v1/sellers` E2E
+
+**Acceptance 충족 확인**:
+- ADMIN/connection user — `mart.retailer_master_view` 의 business_no 평문 노출 ✅
+- `app_public` SET LOCAL ROLE — business_no `***-**-*****` (숫자 마스킹), address NULL ✅
+- api_key.retailer_allowlist 미포함 retailer 의 seller row 조회 시 0 row ✅
 
 ### 4.2.5 Public API (외부 서비스) [W5~W8]
 

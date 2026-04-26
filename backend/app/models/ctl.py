@@ -142,6 +142,10 @@ class ApiKey(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Phase 4.2.4 — RLS allowlist (api_key 별 허용 retailer_id 셋).
+    retailer_allowlist: Mapped[list[int]] = mapped_column(
+        ARRAY(BigInteger), nullable=False, server_default="{}"
+    )
 
 
 __all__ = ["ApiKey", "AppUser", "Connector", "DataSource", "Role", "UserRole"]
