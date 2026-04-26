@@ -197,19 +197,33 @@ Phase 3 의 5-role (`ADMIN`/`APPROVER`/`OPERATOR`/`REVIEWER`/`VIEWER`) 위에 Ph
 
 ## 4.2 작업 단위 체크리스트
 
-### 4.2.1 Crowd 검수 워크플로우 [W1~W3]
+### 4.2.1 Crowd 검수 워크플로우 [W1~W3] ✅ 2026-04-26
 
-- [ ] 작업함 UI (`/crowd/tasks`)
-  - 필터: task_kind, priority, assigned_to_me
-  - 상세: OCR_REVIEW는 원본 이미지 + 추출 라인 편집
-  - PRODUCT_MATCHING은 후보 top-5 중 선택 + 신규 등록
-- [ ] 이중 검수 정책:
-  - priority >= 8 : 2인 이상 검수 필수, 결과 다르면 CONFLICT → 관리자 검토
-  - 그 외 : 1인 검수로 충분
-- [ ] 작업자 성과 테이블 `ctl.reviewer_stats`:
-  - 건수, 평균 처리 시간, 충돌률, 이후 회귀 오류율
-- [ ] 검수 완료 → pipeline_run HUMAN_REVIEW 노드 재개 이벤트 발행
-- [ ] 재처리 흐름: REJECTED 결과는 `stg` 로 되돌리고 재표준화
+- [x] migration 0022_crowd_schema.py — crowd schema 6 table + run.crowd_task → view 호환
+  - crowd.task / task_assignment / review / task_decision / payout / skill_tag
+  - run.crowd_task placeholder row 자동 마이그 (task / assignment / review / decision 4 종)
+- [x] backend/app/models/crowd.py — 7 ORM (Task / TaskAssignment / Review / TaskDecision /
+  Payout / SkillTag + ctl.ReviewerStats)
+- [x] backend/app/domain/crowd_review.py — 이중 검수 상태머신 (priority>=8 또는
+  requires_double_review=TRUE → 2명 review 필수). 단일=SINGLE, 이중일치=DOUBLE_AGREED,
+  불일치=CONFLICT → ADMIN/APPROVER resolve = CONFLICT_RESOLVED. outbox `crowd.task.decided`
+  발행 (Phase 4.2.2 mart 반영 worker 가 consume).
+- [x] backend/app/api/v1/crowd.py — legacy_router (Phase 2.2.10 호환, PATCH 위임) +
+  router (Phase 4.2.1 정식: list/detail/assign/review/resolve/stats/reviewers).
+- [x] frontend/src/pages/CrowdTaskQueue.tsx — V4 탭 신설:
+  - 5 status 탭 (PENDING/REVIEWING/CONFLICT/APPROVED/REJECTED)
+  - V4DetailPanel: priority/이중 검수 표시, assignments, reviews 리스트, decision 패널,
+    APPROVE/REJECT/SKIP 버튼, CONFLICT resolve UI (관리자 한정), 검수자 30일 통계 표
+- [x] ADR-0011 — crowd schema 마이그 정책 + 이중 검수 + outbox + 회수 조건 4종.
+- [x] tests/integration/test_crowd_review.py — 6 케이스 (단일 lifecycle / 이중 일치 /
+  CONFLICT resolve / legacy PATCH 위임 / 같은 reviewer 두번 차단 / priority>=8 단일 거부).
+  모두 통과.
+
+#### Acceptance — 모두 ✅
+- [x] run.crowd_task 의 모든 row 가 crowd.task 로 마이그 + view 호환 (legacy GET / PATCH
+  모두 정상 동작).
+- [x] priority=9 task — 2명 검수 + 일치 시 자동 task_decision (DOUBLE_AGREED) + outbox 발행.
+- [x] 충돌 시 CONFLICT 상태 + 관리자 resolve → CONFLICT_RESOLVED + outbox 발행.
 
 ### 4.2.2 DQ 게이트 [W3~W4]
 

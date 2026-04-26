@@ -214,6 +214,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ingest_router.router)
     app.include_router(jobs_router.router)
     app.include_router(raw_router.router)
+    # Phase 4.2.1 — legacy /v1/crowd-tasks + 정식 /v1/crowd/tasks 두 router.
+    app.include_router(crowd_router.legacy_router)
     app.include_router(crowd_router.router)
     app.include_router(dl_router.router)
     # Phase 4.0.4 — internal_router 가 pipelines_router 보다 먼저 등록되어야 함:
