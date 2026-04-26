@@ -19,7 +19,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
 from app.models.base import Base
@@ -102,32 +102,6 @@ class DataSource(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    connectors: Mapped[list[Connector]] = relationship(back_populates="source")
-
-
-class Connector(Base):
-    __tablename__ = "connector"
-    __table_args__ = (
-        CheckConstraint(
-            "connector_kind IN ('PG','MYSQL','ORACLE','MSSQL','HTTP','S3')",
-            name="connector_kind_check",
-        ),
-        {"schema": "ctl"},
-    )
-
-    connector_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    source_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("ctl.data_source.source_id"), nullable=False
-    )
-    connector_kind: Mapped[str] = mapped_column(Text, nullable=False)
-    secret_ref: Mapped[str] = mapped_column(Text, nullable=False)  # NCP Secret Manager key
-    config_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-
-    source: Mapped[DataSource] = relationship(back_populates="connectors")
-
 
 class ApiKey(Base):
     __tablename__ = "api_key"
@@ -143,7 +117,6 @@ class ApiKey(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    expired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Phase 4.2.4 — RLS allowlist (api_key 별 허용 retailer_id 셋).
     # **DEPRECATED Phase 5.2.7** — agri 도메인의 domain_resource_allowlist 로
     # 자동 매핑됨 (migration 0044). Phase 7 에서 제거 검토.

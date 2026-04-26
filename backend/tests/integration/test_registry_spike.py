@@ -12,6 +12,10 @@
   9. Option A (동적 ORM) 의 한계 시연 — registry conflict 발생
 
 본 spike 는 ADR-0017 의 *근거 코드* — production 비포함.
+
+**Phase 8.3 (2026-04-27)**: migration 0052 에서 `iot_spike_mart` schema 가 제거됨.
+ADR-0017 채택으로 정식 `domain.*` 스키마가 v2 generic 플랫폼에 도입되었기 때문.
+본 테스트 코드는 ADR 의 근거 자료로 보존하되 **수집 대상에서 제외**.
 """
 
 from __future__ import annotations
@@ -21,6 +25,12 @@ from collections.abc import Iterator
 
 import pytest
 from sqlalchemy import text
+
+# Phase 8.3 — iot_spike_mart schema 제거로 본 spike 테스트는 더 이상 실행 불가.
+# ADR-0017 의 근거 자료로만 보존.
+pytestmark = pytest.mark.skip(
+    reason="Phase 8.3 (migration 0052): iot_spike_mart schema removed."
+)
 
 from app.db.sync_session import dispose_sync_engine, get_sync_sessionmaker
 from app.experimental.registry_spike import (
