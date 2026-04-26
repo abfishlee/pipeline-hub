@@ -24,6 +24,7 @@ import { SecurityEventsPage } from "@/pages/SecurityEventsPage";
 import { SourcesPage } from "@/pages/SourcesPage";
 import { UsersPage } from "@/pages/UsersPage";
 import { FieldMappingDesigner } from "@/pages/v2/FieldMappingDesigner";
+import { MartDesigner } from "@/pages/v2/MartDesigner";
 import { SourceApiDesigner } from "@/pages/v2/SourceApiDesigner";
 import { TransformDesigner } from "@/pages/v2/TransformDesigner";
 import { useAuthStore } from "@/store/auth";
@@ -118,6 +119,10 @@ export default function App() {
               <Route
                 path="/v2/transforms/designer"
                 element={<TransformDesigner />}
+              />
+              <Route
+                path="/v2/marts/designer"
+                element={<MartDesigner />}
               />
             </Route>
           </Route>

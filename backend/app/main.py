@@ -47,11 +47,14 @@ from app.api.v2 import cutover as v2_cutover_router
 from app.api.v2 import domains as v2_domains_router
 from app.api.v2 import dq_rules as v2_dq_rules_router
 from app.api.v2 import dryrun as v2_dryrun_router
+from app.api.v2 import load_policies as v2_load_policies_router
 from app.api.v2 import mappings as v2_mappings_router
+from app.api.v2 import mart_drafts as v2_mart_drafts_router
 from app.api.v2 import perf as v2_perf_router
 from app.api.v2 import permissions as v2_permissions_router
 from app.api.v2 import providers as v2_providers_router
 from app.api.v2 import public_router as v2_public_router
+from app.api.v2 import resources as v2_resources_router
 from app.api.v2 import sql_assets as v2_sql_assets_router
 from app.config import Settings, get_settings
 from app.core.access_log import AccessLogMiddleware
@@ -323,6 +326,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(v2_connectors_router.router)
     # Phase 6 Wave 2B — SQL Asset CRUD (Transform Designer SQL 탭).
     app.include_router(v2_sql_assets_router.router)
+    # Phase 6 Wave 3 — Mart Workbench (mart_drafts + load_policies + resources).
+    app.include_router(v2_mart_drafts_router.router)
+    app.include_router(v2_load_policies_router.router)
+    app.include_router(v2_resources_router.router)
 
     # Phase 4.2.5 — Public API sub-app: /public/docs / /public/v1/*
     public_app = FastAPI(
