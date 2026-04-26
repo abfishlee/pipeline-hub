@@ -419,14 +419,45 @@ ADR-0015 § 6 회수 조건 만족 시 재평가.
 - 동일 api_key 가 분당 200+ 4xx → 동일 처리 ✅
 - HTTP → 301 redirect (HTTPS only) ✅ (nginx conf)
 
-### 4.2.7 Partition Archive 자동화 [W8]
+### 4.2.7 Partition Archive 자동화 [W8] ✅ 완료 (2026-04-26)
 
-- [ ] 매월 1일 04:00 배치:
-  - `raw.raw_object_YYYY_MM` 중 13개월 이상 경과 파티션 detect
-  - 내용 Object Storage archive 등급으로 복제 (`archive/{YYYY}/{MM}/`)
-  - 검증 (row count, checksum) → DETACH → DROP 또는 보존
-  - 작업 이력 `ctl.partition_archive_log`
-- [ ] 복원 스크립트: archive key → 임시 테이블로 복원
+**채택 정책:** 반자동 — Airflow DAG 가 후보 detect + ctl.partition_archive_log 에
+PENDING 적재 + Slack 알람. 실제 Object Storage 복제 + DETACH + DROP 은 운영자가
+ADMIN endpoint 또는 frontend 에서 1건씩 또는 일괄 승인. (자동 DROP 의 운영 사고
+위험 회피.)
+
+- [x] **migration `0028_partition_archive.py`** — `ctl.partition_archive_log`
+  (status PENDING/COPYING/COPIED/DETACHED/DROPPED/RESTORED/FAILED, archive_id PK,
+  schema/table/partition UNIQUE, archived_at/restored_at/checksum/object_uri/
+  byte_size/row_count, archived_by/restored_by FK).
+- [x] **`backend/app/domain/partition_archive.py`** — copy → checksum → DETACH →
+  DROP 흐름. `find_aged_partitions` (parent 4종 + 13개월 cutoff), gzip JSONL 직렬화,
+  sha256 검증 후 복원, restore 시 `(LIKE parent INCLUDING DEFAULTS)` 임시 테이블 생성.
+- [x] **`infra/airflow/dags/partition_archive_monthly.py`** — 매월 1일 04:00 KST
+  cron, 후보 detect + PENDING row 적재 + outbox NOTIFY 발행.
+- [x] **`backend/app/api/v1/admin_partitions.py`** — ADMIN 전용:
+  - `GET /v1/admin/partitions` (status 필터)
+  - `POST /v1/admin/partitions/{id}/run` — PENDING/FAILED 1건을 archive 실행
+  - `POST /v1/admin/partitions/{id}/restore` — Object Storage → `<part>_restored`
+- [x] **`backend/app/cli/restore_partition.py`** — `python -m app.cli.restore_partition
+  --archive-id N` CLI (운영 셸/장애 복구).
+- [x] **frontend `AdminPartitionsPage.tsx`** + `api/admin_partitions.ts` — 목록 +
+  status 필터 + Archive/Restore 버튼 + 인라인 target_table 입력. Layout 사이드바에
+  Archive 아이콘.
+- [x] **`tests/integration/test_partition_archive.py`** 5 케이스: find_aged_partitions
+  default parent skip / custom parent detect / archive 라운드트립 (status=DROPPED +
+  pg_class 비어있음 + sha256 일치) / restore 라운드트립 (RESTORED + row count 일치) /
+  checksum 변조 시 ValueError.
+
+**Acceptance 충족 확인**:
+- 13개월+ raw 파티션이 매월 1일 cold storage 후보 + DB 에서 PENDING 적재 ✅ (DAG)
+- ADMIN 이 archive 실행 → checksum 검증 후 DETACH+DROP, ctl.partition_archive_log
+  status=DROPPED ✅
+- 운영자가 복원 버튼 → `<schema>.<part>_restored` 로 row 동등 복원 ✅
+
+**한계 (ADR § 회수 조건 — 후속)**:
+- 1 partition 의 row 가 *수억 row* 로 커지면 single in-memory gzip 부담 → COPY TO
+  STDOUT 또는 chunk parallel upload 로 교체 검토.
 
 ### 4.2.8 Multi-source 머지 [W8~W9]
 

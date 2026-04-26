@@ -17,6 +17,7 @@ import { PipelineRunsList } from "@/pages/PipelineRunsList";
 import { SqlStudio } from "@/pages/SqlStudio";
 import { RawObjectsPage } from "@/pages/RawObjectsPage";
 import { RuntimeMonitor } from "@/pages/RuntimeMonitor";
+import { AdminPartitionsPage } from "@/pages/AdminPartitionsPage";
 import { ApiKeysPage } from "@/pages/ApiKeysPage";
 import { SecurityEventsPage } from "@/pages/SecurityEventsPage";
 import { SourcesPage } from "@/pages/SourcesPage";
@@ -107,6 +108,7 @@ export default function App() {
               <Route path="/users" element={<UsersPage />} />
               <Route path="/api-keys" element={<ApiKeysPage />} />
               <Route path="/security-events" element={<SecurityEventsPage />} />
+              <Route path="/admin/partitions" element={<AdminPartitionsPage />} />
               <Route path="/dead-letters" element={<DeadLetterQueue />} />
             </Route>
           </Route>

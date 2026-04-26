@@ -189,12 +189,52 @@ class CdcSubscription(Base):
     )
 
 
+class PartitionArchiveLog(Base):
+    """Phase 4.2.7 — partition archive 이력. detect → archive → restore."""
+
+    __tablename__ = "partition_archive_log"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PENDING','COPYING','COPIED','DETACHED','DROPPED','RESTORED','FAILED')",
+            name="ck_partition_archive_status",
+        ),
+        {"schema": "ctl"},
+    )
+
+    archive_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    schema_name: Mapped[str] = mapped_column(Text, nullable=False)
+    table_name: Mapped[str] = mapped_column(Text, nullable=False)
+    partition_name: Mapped[str] = mapped_column(Text, nullable=False)
+    row_count: Mapped[int | None] = mapped_column(BigInteger)
+    byte_size: Mapped[int | None] = mapped_column(BigInteger)
+    checksum: Mapped[str | None] = mapped_column(Text)
+    object_uri: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="PENDING")
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    restored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    restored_to: Mapped[str | None] = mapped_column(Text)
+    archived_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("ctl.app_user.user_id")
+    )
+    restored_by: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("ctl.app_user.user_id")
+    )
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 __all__ = [
     "ApiKey",
     "AppUser",
     "CdcSubscription",
     "Connector",
     "DataSource",
+    "PartitionArchiveLog",
     "Role",
     "UserRole",
 ]

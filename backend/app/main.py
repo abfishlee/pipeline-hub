@@ -22,6 +22,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 
 from app import __version__
+from app.api.v1 import admin_partitions as admin_partitions_router
 from app.api.v1 import api_keys as api_keys_router
 from app.api.v1 import auth as auth_router
 from app.api.v1 import crowd as crowd_router
@@ -284,6 +285,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(api_keys_router.router)
     # Phase 4.2.6 — security events 조회 (ADMIN 만).
     app.include_router(security_events_router.router)
+    # Phase 4.2.7 — partition archive 관리 (ADMIN 만).
+    app.include_router(admin_partitions_router.router)
 
     # Phase 4.2.5 — Public API sub-app: /public/docs / /public/v1/*
     public_app = FastAPI(

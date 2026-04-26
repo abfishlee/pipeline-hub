@@ -22,7 +22,6 @@ from app.core import abuse_detector
 from app.core.security import hash_password
 from app.db.sync_session import dispose_sync_engine, get_sync_sessionmaker
 from app.models.audit import SecurityEvent
-from app.models.ctl import ApiKey
 from app.models.run import EventOutbox
 
 REDIS_SKIP = "redis unavailable — abuse_detector fail-open path"
@@ -77,8 +76,10 @@ async def _ping_or_skip() -> None:
     client = abuse_detector._get_client()
     try:
         await client.ping()
-    except Exception as exc:  # noqa: BLE001
-        raise pytest.skip.Exception(f"{REDIS_SKIP}: {exc}", allow_module_level=False)
+    except Exception as exc:
+        raise pytest.skip.Exception(  # noqa: B904
+            f"{REDIS_SKIP}: {exc}", allow_module_level=False
+        )
 
 
 # ---------------------------------------------------------------------------

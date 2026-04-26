@@ -6,6 +6,7 @@ import {
   FileBox,
   Gauge,
   GitBranch,
+  Archive,
   KeyRound,
   ListChecks,
   LogOut,
@@ -55,6 +56,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/users", label: "사용자 관리", icon: Users, adminOnly: true },
   { to: "/api-keys", label: "API Keys", icon: KeyRound, adminOnly: true },
   { to: "/security-events", label: "보안 이벤트", icon: Shield, adminOnly: true },
+  { to: "/admin/partitions", label: "파티션 아카이브", icon: Archive, adminOnly: true },
 ];
 
 export function Layout(_: PropsWithChildren) {
@@ -158,5 +160,6 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/users")) return "사용자 관리";
   if (pathname.startsWith("/api-keys")) return "API Keys";
   if (pathname.startsWith("/security-events")) return "보안 이벤트";
+  if (pathname.startsWith("/admin/partitions")) return "파티션 아카이브";
   return "";
 }
