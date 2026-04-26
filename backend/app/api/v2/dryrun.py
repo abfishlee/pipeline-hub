@@ -412,4 +412,356 @@ async def dryrun_mart_designer(
     return await asyncio.to_thread(_do)
 
 
+# ---------------------------------------------------------------------------
+# 5. Workflow-level dry-run (Phase 6 Wave 5 — DAG 전체 박스 e2e)
+# ---------------------------------------------------------------------------
+class _NodeDryRunResult(BaseModel):
+    node_id: int
+    node_key: str
+    node_type: str
+    status: str  # "success" | "failed" | "skipped"
+    row_count: int = 0
+    duration_ms: int = 0
+    error_message: str | None = None
+    output_table: str | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkflowDryRunResponse(BaseModel):
+    workflow_id: int
+    name: str
+    domain_code: str | None
+    status: str
+    total_duration_ms: int
+    succeeded: int
+    failed: int
+    skipped: int
+    nodes: list[_NodeDryRunResult]
+
+
+def _topological_order(
+    nodes: list[Any], edges: list[Any]
+) -> list[Any]:
+    """Kahn's algorithm — 사이클 감지 시 ValueError."""
+    in_degree: dict[int, int] = {n.node_id: 0 for n in nodes}
+    adj: dict[int, list[int]] = {n.node_id: [] for n in nodes}
+    for e in edges:
+        adj[e.from_node_id].append(e.to_node_id)
+        in_degree[e.to_node_id] = in_degree.get(e.to_node_id, 0) + 1
+    queue = [nid for nid, d in in_degree.items() if d == 0]
+    visited: list[int] = []
+    while queue:
+        nid = queue.pop(0)
+        visited.append(nid)
+        for nxt in adj.get(nid, []):
+            in_degree[nxt] -= 1
+            if in_degree[nxt] == 0:
+                queue.append(nxt)
+    if len(visited) != len(nodes):
+        raise HTTPException(422, detail="workflow DAG 에 사이클이 있습니다.")
+    by_id = {n.node_id: n for n in nodes}
+    return [by_id[nid] for nid in visited]
+
+
+@router.post("/workflow/{workflow_id}", response_model=WorkflowDryRunResponse)
+async def dryrun_workflow(
+    workflow_id: int, user: CurrentUserDep
+) -> WorkflowDryRunResponse:
+    """워크플로의 모든 노드를 위상 정렬 순서로 dry-run.
+
+    각 노드는 *별도 트랜잭션 + rollback* 으로 격리. upstream 의 output_table 변수를
+    downstream 의 source_table 로 전달 (단순 DAG; 분기/병합 시 직전 노드 1개만 사용).
+    실패한 노드 이후는 SKIPPED 처리 (multi-branch 정확 처리는 Phase 7).
+    """
+    from app.models.wf import WorkflowDefinition
+
+    def _do() -> WorkflowDryRunResponse:
+        sm = get_sync_sessionmaker()
+        started_total = datetime.utcnow()
+        node_results: list[_NodeDryRunResult] = []
+        succeeded = 0
+        failed = 0
+        skipped = 0
+
+        with sm() as session:
+            wf = session.get(WorkflowDefinition, workflow_id)
+            if wf is None:
+                raise HTTPException(404, detail=f"workflow {workflow_id} not found")
+            nodes = list(
+                session.execute(
+                    text(
+                        "SELECT node_id, node_key, node_type, config_json, "
+                        "       position_x, position_y "
+                        "FROM wf.node_definition WHERE workflow_id = :wid "
+                        "ORDER BY node_id"
+                    ),
+                    {"wid": workflow_id},
+                )
+            )
+            if not nodes:
+                raise HTTPException(422, detail="workflow 에 노드가 없습니다.")
+            edges = list(
+                session.execute(
+                    text(
+                        "SELECT from_node_id, to_node_id "
+                        "FROM wf.edge_definition WHERE workflow_id = :wid"
+                    ),
+                    {"wid": workflow_id},
+                )
+            )
+            wf_name = wf.name
+
+        # 위상 정렬 (별도 transaction).
+        ordered_ids = _topological_order(
+            [type("N", (), {"node_id": n.node_id})() for n in nodes],
+            [
+                type(
+                    "E",
+                    (),
+                    {"from_node_id": e.from_node_id, "to_node_id": e.to_node_id},
+                )()
+                for e in edges
+            ],
+        )
+        ordered = sorted(
+            nodes,
+            key=lambda n: [o.node_id for o in ordered_ids].index(n.node_id),
+        )
+        # 단순 lineage map: node_id → 직전 출력 table.
+        out_table_by_id: dict[int, str | None] = {}
+        # 직전 노드 (가장 최근에 실행된 upstream) 추적.
+        upstream_by_id: dict[int, int | None] = {}
+        for e in edges:
+            upstream_by_id[e.to_node_id] = e.from_node_id
+
+        domain_code: str | None = None
+        had_failure = False
+
+        for n in ordered:
+            if had_failure:
+                node_results.append(
+                    _NodeDryRunResult(
+                        node_id=n.node_id,
+                        node_key=str(n.node_key),
+                        node_type=str(n.node_type),
+                        status="skipped",
+                        error_message="upstream 노드 실패로 skip",
+                    )
+                )
+                skipped += 1
+                continue
+
+            node_started = datetime.utcnow()
+            cfg: dict[str, Any] = dict(n.config_json or {})
+            # upstream 의 output_table 을 source_table 로 자동 주입 (없으면 그대로).
+            up_id = upstream_by_id.get(n.node_id)
+            if up_id is not None and up_id in out_table_by_id and out_table_by_id[up_id]:
+                cfg.setdefault("source_table", out_table_by_id[up_id])
+            cfg["dry_run"] = True
+
+            domain_for_node = (
+                cfg.get("domain_code")
+                or cfg.get("domain")
+                or domain_code
+                or "agri"
+            )
+            if domain_code is None:
+                domain_code = str(domain_for_node)
+
+            try:
+                runner = get_v2_runner(str(n.node_type))
+            except Exception as exc:
+                node_results.append(
+                    _NodeDryRunResult(
+                        node_id=n.node_id,
+                        node_key=str(n.node_key),
+                        node_type=str(n.node_type),
+                        status="failed",
+                        error_message=f"runner 미존재: {exc}",
+                    )
+                )
+                failed += 1
+                had_failure = True
+                continue
+
+            with sm() as session2:
+                ctx = NodeV2Context(
+                    session=session2,
+                    pipeline_run_id=-1,
+                    node_run_id=-1,
+                    node_key=str(n.node_key),
+                    domain_code=str(domain_for_node),
+                    user_id=user.user_id,
+                )
+                try:
+                    output = runner.run(ctx, cfg)
+                    session2.rollback()  # dry-run = 항상 rollback
+                    duration_ms = int(
+                        (datetime.utcnow() - node_started).total_seconds() * 1000
+                    )
+                    output_table = (
+                        output.payload.get("output_table")
+                        or output.payload.get("target_table")
+                        or cfg.get("output_table")
+                    )
+                    out_table_by_id[n.node_id] = (
+                        str(output_table) if output_table else None
+                    )
+                    if output.status == "failed":
+                        node_results.append(
+                            _NodeDryRunResult(
+                                node_id=n.node_id,
+                                node_key=str(n.node_key),
+                                node_type=str(n.node_type),
+                                status="failed",
+                                row_count=output.row_count,
+                                duration_ms=duration_ms,
+                                error_message=output.error_message,
+                                output_table=str(output_table) if output_table else None,
+                                payload=dict(output.payload),
+                            )
+                        )
+                        failed += 1
+                        had_failure = True
+                    else:
+                        node_results.append(
+                            _NodeDryRunResult(
+                                node_id=n.node_id,
+                                node_key=str(n.node_key),
+                                node_type=str(n.node_type),
+                                status="success",
+                                row_count=output.row_count,
+                                duration_ms=duration_ms,
+                                output_table=str(output_table) if output_table else None,
+                                payload=dict(output.payload),
+                            )
+                        )
+                        succeeded += 1
+                except Exception as exc:
+                    session2.rollback()
+                    duration_ms = int(
+                        (datetime.utcnow() - node_started).total_seconds() * 1000
+                    )
+                    logger.warning("workflow dry-run node failed", exc_info=exc)
+                    node_results.append(
+                        _NodeDryRunResult(
+                            node_id=n.node_id,
+                            node_key=str(n.node_key),
+                            node_type=str(n.node_type),
+                            status="failed",
+                            duration_ms=duration_ms,
+                            error_message=str(exc)[:500],
+                        )
+                    )
+                    failed += 1
+                    had_failure = True
+
+        total_duration_ms = int(
+            (datetime.utcnow() - started_total).total_seconds() * 1000
+        )
+
+        # 결과를 ctl.dry_run_record 1건에 요약 적재.
+        with sm() as session3:
+            try:
+                _persist_dry_run(
+                    session3,
+                    kind="workflow",
+                    domain_code=domain_code,
+                    target_summary={
+                        "workflow_id": workflow_id,
+                        "name": wf_name,
+                        "succeeded": succeeded,
+                        "failed": failed,
+                        "skipped": skipped,
+                    },
+                    row_counts={
+                        r.node_key: r.row_count for r in node_results
+                    },
+                    errors=[
+                        f"{r.node_key}: {r.error_message}"
+                        for r in node_results
+                        if r.error_message
+                    ],
+                    duration_ms=total_duration_ms,
+                    requested_by=user.user_id,
+                )
+                session3.commit()
+            except Exception as exc:
+                session3.rollback()
+                logger.warning("workflow dry-run persist failed", exc_info=exc)
+
+        return WorkflowDryRunResponse(
+            workflow_id=workflow_id,
+            name=str(wf_name),
+            domain_code=domain_code,
+            status="success" if failed == 0 else "failed",
+            total_duration_ms=total_duration_ms,
+            succeeded=succeeded,
+            failed=failed,
+            skipped=skipped,
+            nodes=node_results,
+        )
+
+    return await asyncio.to_thread(_do)
+
+
+# ---------------------------------------------------------------------------
+# 6. Recent dry-run list (Phase 6 Wave 5 — 최근 dry-run 이력)
+# ---------------------------------------------------------------------------
+class DryRunRecordOut(BaseModel):
+    dry_run_id: int
+    requested_by: int | None
+    kind: str
+    domain_code: str | None
+    target_summary: dict[str, Any]
+    row_counts: dict[str, Any]
+    errors: list[str]
+    duration_ms: int
+    requested_at: datetime
+
+
+@router.get("/recent", response_model=list[DryRunRecordOut])
+async def list_recent_dry_runs(
+    kind: str | None = None,
+    domain_code: str | None = None,
+    limit: int = 50,
+) -> list[DryRunRecordOut]:
+    def _do() -> list[DryRunRecordOut]:
+        sm = get_sync_sessionmaker()
+        params: dict[str, Any] = {"lim": min(max(limit, 1), 200)}
+        clauses: list[str] = []
+        if kind:
+            clauses.append("kind = :k")
+            params["k"] = kind
+        if domain_code:
+            clauses.append("domain_code = :d")
+            params["d"] = domain_code
+        sql = (
+            "SELECT dry_run_id, requested_by, kind, domain_code, target_summary, "
+            "       row_counts, errors, duration_ms, requested_at "
+            "FROM ctl.dry_run_record "
+        )
+        if clauses:
+            sql += "WHERE " + " AND ".join(clauses) + " "
+        sql += "ORDER BY requested_at DESC LIMIT :lim"
+        with sm() as session:
+            rows = session.execute(text(sql), params).all()
+        return [
+            DryRunRecordOut(
+                dry_run_id=int(r.dry_run_id),
+                requested_by=int(r.requested_by) if r.requested_by else None,
+                kind=str(r.kind),
+                domain_code=str(r.domain_code) if r.domain_code else None,
+                target_summary=r.target_summary or {},
+                row_counts=r.row_counts or {},
+                errors=list(r.errors or []),
+                duration_ms=int(r.duration_ms or 0),
+                requested_at=r.requested_at,
+            )
+            for r in rows
+        ]
+
+    return await asyncio.to_thread(_do)
+
+
 __all__ = ["router"]

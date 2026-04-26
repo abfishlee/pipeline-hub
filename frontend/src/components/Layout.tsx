@@ -188,6 +188,10 @@ function currentTitle(pathname: string): string {
     return "Transform Designer";
   if (pathname.startsWith("/v2/marts/designer"))
     return "Mart Workbench";
+  if (pathname.startsWith("/v2/dryrun/workflow"))
+    return "Dry-run Results";
+  if (pathname.startsWith("/v2/publish/"))
+    return "Publish Approval";
   if (pathname.startsWith("/jobs")) return "수집 작업";
   if (pathname.startsWith("/raw-objects")) return "원천 데이터";
   if (pathname.startsWith("/pipelines/runs/")) return "파이프라인 실행 상세";

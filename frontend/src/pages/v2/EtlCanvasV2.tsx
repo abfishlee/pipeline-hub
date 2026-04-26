@@ -33,6 +33,7 @@ import "@xyflow/react/dist/style.css";
 import {
   CalendarRange,
   Clock,
+  FlaskConical,
   Loader2,
   PlayCircle,
   Save,
@@ -473,6 +474,21 @@ function DesignerInner() {
                 <Save className="h-3 w-3" />
               )}
               저장
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (!editingWorkflowId) {
+                  toast.error("먼저 저장해 주세요.");
+                  return;
+                }
+                navigate(`/v2/dryrun/workflow/${editingWorkflowId}?auto=1`);
+              }}
+              disabled={!editingWorkflowId}
+            >
+              <FlaskConical className="h-3 w-3" />
+              Dry-run
             </Button>
             <Button
               size="sm"

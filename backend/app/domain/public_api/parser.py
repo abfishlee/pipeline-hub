@@ -23,7 +23,7 @@ def parse_response_body(body_text: str, *, response_format: str) -> Any:
         return _json.loads(body_text)
     if fmt == "xml":
         try:
-            import xmltodict  # type: ignore[import-untyped]
+            import xmltodict
         except ImportError as exc:
             raise RuntimeError(
                 "xmltodict not installed. Install with `pip install xmltodict`"
