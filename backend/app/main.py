@@ -39,6 +39,10 @@ from app.api.v1 import sources as sources_router
 from app.api.v1 import sql_studio as sql_studio_router
 from app.api.v1 import sse as sse_router
 from app.api.v1 import users as users_router
+from app.api.v2 import contracts as v2_contracts_router
+from app.api.v2 import domains as v2_domains_router
+from app.api.v2 import mappings as v2_mappings_router
+from app.api.v2 import providers as v2_providers_router
 from app.config import Settings, get_settings
 from app.core.access_log import AccessLogMiddleware
 from app.core.errors import DomainError
@@ -290,6 +294,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(admin_partitions_router.router)
     # Phase 4.2.8 — multi-source 머지 (ADMIN/APPROVER).
     app.include_router(master_merge_router.router)
+    # Phase 5.2.1 — v2 generic registry (ADMIN/DOMAIN_ADMIN).
+    app.include_router(v2_domains_router.router)
+    app.include_router(v2_contracts_router.router)
+    app.include_router(v2_mappings_router.router)
+    app.include_router(v2_providers_router.router)
 
     # Phase 4.2.5 — Public API sub-app: /public/docs / /public/v1/*
     public_app = FastAPI(

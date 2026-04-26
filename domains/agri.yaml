@@ -1,0 +1,37 @@
+# Phase 5.2.1 — agri (농축산물 가격) 도메인 정의.
+#
+# 본 yaml 의 핵심 원칙 (Q3 답변):
+#   v1 mart 테이블을 *그대로* registry 에 등록. rename/move X.
+#   canonical_table = mart.product_master  (v1 그대로)
+#   fact_table       = mart.price_fact     (v1 그대로)
+#
+# Phase 5.2.5 (v1→v2 plugin 마이그) 에서 본 yaml 을 backend/app/domain/registry 로
+# 로드 후, /v1/* endpoint 가 내부적으로 v2 generic engine + agri yaml 을 사용.
+
+domain_code: agri
+name: 농축산물 가격
+description: |
+  v1 의 농축산물 가격 도메인. Phase 5 generic platform 에서 *legacy 보존* 우선
+  — mart.product_master / mart.price_fact 등 기존 schema 그대로 사용.
+
+resources:
+  - resource_code: PRICE_FACT
+    canonical_table: mart.product_master
+    fact_table: mart.price_fact
+    standard_code_namespace: AGRI_FOOD
+    embedding_model: hyperclova
+    embedding_table: mart.standard_code
+    embedding_dim: 1536
+
+  - resource_code: DAILY_AGG
+    fact_table: mart.price_daily_agg
+    standard_code_namespace: AGRI_FOOD
+
+  - resource_code: PRODUCT_MAPPING
+    canonical_table: mart.product_mapping
+    standard_code_namespace: AGRI_FOOD
+
+standard_code_namespaces:
+  - name: AGRI_FOOD
+    description: v1 식품 표준 코드 (KAMIS/식품의약품안전처 분류 통합)
+    std_code_table: mart.standard_code
