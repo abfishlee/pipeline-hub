@@ -45,6 +45,14 @@ def cleanup_mart() -> Iterator[dict[str, list[int]]]:
                 {"ids": state["retailers"]},
             )
         if state["api_keys"]:
+            # Phase 4.2.5 — public_api_usage / public_api_usage_daily 의 FK 정리.
+            session.execute(
+                text(
+                    "DELETE FROM audit.public_api_usage "
+                    " WHERE api_key_id = ANY(:ids)"
+                ),
+                {"ids": state["api_keys"]},
+            )
             session.execute(
                 text("DELETE FROM ctl.api_key WHERE api_key_id = ANY(:ids)"),
                 {"ids": state["api_keys"]},
@@ -232,7 +240,8 @@ def test_public_endpoint_masks_and_filters_by_allowlist(
             text(
                 "INSERT INTO ctl.api_key "
                 "(key_prefix, key_hash, client_name, scope, retailer_allowlist) "
-                "VALUES (:p, :h, 'IT RLS client', '{prices.read}', :al) "
+                "VALUES (:p, :h, 'IT RLS client', "
+                "        '{products.read,prices.read}', :al) "
                 "RETURNING api_key_id"
             ),
             {

@@ -148,6 +148,10 @@ class ApiKey(Base):
     retailer_allowlist: Mapped[list[int]] = mapped_column(
         ARRAY(BigInteger), nullable=False, server_default="{}"
     )
+    # Phase 4.2.5 — Public API 메타 (manage 라우트 + audit 결합).
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class CdcSubscription(Base):

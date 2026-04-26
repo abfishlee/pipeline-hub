@@ -334,21 +334,48 @@ Phase 3 의 5-role (`ADMIN`/`APPROVER`/`OPERATOR`/`REVIEWER`/`VIEWER`) 위에 Ph
 - `app_public` SET LOCAL ROLE — business_no `***-**-*****` (숫자 마스킹), address NULL ✅
 - api_key.retailer_allowlist 미포함 retailer 의 seller row 조회 시 0 row ✅
 
-### 4.2.5 Public API (외부 서비스) [W5~W8]
+### 4.2.5 Public API (외부 서비스) [W5~W8] ✅ 완료 (2026-04-26)
 
-- [ ] API Key 관리 (이미 3.2에 테이블 생성됨)
-  - 발급: 최초 1회만 full key 평문 노출, 이후 prefix + hash 저장
-  - 스코프: `prices.read`, `products.read`, `aggregates.read`
-- [ ] Rate Limit: slowapi + Redis, key별 `rate_limit_per_min`
-- [ ] Public 엔드포인트:
-  - `GET /public/v1/standard-codes` — 표준코드 목록/검색
-  - `GET /public/v1/products` — 마스터 상품 검색 (std_code, 이름)
-  - `GET /public/v1/prices/latest?std_code=&retailer_id=&region=` — 최신 가격
-  - `GET /public/v1/prices/daily?std_code=&from=&to=&retailer_id=&region=` — 일별 집계
-  - `GET /public/v1/prices/series?product_id=&from=&to=` — 시계열
-- [ ] OpenAPI 별도 문서 (`/public/docs`)
-- [ ] 응답 캐시 (Redis, 60~300초) — std_code/daily 같은 조회에 적용
-- [ ] 사용량 로깅: `audit.public_api_usage` (일별 집계)
+- [x] **API Key 관리**: `POST /v1/api-keys` (ADMIN) — 응답 1회 평문 `<prefix>.<secret>`
+  + Argon2 hash 저장. `GET /v1/api-keys`, `DELETE /v1/api-keys/{id}` (soft revoke,
+  `revoked_at` 기록).
+- [x] **Scope 매트릭스** (`ENDPOINT_REQUIRED_SCOPES` 1곳에 정의):
+  - `prices.read` → prices/latest
+  - `products.read` → products + standard-codes + retailers + sellers
+  - `aggregates.read` → prices/daily + prices/series
+- [x] **Rate limit**: 자체 Redis fixed-window (`app/core/rate_limit.py`) — slowapi 의존성
+  추가 없이 분당 제한. 초과 시 429 + Retry-After. Redis 미가동 시 fail-open.
+- [x] **Public 엔드포인트 5종**:
+  - `GET /public/v1/standard-codes?q=&category=&limit=`
+  - `GET /public/v1/products?std_code=&q=&limit=`
+  - `GET /public/v1/prices/latest?std_code=&retailer_id=&region=&channel=`
+  - `GET /public/v1/prices/daily?std_code=&from=&to=&retailer_id=&region=`
+  - `GET /public/v1/prices/series?product_id=&from=&to=`
+- [x] **OpenAPI 분리**: FastAPI sub-app mount `/public` — `/public/docs` 외부 노출,
+  내부 `/docs` 와 분리. DomainError 핸들러 명시 등록.
+- [x] **응답 캐시 (Redis)**: standard-codes/products/prices.daily 5분, prices.latest 60s,
+  prices.series 180s.
+- [x] **사용량 로깅**: `audit.public_api_usage` 1 row/요청 (sync session + asyncio.to_thread
+  로 INSERT) + `audit.public_api_usage_daily` view (p50/p99). `infra/airflow/dags/
+  public_api_usage_daily.py` 매일 00:30 임계 초과 시 NOTIFY outbox.
+- [x] **Frontend `ApiKeysPage.tsx`** + `api/api_keys.ts`: 발급 모달 (scope checkbox +
+  retailer_allowlist multi + rate slider + expires) + 평문 1회 노출 modal +
+  목록/취소.
+- [x] **migration 0026** — api_key 메타 (last_used_at/revoked_at/expires_at) +
+  audit.public_api_usage + 일별 view.
+- [x] **ADR-0014** — sub-app 분리 / scope OR 매칭 / Redis fixed-window / cache TTL +
+  회수 조건.
+- [x] **`tests/integration/test_public_api.py`** 7 케이스: 발급 → 1회 평문 / 정상
+  /public/v1/products 200 / scope 불일치 403 / rate limit 429 + Retry-After / 만료 키
+  401 / revoke 후 401 / audit row 적재.
+
+**Acceptance 충족 확인**:
+- POST /v1/api-keys 발급 → 응답 1회만 평문, GET 재조회 시 secret 미노출 ✅
+- 발급 키 + scope=products.read → /public/v1/products 200 (RLS + 마스킹 적용) ✅
+- scope=prices.read 만 가진 키 → /public/v1/products 403 ✅
+- rate_limit_per_min=2 키로 3번째 요청 → 429 + Retry-After ✅
+- 만료/revoked 키 → 401 ✅
+- audit.public_api_usage row 적재 → daily view refresh 시 일별 집계 row 증가 ✅
 
 ### 4.2.6 Gateway / 보안 [W7]
 

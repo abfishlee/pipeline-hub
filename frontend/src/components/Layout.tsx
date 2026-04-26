@@ -6,6 +6,7 @@ import {
   FileBox,
   Gauge,
   GitBranch,
+  KeyRound,
   ListChecks,
   LogOut,
   Server,
@@ -51,6 +52,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/dead-letters", label: "Dead Letter", icon: AlertTriangle, adminOnly: true },
   { to: "/runtime", label: "Runtime 모니터", icon: Activity },
   { to: "/users", label: "사용자 관리", icon: Users, adminOnly: true },
+  { to: "/api-keys", label: "API Keys", icon: KeyRound, adminOnly: true },
 ];
 
 export function Layout(_: PropsWithChildren) {
@@ -152,5 +154,6 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/dead-letters")) return "Dead Letter";
   if (pathname.startsWith("/runtime")) return "Runtime 모니터";
   if (pathname.startsWith("/users")) return "사용자 관리";
+  if (pathname.startsWith("/api-keys")) return "API Keys";
   return "";
 }

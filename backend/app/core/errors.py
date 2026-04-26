@@ -58,6 +58,20 @@ class RateLimitedError(DomainError):
     http_status = 429
     code = "RATE_LIMITED"
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        details: dict[str, object] | None = None,
+        retry_after_seconds: int | None = None,
+    ) -> None:
+        super().__init__(message, details=details)
+        self.retry_after_seconds = retry_after_seconds
+
+
+# 별칭 — Phase 4.2.5 의 호출자는 RateLimitError 로 사용.
+RateLimitError = RateLimitedError
+
 
 class PayloadTooLargeError(DomainError):
     """요청 본문이 엔드포인트 제한을 초과 (예: 영수증 10MB 초과)."""
@@ -74,6 +88,7 @@ __all__ = [
     "NotFoundError",
     "PayloadTooLargeError",
     "PermissionError",
+    "RateLimitError",
     "RateLimitedError",
     "ValidationError",
 ]

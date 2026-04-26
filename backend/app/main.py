@@ -10,6 +10,7 @@ NKS Ready 8계명 중 이 파일에서 충족되는 것:
 
 from __future__ import annotations
 
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -21,6 +22,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 
 from app import __version__
+from app.api.v1 import api_keys as api_keys_router
 from app.api.v1 import auth as auth_router
 from app.api.v1 import crowd as crowd_router
 from app.api.v1 import dead_letters as dl_router
@@ -66,6 +68,44 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
         response.headers[REQUEST_ID_HEADER] = rid
+        return response
+
+
+class PublicApiUsageMiddleware(BaseHTTPMiddleware):
+    """Phase 4.2.5 — /public/v1/* 호출 1건당 audit.public_api_usage 1 row.
+
+    require_endpoint dependency 가 request.state 에 api_key_id/endpoint/scope 를
+    심어 두면 본 미들웨어가 응답 종료 시 비동기로 INSERT (fire-and-forget).
+    """
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        path = request.url.path
+        if not path.startswith("/public/"):
+            return await call_next(request)
+        started = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        api_key_id = getattr(request.state, "public_api_key_id", None)
+        endpoint = getattr(request.state, "public_api_endpoint", None)
+        scope = getattr(request.state, "public_api_scope", None)
+        if api_key_id is not None and endpoint is not None:
+            from app.api.v1.public import record_usage_async
+
+            ip = request.client.host if request.client else None
+            # 직접 await — 응답이 streaming 이 아닌 일반 JSON 이라 1 INSERT 의 latency
+            # 영향 무시 가능. TestClient 환경에서도 안정적.
+            try:
+                await record_usage_async(
+                    api_key_id=int(api_key_id),
+                    endpoint=str(endpoint),
+                    scope=scope,
+                    status_code=response.status_code,
+                    duration_ms=duration_ms,
+                    ip_addr=ip,
+                )
+            except Exception:  # noqa: BLE001
+                # audit 실패가 응답을 깨뜨리지 않도록 swallow.
+                pass
         return response
 
 
@@ -133,8 +173,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # --- Middleware (순서 중요: 바깥 → 안쪽 적용) ---
     # add_middleware 는 stack 처럼 동작 — 마지막에 add 한 게 가장 바깥 (요청 처리 시 먼저).
-    # 처리 순서: RequestId → CORS → AccessLog → HttpMetrics → 라우터.
+    # 처리 순서: RequestId → CORS → AccessLog → PublicApiUsage → HttpMetrics → 라우터.
     app.add_middleware(HttpMetricsMiddleware)
+    app.add_middleware(PublicApiUsageMiddleware)
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(
         CORSMiddleware,
@@ -150,6 +191,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(DomainError)
     async def _domain_error(request: Request, exc: DomainError) -> JSONResponse:
         rid = getattr(request.state, "request_id", None)
+        headers: dict[str, str] = {}
+        retry_after = getattr(exc, "retry_after_seconds", None)
+        if retry_after is not None:
+            headers["Retry-After"] = str(int(retry_after))
         return JSONResponse(
             status_code=exc.http_status,
             content={
@@ -160,6 +205,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "details": exc.details,
                 }
             },
+            headers=headers,
         )
 
     # --- Health routes ---
@@ -226,8 +272,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(pipelines_router.router)
     app.include_router(sse_router.router)
     app.include_router(sql_studio_router.router)
-    # Phase 4.2.4 — Public API stub (api_key 인증 + RLS).
-    app.include_router(public_router.router)
+    # Phase 4.2.5 — api_key admin CRUD (ADMIN 만).
+    app.include_router(api_keys_router.router)
+
+    # Phase 4.2.5 — Public API sub-app: /public/docs / /public/v1/*
+    public_app = FastAPI(
+        title="Pipeline Hub Public API",
+        version=__version__,
+        description="외부 API key 인증 기반 mart 공개 조회 API.",
+        openapi_url="/openapi.json" if not settings.is_production else None,
+        docs_url="/docs" if not settings.is_production else None,
+        redoc_url="/redoc" if not settings.is_production else None,
+    )
+
+    @public_app.exception_handler(DomainError)
+    async def _public_domain_error(request: Request, exc: DomainError) -> JSONResponse:
+        return await _domain_error(request, exc)
+
+    public_app.include_router(public_router.router)
+    app.mount("/public", public_app)
 
     return app
 

@@ -100,4 +100,24 @@ class DownloadLog(Base):
     )
 
 
-__all__ = ["AccessLog", "DownloadLog", "SqlExecutionLog"]
+class PublicApiUsage(Base):
+    """Phase 4.2.5 — /public/v1/* 호출 1건 단위 적재 + 일별 집계 source."""
+
+    __tablename__ = "public_api_usage"
+    __table_args__ = {"schema": "audit"}
+
+    usage_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    api_key_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("ctl.api_key.api_key_id"), nullable=False
+    )
+    endpoint: Mapped[str] = mapped_column(Text, nullable=False)
+    scope: Mapped[str | None] = mapped_column(Text)
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ip_addr: Mapped[str | None] = mapped_column(INET)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+__all__ = ["AccessLog", "DownloadLog", "PublicApiUsage", "SqlExecutionLog"]
