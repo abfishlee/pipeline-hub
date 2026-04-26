@@ -260,29 +260,44 @@ Phase 3 의 5-role (`ADMIN`/`APPROVER`/`OPERATOR`/`REVIEWER`/`VIEWER`) 위에 Ph
   APPROVE → RUNNING + READY / REJECT → CANCELLED + stg rollback / notify worker
   PUBLISHED 마킹 / not-on-hold 거부.
 
-### 4.2.3 CDC PoC [W4~W5]
+### 4.2.3 CDC PoC [W4~W5] ✅ 경로 A 완료 (2026-04-26)
 
-**두 가지 경로 중 하나 선택, 선택 시 ADR 기록:**
+**채택 경로:** 경로 A — wal2json + logical replication slot 직접 구독.
+경로 B (Kafka + Debezium) 는 ADR-0013 § 6 회수 조건 만족 시 재평가.
 
-**경로 A — 경량 (기본, 소스 1~2개)**
-- [ ] `wal2json` + logical replication slot 직접 구독
-- [ ] Python consumer → `raw.db_cdc_event` insert → Dramatiq `transform` 큐
-- [ ] Kafka/Debezium 없이 운영, 복잡도 최소
-- [ ] Airflow DAG: CDC lag 모니터링, snapshot+CDC 머지, slot 관리
+- [x] migration `0025_cdc_poc.py`:
+  - `raw.db_cdc_event` (`(source_id, lsn) UNIQUE` — idempotency 1차 방어)
+  - `ctl.cdc_subscription` (slot_name UNIQUE, plugin='wal2json', enabled, last_lsn,
+    last_lag_bytes, last_polled_at, snapshot_lsn)
+  - `ctl.data_source.cdc_enabled BOOLEAN`
+- [x] `app/integrations/cdc/wal2json_consumer.py`:
+  - `parse_wal2json_change` — format-version=2 의 I/U/D + identity/columns 파싱
+    (BEGIN/COMMIT/M 메타는 None 반환)
+  - `persist_cdc_changes` — ON CONFLICT DO NOTHING + outbox `cdc.event` 발행 +
+    `last_committed_lsn` 갱신
+  - `get_replication_lag_bytes` / `update_lag_metric` — 임계 초과 시 NOTIFY outbox
+  - `stream_slot` — psycopg replication 모드 (라이브 환경)
+- [x] `app/workers/cdc_consumer_worker.py` — `dispatch_cdc_batch(source_id)` actor
+  (queue=cdc_consumer, time_limit 60s).
+- [x] `scripts/setup_cdc_slot.sql` — superuser 1회 실행, slot+publication 생성
+  (idempotent — 존재 시 NOTICE).
+- [x] `infra/airflow/dags/cdc_lag_monitor.py` — 5분 간격 enabled subscription 의 lag
+  측정 + 임계 (10MB) 초과 시 outbox NOTIFY → notify_worker → Slack.
+- [x] `app/domain/cdc_merge.py` — snapshot+CDC 머지 (PG `pg_lsn` 캐스팅 비교 +
+  business_key INSERT ... ON CONFLICT DO UPDATE / DELETE).
+- [x] frontend `SourcesPage.tsx` — `CdcCell` 컴포넌트 (slot ON/OFF 뱃지 + lag
+  human-readable, 10MB 초과 시 빨강).
+- [x] `docs/adr/0013-cdc-poc-wal2json.md` — 경로 A 채택 + 회수 조건.
+- [x] `tests/integration/test_cdc_consumer.py` 5 케이스: parser I/U/D + boundary
+  skip / batch filter / persist + idempotency + outbox / lag NOTIFY 분기 / merge
+  LSN 비교 / upsert_from_change roundtrip.
 
-**경로 B — Kafka + Debezium (소스 3개 이상으로 확장 시)**
-- [ ] **Kafka 정식 도입 트리거 여기서 발생.** 도입 전 ADR + 사용자 승인.
-- [ ] NCP에 Kafka 직접 배포 (Strimzi 또는 bitnami/kafka Docker) — KRaft 모드로 Zookeeper 제거
-- [ ] Debezium Connect 배포 (PG/MySQL/MSSQL connector)
-- [ ] topic 네이밍: `cdc.<source>.<schema>.<table>`
-- [ ] Python consumer group: `transform-cdc-consumer`
-- [ ] Airflow DAG: Kafka consumer lag 감시, DLQ 재처리 trigger
-- [ ] Redis Streams는 "애플리케이션 이벤트", Kafka는 "DB CDC 이벤트"로 **역할 분리**
-
-**공통:**
-- [ ] `raw.db_cdc_event` 테이블에 변경 로그 저장
-- [ ] CDC lag 모니터링 메트릭 + 알람
-- [ ] Snapshot + CDC 결합 시 business_key 기준 머지
+**Acceptance 충족 확인**:
+- ctl.data_source.cdc_enabled=true 토글 후 setup_cdc_slot.sql 실행 → slot 생성 ✅
+- wal2json change 메시지 → 30초 내 raw.db_cdc_event 적재 (worker 폴링 주기 의존) ✅
+- 같은 LSN 재처리 시 중복 INSERT 없음 (UNIQUE(source_id, lsn) + ON CONFLICT) ✅
+- snapshot_lsn 이후 이벤트만 적용되어 mart 마스터 일관성 유지 ✅
+- pg_replication_slots lag 10MB 초과 시 NOTIFY outbox 1건 발행 ✅
 
 ### 4.2.4 RLS + 컬럼 마스킹 [W5] ✅ 완료 (2026-04-26)
 

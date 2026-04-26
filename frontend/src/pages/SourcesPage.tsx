@@ -75,6 +75,7 @@ export function SourcesPage() {
                   <Th>이름</Th>
                   <Th>타입</Th>
                   <Th>활성</Th>
+                  <Th>CDC</Th>
                   <Th>스케줄</Th>
                   <Th>생성일</Th>
                   {isAdmin && <Th className="w-32"></Th>}
@@ -95,6 +96,9 @@ export function SourcesPage() {
                       ) : (
                         <Badge variant="muted">비활성</Badge>
                       )}
+                    </Td>
+                    <Td className="text-xs">
+                      <CdcCell source={s} />
                     </Td>
                     <Td className="font-mono text-xs">{s.schedule_cron ?? "-"}</Td>
                     <Td className="text-xs">{formatDateTime(s.created_at)}</Td>
@@ -343,6 +347,36 @@ function FormRow({
     <div className="space-y-1.5">
       <label className="text-sm font-medium">{label}</label>
       {children}
+    </div>
+  );
+}
+
+function CdcCell({ source }: { source: DataSource }) {
+  if (!source.cdc_enabled) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  const sub = source.cdc;
+  if (!sub) {
+    return <Badge variant="muted">대기</Badge>;
+  }
+  const lag = sub.last_lag_bytes;
+  const lagText =
+    lag == null
+      ? "측정 전"
+      : lag < 1024
+        ? `${lag} B`
+        : lag < 1024 * 1024
+          ? `${(lag / 1024).toFixed(1)} KB`
+          : `${(lag / (1024 * 1024)).toFixed(1)} MB`;
+  const high = lag != null && lag > 10 * 1024 * 1024;
+  return (
+    <div className="flex items-center gap-2">
+      <Badge variant={sub.enabled ? "success" : "muted"}>
+        {sub.enabled ? "ON" : "OFF"}
+      </Badge>
+      <span className={high ? "text-rose-600" : "text-muted-foreground"}>
+        {lagText}
+      </span>
     </div>
   );
 }

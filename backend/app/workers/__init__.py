@@ -152,6 +152,7 @@ get_broker()
 
 # 모든 actor 를 broker 에 등록 — 하위 모듈 임포트 자체가 등록 effect.
 from app.workers import (  # noqa: E402
+    cdc_consumer_worker,
     crawler_worker,
     db_incremental_worker,
     notify_worker,
@@ -164,6 +165,7 @@ from app.workers import (  # noqa: E402
 
 __all__ = [
     "DeadLetterMiddleware",
+    "cdc_consumer_worker",
     "crawler_worker",
     "db_incremental_worker",
     "get_broker",

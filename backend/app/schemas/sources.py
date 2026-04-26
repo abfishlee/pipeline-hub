@@ -37,6 +37,7 @@ class DataSourceCreate(BaseModel):
     is_active: bool = True
     config_json: dict[str, Any] = Field(default_factory=dict)
     schedule_cron: str | None = Field(default=None, max_length=200)
+    cdc_enabled: bool = False
 
     @field_validator("schedule_cron")
     @classmethod
@@ -58,11 +59,26 @@ class DataSourceUpdate(BaseModel):
     is_active: bool | None = None
     config_json: dict[str, Any] | None = None
     schedule_cron: str | None = Field(default=None, max_length=200)
+    cdc_enabled: bool | None = None
 
     @field_validator("schedule_cron")
     @classmethod
     def _check_cron(cls, v: str | None) -> str | None:
         return _validate_cron(v)
+
+
+class CdcSubscriptionInfo(BaseModel):
+    """Phase 4.2.3 — DataSourceOut 에 임베드되는 CDC slot 메타."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    subscription_id: int
+    slot_name: str
+    plugin: str
+    enabled: bool
+    last_committed_lsn: str | None
+    last_lag_bytes: int | None
+    last_polled_at: datetime | None
 
 
 class DataSourceOut(BaseModel):
@@ -77,12 +93,15 @@ class DataSourceOut(BaseModel):
     is_active: bool
     config_json: dict[str, Any]
     schedule_cron: str | None
+    cdc_enabled: bool = False
+    cdc: CdcSubscriptionInfo | None = None
     created_at: datetime
     updated_at: datetime
 
 
 __all__ = [
     "SOURCE_CODE_PATTERN",
+    "CdcSubscriptionInfo",
     "DataSourceCreate",
     "DataSourceOut",
     "DataSourceUpdate",

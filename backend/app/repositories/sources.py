@@ -85,6 +85,7 @@ _UPDATABLE_FIELDS: frozenset[str] = frozenset(
         "is_active",
         "config_json",
         "schedule_cron",
+        "cdc_enabled",
     }
 )
 

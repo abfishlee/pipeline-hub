@@ -20,8 +20,20 @@ export interface DataSource {
   is_active: boolean;
   config_json: Record<string, unknown>;
   schedule_cron: string | null;
+  cdc_enabled?: boolean;
+  cdc?: CdcSubscriptionInfo | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface CdcSubscriptionInfo {
+  subscription_id: number;
+  slot_name: string;
+  plugin: string;
+  enabled: boolean;
+  last_committed_lsn: string | null;
+  last_lag_bytes: number | null;
+  last_polled_at: string | null;
 }
 
 export interface DataSourceCreate {
@@ -33,6 +45,7 @@ export interface DataSourceCreate {
   is_active?: boolean;
   config_json?: Record<string, unknown>;
   schedule_cron?: string | null;
+  cdc_enabled?: boolean;
 }
 
 export type DataSourceUpdate = Partial<Omit<DataSourceCreate, "source_code">>;

@@ -93,6 +93,8 @@ class DataSource(Base):
     # Phase 2.2.7 — DB-to-DB 증분 수집의 진행 상태(last_cursor / last_run_at / last_count).
     watermark: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
     schedule_cron: Mapped[str | None] = mapped_column(Text)
+    # Phase 4.2.3 — DB CDC 활성화 토글 (slot 가동 여부와 별개, 운영자 의도 표시).
+    cdc_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -148,4 +150,47 @@ class ApiKey(Base):
     )
 
 
-__all__ = ["ApiKey", "AppUser", "Connector", "DataSource", "Role", "UserRole"]
+class CdcSubscription(Base):
+    """Phase 4.2.3 — wal2json logical replication slot 메타 + lag.
+
+    `data_source.cdc_enabled=true` 토글 후 `scripts/setup_cdc_slot.sql` 가
+    `pg_create_logical_replication_slot` 으로 slot 을 생성하면 본 테이블의
+    `enabled=true` 로 대응. cdc_consumer_worker 가 slot 에서 stream 을 읽어
+    `raw.db_cdc_event` INSERT.
+    """
+
+    __tablename__ = "cdc_subscription"
+    __table_args__ = (
+        CheckConstraint("plugin IN ('wal2json')", name="ck_cdc_subscription_plugin"),
+        {"schema": "ctl"},
+    )
+
+    subscription_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("ctl.data_source.source_id"), nullable=False, unique=True
+    )
+    slot_name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    plugin: Mapped[str] = mapped_column(Text, nullable=False, default="wal2json")
+    publication_name: Mapped[str | None] = mapped_column(Text)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    last_committed_lsn: Mapped[str | None] = mapped_column(Text)
+    last_lag_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    last_polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    snapshot_lsn: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+__all__ = [
+    "ApiKey",
+    "AppUser",
+    "CdcSubscription",
+    "Connector",
+    "DataSource",
+    "Role",
+    "UserRole",
+]

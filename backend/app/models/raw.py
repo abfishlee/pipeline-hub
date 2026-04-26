@@ -150,8 +150,38 @@ class DbSnapshot(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="RUNNING")
 
 
+class DbCdcEvent(Base):
+    """Phase 4.2.3 — wal2json 으로 적재된 CDC 이벤트 1건.
+
+    `cdc_consumer_worker` 가 logical replication slot stream 을 1배치 읽고 INSERT.
+    `(source_id, lsn)` UNIQUE — 같은 LSN 재처리 시 중복 차단.
+    """
+
+    __tablename__ = "db_cdc_event"
+    __table_args__ = (
+        CheckConstraint("op IN ('I','U','D')", name="ck_db_cdc_event_op"),
+        {"schema": "raw"},
+    )
+
+    event_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("ctl.data_source.source_id"), nullable=False
+    )
+    schema_name: Mapped[str] = mapped_column(Text, nullable=False)
+    table_name: Mapped[str] = mapped_column(Text, nullable=False)
+    op: Mapped[str] = mapped_column(Text, nullable=False)  # CHAR(1) IN ('I','U','D')
+    pk_json: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
+    before_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    after_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    lsn: Mapped[str] = mapped_column(Text, nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 __all__ = [
     "ContentHashIndex",
+    "DbCdcEvent",
     "DbSnapshot",
     "OcrResult",
     "RawObject",

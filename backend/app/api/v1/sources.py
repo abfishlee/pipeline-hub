@@ -7,17 +7,45 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Any
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
+from sqlalchemy import select
 
 from app.deps import SessionDep, require_roles
+from app.models.ctl import CdcSubscription, DataSource
 from app.repositories import sources as sources_repo
 from app.schemas.sources import (
+    CdcSubscriptionInfo,
     DataSourceCreate,
     DataSourceOut,
     DataSourceUpdate,
     SourceType,
 )
+
+
+async def _attach_cdc(
+    session: Any, sources: Iterable[DataSource]
+) -> dict[int, CdcSubscriptionInfo]:
+    """Phase 4.2.3 — source_id → CdcSubscriptionInfo 일괄 lookup."""
+    src_list = list(sources)
+    ids = [s.source_id for s in src_list if s.cdc_enabled]
+    if not ids:
+        return {}
+    rows = (
+        await session.execute(
+            select(CdcSubscription).where(CdcSubscription.source_id.in_(ids))
+        )
+    ).scalars().all()
+    return {r.source_id: CdcSubscriptionInfo.model_validate(r) for r in rows}
+
+
+def _to_out(src: DataSource, sub: CdcSubscriptionInfo | None) -> DataSourceOut:
+    base = DataSourceOut.model_validate(src).model_dump()
+    base["cdc"] = sub
+    return DataSourceOut(**base)
 
 # 전체 라우터: ADMIN 또는 OPERATOR 가 기본 통과. 변경 라우트는 추가 ADMIN 가드.
 router = APIRouter(
@@ -45,8 +73,11 @@ async def create_source(body: DataSourceCreate, session: SessionDep) -> DataSour
         config_json=body.config_json,
         schedule_cron=body.schedule_cron,
     )
+    if body.cdc_enabled:
+        src.cdc_enabled = True
+        await session.flush()
     await session.commit()
-    return DataSourceOut.model_validate(src)
+    return _to_out(src, None)
 
 
 @router.get("", response_model=list[DataSourceOut])
@@ -64,7 +95,8 @@ async def list_sources(
         source_type=source_type,
         is_active=is_active,
     )
-    return [DataSourceOut.model_validate(s) for s in items]
+    cdc_map = await _attach_cdc(session, items)
+    return [_to_out(s, cdc_map.get(s.source_id)) for s in items]
 
 
 @router.get("/{source_id}", response_model=DataSourceOut)
@@ -74,7 +106,8 @@ async def get_source(source_id: int, session: SessionDep) -> DataSourceOut:
         from app.core import errors as app_errors
 
         raise app_errors.NotFoundError(f"data_source {source_id} not found")
-    return DataSourceOut.model_validate(src)
+    cdc_map = await _attach_cdc(session, [src])
+    return _to_out(src, cdc_map.get(src.source_id))
 
 
 @router.patch(
@@ -90,7 +123,8 @@ async def update_source(
     fields = body.model_dump(exclude_unset=True)
     src = await sources_repo.update_fields(session, source_id, fields)
     await session.commit()
-    return DataSourceOut.model_validate(src)
+    cdc_map = await _attach_cdc(session, [src])
+    return _to_out(src, cdc_map.get(src.source_id))
 
 
 @router.delete(
