@@ -9,7 +9,7 @@ from app.core import errors as app_errors
 from app.core.security import hash_password
 from app.deps import SessionDep, require_roles
 from app.repositories import users as users_repo
-from app.schemas.users import RoleAssign, UserCreate, UserOut, UserUpdate
+from app.schemas.users import RoleAssign, RoleOut, UserCreate, UserOut, UserUpdate
 
 # 전체 라우터에 ADMIN 가드. 이후 세밀 권한은 개별 route 에서 override.
 router = APIRouter(
@@ -34,6 +34,16 @@ async def _to_out(session: SessionDep, user_id: int) -> UserOut:
         roles=roles,
         created_at=user.created_at,
     )
+
+
+@router.get("/roles", response_model=list[RoleOut])
+async def list_roles(session: SessionDep) -> list[RoleOut]:
+    """사용 가능한 역할 카탈로그 (Phase 4.0.5 — 8 종).
+
+    frontend UsersPage 의 role 드롭다운이 본 endpoint 호출 → 하드코딩 회피.
+    """
+    rows = await users_repo.list_roles(session)
+    return [RoleOut.model_validate(r) for r in rows]
 
 
 @router.post("", response_model=UserOut, status_code=201)

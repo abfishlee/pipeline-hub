@@ -2,7 +2,12 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
-import { type UserCreate, useCreateUser, useUsers } from "@/api/users";
+import {
+  type UserCreate,
+  useCreateUser,
+  useRoles,
+  useUsers,
+} from "@/api/users";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,7 +22,18 @@ import { Input } from "@/components/ui/input";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 
-const ROLES = ["ADMIN", "OPERATOR", "REVIEWER", "APPROVER", "VIEWER"];
+// Phase 4.0.5 — role 카탈로그는 백엔드 GET /v1/users/roles 에서 동적 로드.
+// 백엔드 호출 실패 시 fallback (8 종 모두).
+const ROLES_FALLBACK = [
+  "ADMIN",
+  "APPROVER",
+  "OPERATOR",
+  "REVIEWER",
+  "VIEWER",
+  "PUBLIC_READER",
+  "MART_WRITER",
+  "SANDBOX_READER",
+];
 
 export function UsersPage() {
   const users = useUsers({ limit: 100 });
@@ -168,22 +184,10 @@ function CreateDialog({
             />
           </FormRow>
           <FormRow label="역할">
-            <div className="flex flex-wrap gap-2">
-              {ROLES.map((r) => {
-                const active = form.role_codes?.includes(r);
-                return (
-                  <Button
-                    key={r}
-                    type="button"
-                    variant={active ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => toggleRole(r)}
-                  >
-                    {r}
-                  </Button>
-                );
-              })}
-            </div>
+            <RolePicker
+              selected={form.role_codes ?? []}
+              onToggle={toggleRole}
+            />
           </FormRow>
         </div>
         <DialogFooter>
@@ -225,6 +229,45 @@ function FormRow({
     <div className="space-y-1.5">
       <label className="text-sm font-medium">{label}</label>
       {children}
+    </div>
+  );
+}
+
+function RolePicker({
+  selected,
+  onToggle,
+}: {
+  selected: string[];
+  onToggle: (role: string) => void;
+}) {
+  // Phase 4.0.5 — backend 의 ctl.role 카탈로그를 동적으로 로드.
+  const roles = useRoles();
+  const codes =
+    roles.data?.map((r) => r.role_code) ?? ROLES_FALLBACK;
+  const phase4Codes = new Set(["PUBLIC_READER", "MART_WRITER", "SANDBOX_READER"]);
+  return (
+    <div className="flex flex-wrap gap-2">
+      {codes.map((c) => {
+        const active = selected.includes(c);
+        const isPhase4 = phase4Codes.has(c);
+        const meta = roles.data?.find((r) => r.role_code === c);
+        return (
+          <Button
+            key={c}
+            type="button"
+            variant={active ? "default" : "outline"}
+            size="sm"
+            onClick={() => onToggle(c)}
+            title={meta?.description ?? undefined}
+            className={isPhase4 && !active ? "border-amber-400" : undefined}
+          >
+            {c}
+            {isPhase4 && (
+              <span className="ml-1 text-[9px] opacity-70">v4</span>
+            )}
+          </Button>
+        );
+      })}
     </div>
   );
 }

@@ -34,3 +34,19 @@ export function useCreateUser() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
   });
 }
+
+// Phase 4.0.5 — ctl.role 카탈로그. UsersPage 의 role 드롭다운이 본 endpoint 호출.
+export interface Role {
+  role_id: number;
+  role_code: string;
+  role_name: string;
+  description: string | null;
+}
+
+export function useRoles() {
+  return useQuery({
+    queryKey: ["users", "roles"],
+    queryFn: () => apiRequest<Role[]>("/v1/users/roles"),
+    staleTime: 5 * 60 * 1000, // 5분 — role 카탈로그는 거의 안 바뀜.
+  });
+}

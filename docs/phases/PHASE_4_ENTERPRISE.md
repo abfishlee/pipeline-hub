@@ -128,20 +128,39 @@ Phase 3.2.7 의 `schedule_cron` 필드가 시드되어 있지만 실제 cron 트
 - [x] 같은 분에 cron 이 두 번 발화해도 pipeline_run 은 1개 (DB 의 (workflow_id, run_date,
   status IN PENDING/RUNNING/SUCCESS) 검사로 멱등).
 
-### 4.0.5 RBAC 확장 (Phase 4.2.4 와 결합)
+### 4.0.5 RBAC 확장 (Phase 4.2.4 와 결합) ✅ 2026-04-26
 
-Phase 3 의 4-role (`ADMIN`/`APPROVER`/`OPERATOR`/`VIEWER`) 위에 Phase 4 가 다음을 추가:
+Phase 3 의 5-role (`ADMIN`/`APPROVER`/`OPERATOR`/`REVIEWER`/`VIEWER`) 위에 Phase 4 의
+3 role 추가:
 
-- **`PUBLIC_READER`** — Public API 전용 외부 키. RLS 적용된 `mart.product_price`,
-  `mart.price_daily_agg`, `mart.standard_code` 만 SELECT 가능.
-- **`MART_WRITER`** — LOAD_MASTER 노드 + 승인된 SQL 자산 실행만. mart 직접 INSERT/
-  UPDATE 권한 (현재는 ADMIN/APPROVER 가 대신 가지지만, Phase 4 에선 분리).
-- **`SANDBOX_READER`** — SQL Studio 의 read-only role. Phase 4.0 게이트의 NCP replica
-  도입 후 sandbox 가 그쪽으로 라우팅되면 본 role 만 replica 접근.
+- [x] **`PUBLIC_READER`** — Public API 전용 외부 키. Phase 4.2.4 RLS + 4.2.5 Public API
+  결합 후 `mart.product_price` / `mart.price_daily_agg` / `mart.standard_code` 만 SELECT.
+- [x] **`MART_WRITER`** — LOAD_MASTER 노드 + 승인된 SQL 자산의 mart write 분리. 워크플로
+  작성자가 mart write 권한 없이도 워크플로 등록 가능 (최소 권한 원칙).
+- [x] **`SANDBOX_READER`** — SQL Studio sandbox 의 read-only role. Phase 4.x 의 NCP
+  replica 도입 (ADR-0008 마이그 트리거) 후 본 role 이 replica 라우팅 받음.
 
-PR / migration 계획:
-- Phase 4 의 첫 PR 에서 ctl.role 에 3개 row 추가 + 매핑 시드.
-- ADR-0010 으로 권한 분리 근거 + Phase 3 의 `require_roles` dependency 호환성 명시.
+#### 산출물 (2026-04-26 완료)
+- [x] `migrations/versions/0021_phase4_roles.py` — `ctl.role` 에 3 row 추가, downgrade
+  도 함께 (FK 정리 후 row 삭제).
+- [x] `backend/app/api/v1/users.py` — `GET /v1/users/roles` 신설 (8 role 카탈로그) +
+  하드코딩 회피.
+- [x] `backend/app/schemas/users.py` — `RoleOut` Pydantic DTO 추가.
+- [x] `backend/app/deps.py` — `require_roles` 변경 없음 (이미 generic, role string 만
+  검증).
+- [x] `frontend/src/api/users.ts` — `useRoles` hook + 5분 staleTime.
+- [x] `frontend/src/pages/UsersPage.tsx` — RolePicker 컴포넌트 (description tooltip +
+  Phase 4 role 의 v4 라벨).
+- [x] ADR-0010 작성 — 8-role 채택 근거 + Phase 3 호환성 + Phase 5 도메인 분기 회수 조건
+  + 대안 (Casbin / OAuth2 scope / PG SET ROLE) 비교.
+- [x] `tests/integration/test_users_rbac.py` — 8 케이스 (카탈로그 / JWT claim 전파 /
+  PUBLIC_READER 만 가진 사용자 ADMIN endpoint 403 / unknown role 404 / 기존 5 role 회귀
+  / Phase 4 의 3 role 각각 단독 grantable parametrize).
+
+#### Acceptance — 모두 ✅
+- [x] admin 이 사용자에게 PUBLIC_READER role 부여 → JWT claim `roles` 에 포함.
+- [x] PUBLIC_READER 만 가진 사용자가 `/v1/users` (ADMIN 가드) 호출 → 403.
+- [x] 기존 5 role (ADMIN/APPROVER/OPERATOR/REVIEWER/VIEWER) 동작 동일 — 회귀 0.
 
 ---
 

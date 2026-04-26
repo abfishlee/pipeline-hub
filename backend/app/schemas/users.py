@@ -40,4 +40,15 @@ class RoleAssign(BaseModel):
     role_codes: list[str] = Field(min_length=1, max_length=16)
 
 
-__all__ = ["RoleAssign", "UserCreate", "UserOut", "UserUpdate"]
+class RoleOut(BaseModel):
+    """ctl.role 1행 — 사용 가능한 역할 카탈로그 (Phase 4.0.5)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    role_id: int
+    role_code: str
+    role_name: str
+    description: str | None
+
+
+__all__ = ["RoleAssign", "RoleOut", "UserCreate", "UserOut", "UserUpdate"]
