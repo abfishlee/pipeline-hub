@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from datetime import datetime
 
 from app.db.sync_session import get_sync_sessionmaker
 from app.domain.inbound_dispatch import dispatch_received_envelopes
@@ -26,14 +27,24 @@ logger = logging.getLogger(__name__)
 POLL_INTERVAL_SEC = 5.0
 BATCH_LIMIT = 20
 
+# Phase 8.5 — Operations Dashboard 가 dispatcher 헬스를 조회하기 위한 best-effort
+# 메모리 heartbeat. process restart 시 reset 되지만 같은 process 안에서는 유효.
+_LAST_DISPATCH_AT: datetime | None = None
+_LAST_DISPATCHED_COUNT: int = 0
+
 
 async def inbound_dispatcher_loop(stop_event: asyncio.Event) -> None:
     """Background loop — 5초마다 RECEIVED envelope 일괄 dispatch."""
     logger.info("inbound_dispatcher_loop.started")
 
     while not stop_event.is_set():
+        global _LAST_DISPATCH_AT, _LAST_DISPATCHED_COUNT
         try:
             results = await asyncio.to_thread(_run_dispatch_batch)
+            _LAST_DISPATCH_AT = datetime.utcnow()
+            _LAST_DISPATCHED_COUNT = (
+                sum(1 for r in results if r.status == "dispatched") if results else 0
+            )
             if results:
                 logger.info(
                     "inbound_dispatcher.batch",

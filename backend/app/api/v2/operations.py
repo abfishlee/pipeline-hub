@@ -458,6 +458,223 @@ async def failure_summary() -> list[FailureCategoryRow]:
 
 
 # ---------------------------------------------------------------------------
+# Phase 8.5 — Real Operation 보강 (SLA / Freshness / Dispatcher / Provider Cost)
+# ---------------------------------------------------------------------------
+class SlaLagSummary(BaseModel):
+    sample_count: int
+    p50_seconds: float | None
+    p95_seconds: float | None
+    p99_seconds: float | None
+    max_seconds: float | None
+    threshold_seconds: int  # CLAUDE.md SLA — 60s
+    breached_count: int  # 임계 초과 건수
+
+
+@router.get("/sla-lag", response_model=SlaLagSummary)
+async def sla_lag_summary() -> SlaLagSummary:
+    """수집(inbound received) → 적재(pipeline_run finished) lag 분포.
+
+    CLAUDE.md SLA: "Mart 반영까지 실시간 (수집 후 1분 이내)" 를 추적.
+    """
+
+    def _do(s: Session) -> SlaLagSummary:
+        since = datetime.utcnow() - timedelta(hours=24)
+        threshold = 60  # 초
+        rows = s.execute(
+            text(
+                """
+                WITH lags AS (
+                  SELECT EXTRACT(EPOCH FROM
+                           (pr.finished_at - ie.received_at)) AS lag_sec
+                    FROM audit.inbound_event ie
+                    JOIN run.pipeline_run pr
+                      ON pr.pipeline_run_id = ie.workflow_run_id
+                   WHERE ie.received_at >= :since
+                     AND ie.workflow_run_id IS NOT NULL
+                     AND pr.finished_at IS NOT NULL
+                     AND pr.status = 'SUCCESS'
+                )
+                SELECT
+                    COUNT(*) AS n,
+                    PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY lag_sec) AS p50,
+                    PERCENTILE_DISC(0.95) WITHIN GROUP (ORDER BY lag_sec) AS p95,
+                    PERCENTILE_DISC(0.99) WITHIN GROUP (ORDER BY lag_sec) AS p99,
+                    MAX(lag_sec) AS max_sec,
+                    SUM(CASE WHEN lag_sec > :threshold THEN 1 ELSE 0 END)
+                        AS breached
+                  FROM lags
+                """
+            ),
+            {"since": since, "threshold": threshold},
+        ).first()
+        if rows is None or (rows.n or 0) == 0:
+            return SlaLagSummary(
+                sample_count=0,
+                p50_seconds=None,
+                p95_seconds=None,
+                p99_seconds=None,
+                max_seconds=None,
+                threshold_seconds=threshold,
+                breached_count=0,
+            )
+        return SlaLagSummary(
+            sample_count=int(rows.n),
+            p50_seconds=float(rows.p50) if rows.p50 is not None else None,
+            p95_seconds=float(rows.p95) if rows.p95 is not None else None,
+            p99_seconds=float(rows.p99) if rows.p99 is not None else None,
+            max_seconds=float(rows.max_sec) if rows.max_sec is not None else None,
+            threshold_seconds=threshold,
+            breached_count=int(rows.breached or 0),
+        )
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+class FreshnessRow(BaseModel):
+    channel_code: str
+    channel_name: str | None
+    channel_kind: str
+    last_received_at: datetime | None
+    minutes_since_last: int | None
+    threshold_minutes: int
+    is_stale: bool
+
+
+@router.get("/freshness", response_model=list[FreshnessRow])
+async def freshness_summary(
+    threshold_minutes: int = Query(default=60, ge=1, le=2880),
+) -> list[FreshnessRow]:
+    """채널별 마지막 inbound 수신 시각 + STALE 여부."""
+
+    def _do(s: Session) -> list[FreshnessRow]:
+        rows = s.execute(
+            text(
+                """
+                SELECT c.channel_code, c.name AS channel_name, c.channel_kind,
+                       MAX(ie.received_at) AS last_received_at
+                  FROM domain.inbound_channel c
+                  LEFT JOIN audit.inbound_event ie
+                         ON ie.channel_code = c.channel_code
+                 WHERE c.is_active = true
+                   AND c.status = 'PUBLISHED'
+                 GROUP BY c.channel_code, c.name, c.channel_kind
+                 ORDER BY last_received_at NULLS FIRST
+                """
+            ),
+        ).all()
+        result: list[FreshnessRow] = []
+        now = datetime.utcnow()
+        for r in rows:
+            mins = None
+            stale = True
+            if r.last_received_at is not None:
+                # received_at is timezone-aware; convert to naive UTC for diff
+                lr = r.last_received_at
+                if lr.tzinfo is not None:
+                    lr = lr.replace(tzinfo=None)
+                mins = int((now - lr).total_seconds() / 60)
+                stale = mins > threshold_minutes
+            result.append(
+                FreshnessRow(
+                    channel_code=str(r.channel_code),
+                    channel_name=r.channel_name,
+                    channel_kind=str(r.channel_kind),
+                    last_received_at=r.last_received_at,
+                    minutes_since_last=mins,
+                    threshold_minutes=threshold_minutes,
+                    is_stale=stale,
+                )
+            )
+        return result
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+class DispatcherHealth(BaseModel):
+    is_running: bool
+    pending_envelopes: int
+    last_dispatch_attempt_at: datetime | None
+    last_dispatched_count: int
+    poll_interval_seconds: float
+
+
+@router.get("/dispatcher-health", response_model=DispatcherHealth)
+async def dispatcher_health() -> DispatcherHealth:
+    """Inbound auto-dispatcher 상태."""
+    from app.workers import inbound_dispatcher as _disp
+
+    def _do(s: Session) -> DispatcherHealth:
+        from app.domain.inbound_dispatch import fetch_pending_envelope_count
+
+        pending = fetch_pending_envelope_count(s)
+        # heartbeat 메모리 변수 (best-effort).
+        last_at = getattr(_disp, "_LAST_DISPATCH_AT", None)
+        last_count = getattr(_disp, "_LAST_DISPATCHED_COUNT", 0)
+        return DispatcherHealth(
+            is_running=True,  # lifespan 에서 무조건 띄우므로
+            pending_envelopes=int(pending),
+            last_dispatch_attempt_at=last_at,
+            last_dispatched_count=int(last_count),
+            poll_interval_seconds=float(_disp.POLL_INTERVAL_SEC),
+        )
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+class ProviderUsageRow(BaseModel):
+    provider_code: str
+    provider_kind: str | None
+    request_count_24h: int
+    success_count_24h: int
+    error_count_24h: int
+    avg_duration_ms: float | None
+    cost_estimate_24h: float
+    last_used_at: datetime | None
+
+
+@router.get("/provider-usage", response_model=list[ProviderUsageRow])
+async def provider_usage_summary() -> list[ProviderUsageRow]:
+    """24h provider 호출수 + 비용 추정."""
+
+    def _do(s: Session) -> list[ProviderUsageRow]:
+        since = datetime.utcnow() - timedelta(hours=24)
+        rows = s.execute(
+            text(
+                """
+                SELECT provider_code,
+                       MAX(provider_kind) AS provider_kind,
+                       SUM(request_count) AS req,
+                       SUM(success_count) AS suc,
+                       SUM(error_count) AS err,
+                       AVG(duration_ms) AS avg_ms,
+                       COALESCE(SUM(cost_estimate), 0)::float8 AS cost,
+                       MAX(occurred_at) AS last_at
+                  FROM audit.provider_usage
+                 WHERE occurred_at >= :since
+                 GROUP BY provider_code
+                 ORDER BY cost DESC, req DESC
+                """
+            ),
+            {"since": since},
+        ).all()
+        return [
+            ProviderUsageRow(
+                provider_code=str(r.provider_code),
+                provider_kind=r.provider_kind,
+                request_count_24h=int(r.req or 0),
+                success_count_24h=int(r.suc or 0),
+                error_count_24h=int(r.err or 0),
+                avg_duration_ms=float(r.avg_ms) if r.avg_ms is not None else None,
+                cost_estimate_24h=float(r.cost or 0.0),
+                last_used_at=r.last_at,
+            )
+            for r in rows
+        ]
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+# ---------------------------------------------------------------------------
 # Phase 8.4 — 최근 실패 N건 (운영자 즉시 대응)
 # ---------------------------------------------------------------------------
 class RecentFailureRow(BaseModel):
@@ -488,7 +705,7 @@ async def recent_failures(
                 """
                 WITH failed_runs AS (
                   SELECT pipeline_run_id, run_date, workflow_id,
-                         started_at, finished_at, trigger_payload
+                         started_at, finished_at
                     FROM run.pipeline_run
                    WHERE status = 'FAILED'
                      AND started_at >= :since
@@ -503,6 +720,14 @@ async def recent_failures(
                     JOIN failed_runs fr USING (pipeline_run_id, run_date)
                    WHERE nr.status = 'FAILED'
                    ORDER BY nr.pipeline_run_id, nr.run_date, nr.finished_at
+                ),
+                envelope_link AS (
+                  SELECT workflow_run_id AS pipeline_run_id,
+                         MAX(envelope_id) AS envelope_id
+                    FROM audit.inbound_event
+                   WHERE workflow_run_id IS NOT NULL
+                     AND received_at >= :since - INTERVAL '24 hours'
+                   GROUP BY workflow_run_id
                 )
                 SELECT fr.pipeline_run_id, fr.run_date, fr.workflow_id,
                        w.name AS workflow_name,
@@ -510,14 +735,14 @@ async def recent_failures(
                        fn.node_type AS failed_node_type,
                        fn.error_message,
                        fr.started_at, fr.finished_at,
-                       (fr.trigger_payload->>'raw_object_id')::bigint
-                         AS raw_object_id,
-                       (fr.trigger_payload->>'envelope_id')::bigint
-                         AS inbound_envelope_id
+                       NULL::bigint AS raw_object_id,
+                       el.envelope_id AS inbound_envelope_id
                   FROM failed_runs fr
                   LEFT JOIN first_failed_node fn USING (pipeline_run_id, run_date)
                   LEFT JOIN wf.workflow_definition w
                          ON w.workflow_id = fr.workflow_id
+                  LEFT JOIN envelope_link el
+                         ON el.pipeline_run_id = fr.pipeline_run_id
                  ORDER BY fr.started_at DESC
                 """
             ),

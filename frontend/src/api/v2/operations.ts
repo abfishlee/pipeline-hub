@@ -69,6 +69,83 @@ export function useTriggerRerun() {
   });
 }
 
+// Phase 8.5 — Real Operation 보강
+export interface SlaLagSummary {
+  sample_count: number;
+  p50_seconds: number | null;
+  p95_seconds: number | null;
+  p99_seconds: number | null;
+  max_seconds: number | null;
+  threshold_seconds: number;
+  breached_count: number;
+}
+
+export function useSlaLag() {
+  return useQuery({
+    queryKey: ["v2-operations-sla-lag"],
+    queryFn: () => apiRequest<SlaLagSummary>("/v2/operations/sla-lag"),
+    refetchInterval: 30_000,
+  });
+}
+
+export interface FreshnessRow {
+  channel_code: string;
+  channel_name: string | null;
+  channel_kind: string;
+  last_received_at: string | null;
+  minutes_since_last: number | null;
+  threshold_minutes: number;
+  is_stale: boolean;
+}
+
+export function useFreshness(thresholdMinutes = 60) {
+  return useQuery({
+    queryKey: ["v2-operations-freshness", thresholdMinutes],
+    queryFn: () =>
+      apiRequest<FreshnessRow[]>("/v2/operations/freshness", {
+        params: { threshold_minutes: thresholdMinutes },
+      }),
+    refetchInterval: 60_000,
+  });
+}
+
+export interface DispatcherHealth {
+  is_running: boolean;
+  pending_envelopes: number;
+  last_dispatch_attempt_at: string | null;
+  last_dispatched_count: number;
+  poll_interval_seconds: number;
+}
+
+export function useDispatcherHealth() {
+  return useQuery({
+    queryKey: ["v2-operations-dispatcher-health"],
+    queryFn: () =>
+      apiRequest<DispatcherHealth>("/v2/operations/dispatcher-health"),
+    refetchInterval: 10_000,
+  });
+}
+
+export interface ProviderUsageRow {
+  provider_code: string;
+  provider_kind: string | null;
+  request_count_24h: number;
+  success_count_24h: number;
+  error_count_24h: number;
+  avg_duration_ms: number | null;
+  cost_estimate_24h: number;
+  last_used_at: string | null;
+}
+
+export function useProviderUsage() {
+  return useQuery({
+    queryKey: ["v2-operations-provider-usage"],
+    queryFn: () =>
+      apiRequest<ProviderUsageRow[]>("/v2/operations/provider-usage"),
+    refetchInterval: 60_000,
+  });
+}
+
 // Phase 8.4 — 최근 실패 10건 (운영자 즉시 대응)
 export interface RecentFailureRow {
   pipeline_run_id: number;

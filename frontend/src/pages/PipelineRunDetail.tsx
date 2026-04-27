@@ -208,9 +208,12 @@ export function PipelineRunDetail() {
       <Card>
         <CardContent className="p-4">
           <h3 className="mb-2 text-sm font-semibold">노드 실행 이력</h3>
-          <div className="space-y-1 text-xs">
+          {/* Phase 8.5 — 미니 시간선 (각 노드의 duration 시각화) */}
+          <NodeTimeline nodeRuns={run.data?.node_runs ?? []} />
+          <div className="mt-3 space-y-1 text-xs">
             {run.data?.node_runs.map((nr) => {
               const s = STATUS_STYLE[nr.status] ?? STATUS_STYLE.PENDING;
+              const dur = computeDurationMs(nr.started_at, nr.finished_at);
               return (
                 <div
                   key={nr.node_run_id}
@@ -223,6 +226,11 @@ export function PipelineRunDetail() {
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-semibold">{nr.node_key}</span>
                     <span className="text-muted-foreground">{nr.node_type}</span>
+                    {dur != null && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {fmtDuration(dur)}
+                      </span>
+                    )}
                     <span className={cn("ml-auto font-medium", s.text)}>{nr.status}</span>
                     {canRestart && (nr.status === "FAILED" || nr.status === "SUCCESS") && (
                       <button
@@ -238,7 +246,18 @@ export function PipelineRunDetail() {
                     )}
                   </div>
                   {nr.error_message && (
-                    <div className="mt-1 text-rose-700">{nr.error_message}</div>
+                    <div className="mt-1 rounded bg-rose-100 px-2 py-1 font-mono text-[10px] text-rose-700">
+                      {nr.error_message}
+                    </div>
+                  )}
+                  {/* Phase 8.5 — 성공 노드의 output_json preview */}
+                  {nr.status === "SUCCESS" && nr.output_json && (
+                    <details className="mt-1 text-[10px] text-muted-foreground">
+                      <summary className="cursor-pointer">output preview</summary>
+                      <pre className="mt-1 max-h-32 overflow-y-auto rounded bg-muted/50 p-1 font-mono text-[10px]">
+                        {JSON.stringify(nr.output_json, null, 2).slice(0, 800)}
+                      </pre>
+                    </details>
                   )}
                 </div>
               );
@@ -248,4 +267,98 @@ export function PipelineRunDetail() {
       </Card>
     </div>
   );
+}
+
+// ============================================================================
+// Phase 8.5 — 노드별 duration 시간선 (gantt-style mini)
+// ============================================================================
+function NodeTimeline({
+  nodeRuns,
+}: {
+  nodeRuns: Array<{
+    node_run_id: number;
+    node_key: string;
+    status: NodeRunStatus;
+    started_at: string | null;
+    finished_at: string | null;
+  }>;
+}) {
+  const data = useMemo(() => {
+    const dated = nodeRuns
+      .filter((n) => n.started_at)
+      .map((n) => ({
+        key: n.node_key,
+        status: n.status,
+        start: new Date(n.started_at!).getTime(),
+        end: n.finished_at ? new Date(n.finished_at).getTime() : Date.now(),
+      }));
+    if (dated.length === 0) return null;
+    const t0 = Math.min(...dated.map((d) => d.start));
+    const t1 = Math.max(...dated.map((d) => d.end));
+    const span = Math.max(t1 - t0, 1);
+    return { items: dated, t0, t1, span };
+  }, [nodeRuns]);
+
+  if (!data) {
+    return (
+      <p className="text-[10px] text-muted-foreground">
+        아직 시작된 노드가 없습니다.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-0.5">
+      {data.items.map((it) => {
+        const left = ((it.start - data.t0) / data.span) * 100;
+        const width = Math.max(((it.end - it.start) / data.span) * 100, 0.5);
+        const color =
+          it.status === "FAILED"
+            ? "bg-rose-500"
+            : it.status === "SUCCESS"
+              ? "bg-emerald-500"
+              : it.status === "RUNNING"
+                ? "bg-amber-500"
+                : "bg-zinc-400";
+        return (
+          <div
+            key={it.key}
+            className="flex items-center gap-2 text-[10px]"
+            title={`${it.key}: ${fmtDuration(it.end - it.start)}`}
+          >
+            <span className="w-32 shrink-0 truncate font-mono">{it.key}</span>
+            <div className="relative h-3 flex-1 rounded bg-muted/40">
+              <div
+                className={cn("absolute h-3 rounded", color)}
+                style={{ left: `${left}%`, width: `${width}%` }}
+              />
+            </div>
+            <span className="w-14 shrink-0 text-right text-muted-foreground">
+              {fmtDuration(it.end - it.start)}
+            </span>
+          </div>
+        );
+      })}
+      <div className="text-[9px] text-muted-foreground">
+        총 {fmtDuration(data.t1 - data.t0)} (
+        {new Date(data.t0).toLocaleTimeString("ko-KR")} →{" "}
+        {new Date(data.t1).toLocaleTimeString("ko-KR")})
+      </div>
+    </div>
+  );
+}
+
+function computeDurationMs(start: string | null, end: string | null): number | null {
+  if (!start) return null;
+  const s = new Date(start).getTime();
+  const e = end ? new Date(end).getTime() : Date.now();
+  return e - s;
+}
+
+function fmtDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  const m = Math.floor(ms / 60_000);
+  const s = Math.round((ms % 60_000) / 1000);
+  return `${m}m${s}s`;
 }

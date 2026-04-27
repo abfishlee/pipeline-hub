@@ -29,6 +29,12 @@ import {
   useWorkflowHeatmap,
 } from "@/api/v2/operations";
 import { HourlyTrendChart } from "@/components/dashboard/HourlyTrendChart";
+import {
+  DispatcherHealthCard,
+  ProviderCostCard,
+  SlaLagCard,
+  StaleChannelsPanel,
+} from "@/components/dashboard/RealOperationCards";
 import { RecentFailuresPanel } from "@/components/dashboard/RecentFailuresPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -167,6 +173,19 @@ export function OperationsDashboard() {
               : undefined
           }
         />
+      </div>
+
+      {/* Phase 8.5 — Real Operation 카드 3종 (SLA / Dispatcher / Provider 비용) */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <SlaLagCard />
+        <DispatcherHealthCard />
+        <div className="md:col-span-1" />
+      </div>
+
+      {/* Phase 8.5 — 채널 데이터 신선도 + Provider 비용 */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <StaleChannelsPanel />
+        <ProviderCostCard />
       </div>
 
       {/* Hourly Trend Chart — Phase 8.2 */}

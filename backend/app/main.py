@@ -183,13 +183,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Phase 8.1 — Inbound dispatcher background task 시작.
     inbound_stop = asyncio.Event()
     inbound_task: asyncio.Task[None] | None = None
+    # Phase 8.5 — Alert evaluation 5분 cron task.
+    alert_stop = asyncio.Event()
+    alert_task: asyncio.Task[None] | None = None
     if settings.env != "test":
+        from app.workers.alert_loop import alert_evaluation_loop
         from app.workers.inbound_dispatcher import inbound_dispatcher_loop
 
         inbound_task = asyncio.create_task(
             inbound_dispatcher_loop(inbound_stop)
         )
         log.info("inbound_dispatcher.scheduled")
+        alert_task = asyncio.create_task(alert_evaluation_loop(alert_stop))
+        log.info("alert_evaluation.scheduled")
 
     log.info("startup.complete")
     try:
@@ -203,6 +209,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 await asyncio.wait_for(inbound_task, timeout=10.0)
             except (TimeoutError, asyncio.CancelledError):
                 inbound_task.cancel()
+        if alert_task is not None:
+            alert_stop.set()
+            try:
+                await asyncio.wait_for(alert_task, timeout=10.0)
+            except (TimeoutError, asyncio.CancelledError):
+                alert_task.cancel()
         await db_session.dispose_engine()
         log.info("shutdown.complete")
 
