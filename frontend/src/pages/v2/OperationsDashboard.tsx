@@ -30,6 +30,7 @@ import {
 } from "@/api/v2/operations";
 import { HourlyTrendChart } from "@/components/dashboard/HourlyTrendChart";
 import {
+  AirflowHealthCard,
   DispatcherHealthCard,
   ProviderCostCard,
   SlaLagCard,
@@ -175,11 +176,11 @@ export function OperationsDashboard() {
         />
       </div>
 
-      {/* Phase 8.5 — Real Operation 카드 3종 (SLA / Dispatcher / Provider 비용) */}
+      {/* Phase 8.5/8.6 — Real Operation 카드 3종 (SLA / Dispatcher / Airflow) */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <SlaLagCard />
         <DispatcherHealthCard />
-        <div className="md:col-span-1" />
+        <AirflowHealthCard />
       </div>
 
       {/* Phase 8.5 — 채널 데이터 신선도 + Provider 비용 */}

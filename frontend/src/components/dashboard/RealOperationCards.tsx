@@ -10,6 +10,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import {
+  useAirflowHealth,
   useDispatcherHealth,
   useFreshness,
   useProviderUsage,
@@ -176,6 +177,41 @@ export function DispatcherHealthCard() {
           {ageSec != null ? `${ageSec.toFixed(0)}s 전` : "—"} · 직전 처리{" "}
           {fmtNum(d?.last_dispatched_count ?? 0)} · poll {d?.poll_interval_seconds ?? 5}s
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================================
+// Airflow Scheduler Health Card (Phase 8.6)
+// ============================================================================
+export function AirflowHealthCard() {
+  const q = useAirflowHealth();
+  const d = q.data;
+  const tone = !d
+    ? "border-border bg-muted/30"
+    : d.is_reachable
+      ? "border-emerald-200 bg-emerald-50"
+      : "border-amber-200 bg-amber-50";
+  return (
+    <Card className={tone}>
+      <CardContent className="space-y-1 p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-1 text-xs font-semibold uppercase">
+            <Activity className="h-3.5 w-3.5" />
+            Airflow Scheduler
+          </h3>
+          <span className="text-[10px] font-semibold">
+            {!d ? "—" : d.is_reachable ? "RUNNING" : "STOPPED"}
+          </span>
+        </div>
+        <div className="text-[11px]">
+          <span>schedule_enabled 워크플로: </span>
+          <span className="font-semibold">
+            {fmtNum(d?.schedule_enabled_workflows ?? 0)}
+          </span>
+        </div>
+        <p className="text-[10px] text-muted-foreground">{d?.note ?? "..."}</p>
       </CardContent>
     </Card>
   );

@@ -126,6 +126,22 @@ export function useDispatcherHealth() {
   });
 }
 
+export interface AirflowHealth {
+  is_reachable: boolean;
+  webserver_url: string | null;
+  last_heartbeat_at: string | null;
+  schedule_enabled_workflows: number;
+  note: string;
+}
+
+export function useAirflowHealth() {
+  return useQuery({
+    queryKey: ["v2-operations-airflow-health"],
+    queryFn: () => apiRequest<AirflowHealth>("/v2/operations/airflow-health"),
+    refetchInterval: 60_000,
+  });
+}
+
 export interface ProviderUsageRow {
   provider_code: string;
   provider_kind: string | null;

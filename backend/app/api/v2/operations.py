@@ -621,6 +621,70 @@ async def dispatcher_health() -> DispatcherHealth:
     return await asyncio.to_thread(_run_in_sync, _do)
 
 
+# ---------------------------------------------------------------------------
+# Phase 8.6 — Airflow scheduler 헬스 (선택 기동, 미가동 시 STALE)
+# ---------------------------------------------------------------------------
+class AirflowHealth(BaseModel):
+    is_reachable: bool
+    webserver_url: str | None
+    last_heartbeat_at: datetime | None
+    schedule_enabled_workflows: int
+    note: str
+
+
+@router.get("/airflow-health", response_model=AirflowHealth)
+async def airflow_health() -> AirflowHealth:
+    """Airflow scheduler 가동 여부 + schedule_enabled 워크플로 수.
+
+    Airflow webserver `/health` 를 best-effort 로 호출. 미가동 시 is_reachable=False.
+    """
+    import os
+
+    import httpx
+
+    webserver_url = os.getenv("AIRFLOW_WEBSERVER_URL") or "http://localhost:8080"
+
+    def _do(s: Session) -> int:
+        return int(
+            s.execute(
+                text(
+                    "SELECT COUNT(*) FROM wf.workflow_definition "
+                    "WHERE status='PUBLISHED' AND schedule_enabled=TRUE "
+                    "  AND schedule_cron IS NOT NULL"
+                )
+            ).scalar_one()
+        )
+
+    sched_count = await asyncio.to_thread(_run_in_sync, _do)
+
+    is_reachable = False
+    last_hb: datetime | None = None
+    note = "Airflow 미가동 — schedule_cron 자동 발사 비활성. docs/ops/AIRFLOW_OPS.md 참고."
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            r = await client.get(f"{webserver_url}/health")
+            if r.status_code == 200:
+                is_reachable = True
+                body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+                hb = body.get("scheduler", {}).get("latest_scheduler_heartbeat")
+                if hb:
+                    try:
+                        last_hb = datetime.fromisoformat(str(hb).replace("Z", "+00:00"))
+                    except ValueError:
+                        pass
+                note = "Airflow 정상 가동 — scheduled_pipelines DAG 가 매분 워크플로 cron 평가 중."
+    except Exception:
+        pass
+
+    return AirflowHealth(
+        is_reachable=is_reachable,
+        webserver_url=webserver_url if is_reachable else None,
+        last_heartbeat_at=last_hb,
+        schedule_enabled_workflows=sched_count,
+        note=note,
+    )
+
+
 class ProviderUsageRow(BaseModel):
     provider_code: str
     provider_kind: str | None

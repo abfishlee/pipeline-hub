@@ -32,7 +32,6 @@ import {
 import "@xyflow/react/dist/style.css";
 import {
   CalendarRange,
-  Clock,
   FlaskConical,
   Loader2,
   PlayCircle,
@@ -67,6 +66,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { CronPicker } from "@/components/ui/cron-picker";
 import { Input } from "@/components/ui/input";
 
 type DesignerFlowNode = Node<DesignerNodeDataV2>;
@@ -521,46 +521,38 @@ function DesignerInner() {
           )}
 
           {editingWorkflowId && status === "PUBLISHED" && (
-            <div className="basis-full flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs">
-              <Clock className="h-3 w-3 text-muted-foreground" />
-              <span className="text-muted-foreground">cron (UTC, 5필드):</span>
-              <Input
+            <div className="basis-full space-y-2 border-t border-border pt-3 text-xs">
+              {/* Phase 8.6 — Cron Picker (사용자 친화적 6 모드) */}
+              <CronPicker
                 value={cronDraft}
-                onChange={(e) => setCronDraft(e.target.value)}
-                placeholder="0 5 * * *"
-                className="h-8 w-40 font-mono text-xs"
+                onChange={setCronDraft}
+                enabled={scheduleEnabledDraft}
+                onEnabledChange={setScheduleEnabledDraft}
               />
-              <label className="flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={scheduleEnabledDraft}
-                  onChange={(e) => setScheduleEnabledDraft(e.target.checked)}
-                  disabled={!cronDraft.trim()}
-                />
-                <span>활성</span>
-              </label>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleSaveSchedule}
-                disabled={updateSchedule.isPending}
-              >
-                스케줄 저장
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowBackfill((v) => !v)}
-              >
-                <CalendarRange className="h-3 w-3" />
-                Backfill
-              </Button>
-              {detail.data?.schedule_cron && (
-                <span className="text-muted-foreground">
-                  현재: <code>{detail.data.schedule_cron}</code> ·{" "}
-                  {detail.data.schedule_enabled ? "ON" : "OFF"}
-                </span>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleSaveSchedule}
+                  disabled={updateSchedule.isPending}
+                >
+                  스케줄 저장
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowBackfill((v) => !v)}
+                >
+                  <CalendarRange className="h-3 w-3" />
+                  Backfill
+                </Button>
+                {detail.data?.schedule_cron && (
+                  <span className="text-muted-foreground">
+                    저장된 cron: <code>{detail.data.schedule_cron}</code> ·{" "}
+                    {detail.data.schedule_enabled ? "ON" : "OFF"}
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
