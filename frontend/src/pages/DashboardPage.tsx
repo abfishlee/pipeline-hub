@@ -1,5 +1,6 @@
 import { useJobs } from "@/api/jobs";
 import { useSources } from "@/api/sources";
+import { QuickStartCard } from "@/components/dashboard/QuickStartCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   Card,
@@ -27,6 +28,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <QuickStartCard />
       <div className="grid gap-4 md:grid-cols-4">
         <KpiCard label="활성 소스" value={`${activeSources} / ${totalSources}`} />
         <KpiCard label="오늘 수집 작업" value={formatNumber(todayTotal)} />

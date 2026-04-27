@@ -61,6 +61,7 @@ from app.api.v2 import mappings as v2_mappings_router
 from app.api.v2 import mart_drafts as v2_mart_drafts_router
 from app.api.v2 import mock_api as v2_mock_api_router
 from app.api.v2 import namespaces as v2_namespaces_router
+from app.api.v2 import onboarding as v2_onboarding_router
 from app.api.v2 import operations as v2_operations_router
 from app.api.v2 import perf as v2_perf_router
 from app.api.v2 import permissions as v2_permissions_router
@@ -381,6 +382,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(v2_inbound_channels_router.router)
     # Phase 7 Wave 5 — Operations Dashboard.
     app.include_router(v2_operations_router.router)
+    app.include_router(v2_onboarding_router.router)
     # Phase 8 — Service Mart Viewer.
     app.include_router(v2_service_mart_router.router)
 

@@ -53,6 +53,7 @@ import {
   useUpdateWorkflow,
   useWorkflowDetail,
 } from "@/api/pipelines";
+import { CanvasPatternHint } from "@/components/canvas/CanvasPatternHint";
 import { CanvasProgressBar } from "@/components/canvas/CanvasProgressBar";
 import { CanvasReadinessChecklist } from "@/components/canvas/CanvasReadinessChecklist";
 import {
@@ -592,6 +593,9 @@ function DesignerInner() {
       </Card>
 
       <CanvasProgressBar nodeTypes={nodes.map((n) => n.data.node_type)} />
+
+      {/* Phase 8.6 — 신규 사용자 가이드 (노드 0개 시점에 가장 유용) */}
+      {nodes.length === 0 && <CanvasPatternHint />}
 
       {nodes.length > 0 && (
         <CanvasReadinessChecklist nodes={nodes} edges={edges} />
