@@ -458,7 +458,7 @@ function MartDesignDialog({ open, onClose }: MartDesignDialogProps) {
             <Input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="KAMIS 도매시장 가격 fact"
+              placeholder="이 마트의 용도를 한 줄로 (예: 일별 가격 fact / 사용자 master)"
             />
           </div>
 

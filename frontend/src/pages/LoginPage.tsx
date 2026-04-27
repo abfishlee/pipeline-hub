@@ -59,7 +59,7 @@ export function LoginPage() {
           </div>
           <CardTitle className="text-xl">Pipeline Hub</CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">
-            농축산물 가격 수집 플랫폼
+            공용 데이터 수집 파이프라인 플랫폼
           </p>
         </CardHeader>
         <CardContent>

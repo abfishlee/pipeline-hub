@@ -1,7 +1,8 @@
 // Phase 6 Wave 1 — Source/API Designer (workbench 1).
 //
-// 어떤 REST API 든 등록 가능. KAMIS 는 *예시 데이터* 일 뿐.
-// 사용자가 폼 채우면 도커 / 통계청 / 식약처 / 회사 ERP / 외부 SaaS 모두 같은 흐름.
+// 어떤 REST/JSON/XML/CSV API 든 *코딩 0줄* 로 등록 가능 — 본 시스템은 도메인 무관 공용
+// 데이터 수집 플랫폼이며, 사용자가 폼만 채우면 어떤 외부 시스템 (정부 공공데이터 / 회사
+// 내부 ERP / 외부 SaaS) 든 동일한 흐름으로 수집됩니다.
 import { Pencil, PlayCircle, Plus, Send, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -106,7 +107,7 @@ export function SourceApiDesigner() {
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">Public API Connector (workbench 1)</h2>
           <p className="text-sm text-muted-foreground">
-            어떤 REST API 든 *코딩 0줄* 로 등록. KAMIS / 식약처 / 통계청 / 회사 내부 API 모두 동일 폼.
+            어떤 REST/JSON/XML/CSV API 든 *코딩 0줄* 로 등록. 정부 공공데이터 / 회사 내부 시스템 / 외부 SaaS 모두 동일 폼.
           </p>
         </div>
         <Button onClick={() => setCreating(true)} data-testid="btn-create-connector">
@@ -434,7 +435,7 @@ function ConnectorEditDialog({
               label="API 이름"
               value={form.name}
               onChange={(v) => setForm({ ...form, name: v })}
-              placeholder="KAMIS 도매시장 가격 / 식약처 의약품 / 통계청 KOSIS ..."
+              placeholder="외부 API 의 사용자 친화 이름 (예: 일별 통계 데이터 수집)"
               disabled={isReadOnly}
               testid="field-name"
             />
@@ -565,7 +566,7 @@ function ConnectorEditDialog({
               label="Secret 참조 (env 이름)"
               value={form.secret_ref ?? ""}
               onChange={(v) => setForm({ ...form, secret_ref: v })}
-              placeholder="예: KAMIS_CERT_KEY / DATAGO_KEY (값은 .env 에)"
+              placeholder="env 변수명 (예: EXTERNAL_API_KEY — 실제 값은 .env 또는 NCP Secret Manager)"
               disabled={isReadOnly || form.auth_method === "none"}
             />
             <FieldJson
