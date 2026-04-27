@@ -36,8 +36,19 @@ class PaginationKind(StrEnum):
 
 
 class ResponseFormat(StrEnum):
+    """Phase 8.6 — 외부 API 응답 포맷 7종.
+
+    공용 플랫폼이 어떤 외부 데이터든 받을 수 있도록 확장.
+    parser 는 `app.domain.public_api.parsers` 에서 포맷별로 평탄화.
+    """
+
     JSON = "json"
     XML = "xml"
+    CSV = "csv"        # delimiter=','
+    TSV = "tsv"        # delimiter='\t'
+    TEXT = "text"      # plain text (regex 추출 등)
+    EXCEL = "excel"    # .xlsx — 첫 sheet 사용 (옵션은 추후)
+    BINARY = "binary"  # raw bytes — Object Storage 보존, parser 노드가 후처리
 
 
 @dataclass(slots=True)

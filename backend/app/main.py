@@ -59,6 +59,7 @@ from app.api.v2 import inbound_channels as v2_inbound_channels_router
 from app.api.v2 import load_policies as v2_load_policies_router
 from app.api.v2 import mappings as v2_mappings_router
 from app.api.v2 import mart_drafts as v2_mart_drafts_router
+from app.api.v2 import mock_api as v2_mock_api_router
 from app.api.v2 import namespaces as v2_namespaces_router
 from app.api.v2 import operations as v2_operations_router
 from app.api.v2 import perf as v2_perf_router
@@ -370,6 +371,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(v2_sql_assets_router.router)
     # Phase 6 Wave 3 — Mart Workbench (mart_drafts + load_policies + resources).
     app.include_router(v2_mart_drafts_router.router)
+    app.include_router(v2_mock_api_router.router)
+    app.include_router(v2_mock_api_router.serve_router)
     app.include_router(v2_load_policies_router.router)
     app.include_router(v2_resources_router.router)
     # Phase 6 Wave 6 — Quality Workbench (Standardization 탭).

@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   Sigma,
+  TestTube,
   Users,
   Workflow,
 } from "lucide-react";
@@ -105,6 +106,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/runtime", label: "Runtime Monitor", icon: Activity },
 
   // ─── 4. Admin — 시스템 관리 ────────────────────────────────────
+  { to: "/v2/mock-api", label: "Mock API (테스트)", icon: TestTube, adminOnly: true },
   { to: "/dead-letters", label: "Dead Letters", icon: AlertTriangle, adminOnly: true },
   { to: "/users", label: "Users", icon: Users, adminOnly: true },
   { to: "/api-keys", label: "API Keys", icon: KeyRound, adminOnly: true },
