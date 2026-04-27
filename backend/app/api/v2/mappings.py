@@ -247,6 +247,67 @@ async def list_function_registry() -> list[FunctionSpecOut]:
     return await asyncio.to_thread(_do)
 
 
+class CatalogTableOut(BaseModel):
+    schema_name: str
+    table_name: str
+    table_type: str  # 'BASE TABLE' | 'VIEW' | 'PARTITIONED TABLE'
+    estimated_rows: int | None = None
+
+
+@router.get("/catalog/tables", response_model=list[CatalogTableOut])
+async def list_catalog_tables(
+    schema: str | None = None,
+) -> list[CatalogTableOut]:
+    """Phase 8.6 — SQL Studio / Quality Workbench 테이블 카탈로그.
+
+    공용 워크벤치 schema (wf/stg/<domain>_stg/<domain>_mart/mart/raw/run/audit) 만 노출.
+    """
+    import re
+
+    if schema is not None and not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$", schema):
+        raise HTTPException(422, detail=f"invalid schema: {schema!r}")
+
+    def _do(s: Session) -> list[CatalogTableOut]:
+        params: dict[str, Any] = {}
+        where = (
+            "table_schema NOT IN ('pg_catalog','information_schema','pg_toast') "
+            "AND table_schema NOT LIKE 'pg_temp%' "
+            "AND table_schema NOT LIKE 'pg_toast_temp%'"
+        )
+        if schema:
+            where += " AND table_schema = :schema"
+            params["schema"] = schema
+        rows = s.execute(
+            text(
+                f"""
+                SELECT t.table_schema, t.table_name, t.table_type,
+                       c.reltuples::bigint AS estimated_rows
+                  FROM information_schema.tables t
+                  LEFT JOIN pg_class c
+                         ON c.relname = t.table_name
+                  LEFT JOIN pg_namespace n
+                         ON n.oid = c.relnamespace AND n.nspname = t.table_schema
+                 WHERE {where}
+                 ORDER BY t.table_schema, t.table_name
+                """
+            ),
+            params,
+        ).all()
+        return [
+            CatalogTableOut(
+                schema_name=str(r.table_schema),
+                table_name=str(r.table_name),
+                table_type=str(r.table_type),
+                estimated_rows=int(r.estimated_rows)
+                if r.estimated_rows is not None and r.estimated_rows > 0
+                else None,
+            )
+            for r in rows
+        ]
+
+    return await asyncio.to_thread(_do)
+
+
 @router.get("/columns/{schema}/{table}", response_model=list[TableColumnOut])
 async def list_table_columns(schema: str, table: str) -> list[TableColumnOut]:
     """target table 의 컬럼 목록 — Mapping Designer 우측 panel."""

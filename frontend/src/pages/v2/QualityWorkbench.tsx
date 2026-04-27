@@ -40,6 +40,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { CatalogTableSelect } from "@/components/ui/catalog-table-select";
 import {
   Dialog,
   DialogContent,
@@ -193,11 +194,10 @@ function DqTab() {
               <label className="text-xs text-muted-foreground">
                 target_table
               </label>
-              <Input
-                className="w-60"
+              <CatalogTableSelect
                 value={targetTable}
-                onChange={(e) => setTargetTable(e.target.value)}
-                placeholder="agri_mart.kamis_price"
+                onChange={setTargetTable}
+                allowEmpty
               />
             </div>
             <div className="ml-auto">
@@ -493,16 +493,18 @@ function DqRuleEditDialog({
             </div>
             <div className="col-span-2">
               <label className="text-xs text-muted-foreground">
-                target_table
+                target_table (검증 대상 — PUBLISHED 마트만 노출)
               </label>
-              <Input
-                value={form.target_table}
-                onChange={(e) =>
-                  setForm({ ...form, target_table: e.target.value })
-                }
-                disabled={mode === "edit"}
-                placeholder="agri_mart.kamis_price"
-              />
+              {mode === "edit" ? (
+                <Input value={form.target_table} disabled />
+              ) : (
+                <CatalogTableSelect
+                  value={form.target_table}
+                  onChange={(v) =>
+                    setForm({ ...form, target_table: v })
+                  }
+                />
+              )}
             </div>
           </div>
 

@@ -191,6 +191,17 @@ export function SqlStudio() {
       />
 
       <div className="flex flex-1 flex-col gap-3">
+        {/* Phase 8.6 — SQL Studio 정책 배너 */}
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+          <strong className="font-semibold">📌 SQL Studio 정책</strong> — 본 화면은
+          <em> ad-hoc 탐색</em> 도구입니다. 모든 SELECT 실행은 <code>audit.sql_execution_log</code>
+          에 기록됩니다. <strong>운영 워크플로에 SQL 을 사용하려면 반드시</strong>
+          {" "}<a className="underline" href="/v2/transforms/designer">Transform Designer</a>
+          {" "}에서 <code>sql_asset</code> 으로 등록 → DRAFT/REVIEW/APPROVED/PUBLISHED 라이프사이클을
+          거쳐야 Canvas 의 <code>SQL_ASSET_TRANSFORM</code> 노드에서 사용 가능합니다.
+          이렇게 등록된 SQL 만 데이터 추적이 가능합니다.
+        </div>
+
         {/* Header */}
         <Card>
           <CardContent className="flex flex-wrap items-center gap-3 p-3 text-sm">

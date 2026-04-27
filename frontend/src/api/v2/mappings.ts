@@ -133,6 +133,25 @@ export function useTableColumns(schemaTable: string | null) {
   });
 }
 
+// Phase 8.6 — 카탈로그 (SQL Studio + Quality Workbench dropdown 용)
+export interface CatalogTable {
+  schema_name: string;
+  table_name: string;
+  table_type: string;
+  estimated_rows: number | null;
+}
+
+export function useCatalogTables(schema?: string) {
+  return useQuery({
+    queryKey: ["v2-catalog-tables", schema ?? null],
+    staleTime: 60_000,
+    queryFn: () =>
+      apiRequest<CatalogTable[]>(`${BASE}/catalog/tables`, {
+        params: schema ? { schema } : undefined,
+      }),
+  });
+}
+
 export function useContractsLight(domainCode?: string) {
   return useQuery({
     queryKey: ["v2-contracts-light", domainCode ?? null],
