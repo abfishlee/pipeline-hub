@@ -1,456 +1,438 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><title>Pipeline Hub — Phase 8 시나리오 사용자 매뉴얼</title>
+<html lang="ko"><head><meta charset="utf-8"><title>Pipeline Hub — 시나리오 사용자 매뉴얼 (Phase 8.5 기준)</title>
 <style>
   @page { size: A4; margin: 18mm 16mm; }
   * { box-sizing: border-box; }
-  body { font-family: 'Malgun Gothic', 'NanumGothic', sans-serif; line-height: 1.55; color: #222; font-size: 11pt; }
+  body { font-family: 'Malgun Gothic', 'NanumGothic', 'Apple SD Gothic Neo', sans-serif; line-height: 1.55; color: #222; font-size: 10.5pt; }
   h1 { font-size: 22pt; border-bottom: 3px solid #2563eb; padding-bottom: 6px; margin-top: 22pt; }
-  h2 { font-size: 17pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 24pt; page-break-before: auto; }
-  h3 { font-size: 13pt; color: #2563eb; margin-top: 14pt; }
-  h4 { font-size: 11pt; color: #1f2937; }
-  p { margin: 6pt 0; }
-  br { display: none; }
+  h2 { font-size: 16pt; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-top: 22pt; page-break-after: avoid; }
+  h3 { font-size: 12.5pt; color: #2563eb; margin-top: 14pt; page-break-after: avoid; }
+  h4 { font-size: 11pt; color: #1f2937; page-break-after: avoid; }
+  p { margin: 5pt 0; }
   hr { border: none; border-top: 1px dashed #aaa; margin: 14pt 0; }
   ul, ol { margin: 4pt 0; padding-left: 22pt; }
   li { margin: 2pt 0; }
-  table { width: 100%; border-collapse: collapse; margin: 10pt 0; font-size: 9.5pt; }
+  table { width: 100%; border-collapse: collapse; margin: 10pt 0; font-size: 9.5pt; page-break-inside: avoid; }
   th, td { border: 1px solid #ccc; padding: 4pt 6pt; text-align: left; vertical-align: top; }
   th { background: #f1f5f9; font-weight: 600; }
   code { background: #f3f4f6; padding: 1pt 4pt; border-radius: 3px; font-family: 'Consolas', monospace; font-size: 9.5pt; }
-  pre { background: #1e293b; color: #e2e8f0; padding: 10pt; border-radius: 4px; font-size: 8.5pt; overflow-x: auto; }
+  pre { background: #1e293b; color: #e2e8f0; padding: 10pt; border-radius: 4px; font-size: 8.5pt; overflow-x: auto; page-break-inside: avoid; }
   pre code { background: transparent; color: inherit; padding: 0; }
-  figure { margin: 14pt 0; page-break-inside: avoid; }
+  figure { margin: 12pt 0; page-break-inside: avoid; }
   img { max-width: 100%; height: auto; border: 1px solid #d1d5db; border-radius: 3px; }
-  figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 4pt; font-style: italic; }
+  figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 3pt; font-style: italic; }
   a { color: #2563eb; text-decoration: none; }
   strong { color: #111; }
-  .cover { page-break-after: always; padding: 50pt 0; text-align: center; }
-  .cover h1 { font-size: 30pt; border: none; }
-  .cover .subtitle { font-size: 14pt; color: #6b7280; margin-top: 12pt; }
+  .cover { page-break-after: always; padding: 60pt 0; text-align: center; }
+  .cover h1 { font-size: 28pt; border: none; }
+  .cover .subtitle { font-size: 13pt; color: #6b7280; margin-top: 12pt; }
   .cover .date { font-size: 11pt; color: #9ca3af; margin-top: 22pt; }
+  .cover .version { font-size: 10pt; color: #2563eb; margin-top: 6pt; font-weight: 600; }
 </style></head><body>
 <div class="cover">
-  <h1>Pipeline Hub — Phase 8 시나리오 사용자 매뉴얼</h1>
-  <div class="subtitle">4 가상 유통사 (이마트 / 홈플러스 / 롯데마트 / 하나로마트) 가격 수집 리허설</div>
+  <h1>Pipeline Hub — 시나리오 사용자 매뉴얼 (Phase 8.5 기준)</h1>
+  <div class="subtitle">4 가상 유통사 가격 수집·표준화·통합 + 운영 시스템 가이드</div>
+  <div class="version">Phase 8 → 8.5 (Final Polish + Real Operation)</div>
   <div class="date">2026-04-27</div>
 </div>
-<br/>
-<h1>Pipeline Hub — Phase 8 시나리오 사용자 매뉴얼</h1>
-<br/>
+
+<h1>Pipeline Hub — 시나리오 사용자 매뉴얼</h1>
+
 <h2>매뉴얼 개요</h2>
-<br/>
-<p>본 매뉴얼은 <strong>공용 데이터 수집 파이프라인 플랫폼</strong>으로 4 유통사 (이마트 / 홈플러스 /</p>
-<p>롯데마트 / 하나로마트) 의 가격·행사·재고 데이터를 수집·표준화·통합하는 *시나리오</p>
-<p>리허설* 의 화면 별 절차를 정리한 문서다.</p>
-<br/>
-<p><strong>작성 기준</strong>:</p>
-<li>Phase 8 acceptance — 코딩 0줄로 4 유통사 + 외부 push (크롤러/OCR/소상공인 업로드)</li>
-<p>  데이터를 같은 service_mart 로 통합</p>
-<li>가상 데이터 시드 완료 시점 (commit <code>478b7bb</code>)</li>
-<br/>
-<p><strong>대상 독자</strong>: 운영자 / 데이터 매니저. 개발자 도움 없이 화면만으로 새 채널 추가</p>
-<p>가능해야 함.</p>
-<br/>
+
+<p>본 매뉴얼은 <strong>공용 데이터 수집 파이프라인 플랫폼</strong> 의 *시나리오 리허설* 화면별</p>
+<p>절차서다. 4 가상 유통사 (이마트 / 홈플러스 / 롯데마트 / 하나로마트) 의 가격·행사·재고</p>
+<p>데이터를 수집·표준화·통합하는 전체 과정을 메뉴 순서로 정리한다.</p>
+
+<p><strong>Phase 진행 상태 (2026-04-27 기준)</strong>:</p>
+
+<table>
+<thead><tr><th>Phase</th><th>핵심 변경</th></tr></thead>
+<tbody>
+<tr><td>Phase 8</td><td>4 유통사 + service_mart 통합 시드 (Synthetic Rehearsal)</td></tr>
+<tr><td>Phase 8.1</td><td>E2E hardening + Inbound 자동 dispatcher</td></tr>
+<tr><td>Phase 8.2</td><td>Deep UX — Mart/DQ 템플릿, 자산 상태 배지, JSON path picker, 가격 추이 차트 등 8 영역</td></tr>
+<tr><td>Phase 8.3</td><td>DB cleanup — iot_spike_mart / ctl.connector / expired_at 제거 (migration 0052)</td></tr>
+<tr><td>Phase 8.4</td><td>Final Polish — NodePalette 누락 노드, Inbound API Key 인증, 최근 실패 패널 등 9 영역</td></tr>
+<tr><td><strong>Phase 8.5</strong></td><td><strong>Real Operation — SLA Lag, Data Freshness, System Alert, Provider Cost (96~98% 완성도)</strong></td></tr>
+</tbody></table>
+
+<p><strong>대상 독자</strong>: 운영자 / 데이터 매니저 / 시연 참관자.</p>
+<p><strong>전제</strong>: 개발자 도움 없이 화면만으로 새 채널 추가, 장애 대응이 가능해야 함.</p>
+
 <hr/>
-<br/>
+
 <h2>0. 사전 준비</h2>
-<br/>
-<h3>0.1 인프라 가동</h3>
-<pre><code>
-# Docker — Postgres / Redis / MinIO
+
+<h3>0.1 인프라 기동</h3>
+
+<pre><code class="lang-bash"># Docker — Postgres / Redis / MinIO
 cd infra &amp;&amp; docker-compose up -d
 
-# Backend — http://127.0.0.1:8000
+# Backend — http://127.0.0.1:8000 (Phase 8.5: alert_loop + inbound_dispatcher 자동 가동)
 cd backend
-.venv/Scripts/alembic.exe upgrade head
-.venv/Scripts/python.exe -c "import asyncio, sys; asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy()); import uvicorn; uvicorn.run('app.main:create_app', factory=True, host='127.0.0.1', port=8000)"
+.venv/Scripts/alembic.exe upgrade head      # head = 0053
+.venv/Scripts/python.exe -c "import asyncio, sys; \
+  asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy()); \
+  import uvicorn; uvicorn.run('app.main:create_app', factory=True, host='127.0.0.1', port=8000)"
 
-# Frontend — http://localhost:5173
+# Frontend — http://127.0.0.1:5173
 cd frontend &amp;&amp; pnpm dev
 
-# Phase 8 데이터 시드 (4 유통사 + 가상 시나리오)
-cd backend &amp;&amp; PYTHONIOENCODING=utf-8 PYTHONPATH=. .venv/Scripts/python.exe ../scripts/phase8_seed_full_e2e.py
-</code></pre>
-<br/>
+# Phase 8 데이터 시드 (2 단계)
+cd backend
+PYTHONIOENCODING=utf-8 PYTHONPATH=. .venv/Scripts/python.exe ../scripts/phase8_seed_synthetic_data.py
+PYTHONIOENCODING=utf-8 PYTHONPATH=. .venv/Scripts/python.exe ../scripts/phase8_seed_full_e2e.py</code></pre>
+
 <h3>0.2 가상 데이터 채널</h3>
-<br/>
+
 <table>
-<thead><tr><th>가상 채널</th><th>도메인</th><th>특징</th></tr></thead>
+<thead><tr><th>가상 유통사</th><th>도메인 코드</th><th>시연 특징</th></tr></thead>
 <tbody>
 <tr><td>이마트</td><td><code>emart</code></td><td>표준 API 형 — 정상 케이스 대표</td></tr>
-<tr><td>홈플러스</td><td><code>homeplus</code></td><td>행사/할인 데이터 풍부</td></tr>
+<tr><td>홈플러스</td><td><code>homeplus</code></td><td>행사·할인 데이터 풍부</td></tr>
 <tr><td>롯데마트</td><td><code>lottemart</code></td><td>상품명 정규화 난이도 높음 (low confidence)</td></tr>
 <tr><td>하나로마트</td><td><code>hanaro</code></td><td>농축수산물 산지/등급/단위 풍부</td></tr>
 </tbody></table>
-<br/>
+
+<h3>0.3 Phase 8.5 신규 운영 기능 요약</h3>
+
+<ul>
+<li><strong>Auto Inbound Dispatcher</strong> — <code>inbound_dispatcher_loop</code> 가 main.py lifespan 에서 5초마다 RECEIVED envelope 자동 처리 (Wave 6).</li>
+<li><strong>Alert Evaluation Loop</strong> — <code>alert_evaluation_loop</code> 가 5분마다 3 rules 평가 (failure_rate / SLA lag / channel stale) — Slack webhook (env <code>ALERT_SLACK_WEBHOOK_URL</code>) 또는 log fallback.</li>
+<li><strong>SLA Lag p95 추적</strong> — CLAUDE.md 핵심 SLA "수집 후 1분 이내" 를 실측 기반으로 모니터.</li>
+<li><strong>Data Freshness 모니터링</strong> — 채널별 마지막 inbound 수신 + 60min 임계 STALE 표시.</li>
+<li><strong>Provider Cost 가시성</strong> — KAMIS/CLOVA/Upstage 등 외부 호출 비용 24h 집계.</li>
+</ul>
+
 <hr/>
-<br/>
+
 <h2>STEP 1 — 로그인</h2>
-<br/>
-<figure><img src="screenshots/01_login.png" alt="로그인"/><figcaption>로그인</figcaption></figure>
-<br/>
+
+<p><figure><img src="screenshots/01_login.png" alt="로그인" /><figcaption>로그인</figcaption></figure></p>
+
 <p><strong>기능</strong>: ID / 비밀번호 입력 후 JWT 발급. 권한 (ADMIN / APPROVER / OPERATOR /</p>
 <p>REVIEWER) 에 따라 메뉴 노출.</p>
-<br/>
+
 <p><strong>시나리오 적용</strong>: <code>admin</code> / <code>admin</code> (Phase 8 시드 기본 계정).</p>
-<br/>
+
 <p><strong>다음 스텝</strong>: 로그인 성공 시 Dashboard 자동 진입.</p>
-<br/>
+
 <hr/>
-<br/>
+
 <h2>STEP 2 — Dashboard</h2>
-<br/>
-<figure><img src="screenshots/02_dashboard.png" alt="Dashboard"/><figcaption>Dashboard</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: 시스템 전반 현황 한 눈에 보기. 최근 run, 실패율, 적재 row 수.</p>
-<br/>
-<p><strong>시나리오 적용</strong>: 전체 4 유통사 + service_mart 의 통합 운영 상태 확인.</p>
-<br/>
+
+<p><figure><img src="screenshots/02_dashboard.png" alt="Dashboard" /><figcaption>Dashboard</figcaption></figure></p>
+
+<p><strong>기능</strong>: 시스템 전반 현황 한 눈에 보기. 활성 소스 / 오늘 수집 작업 / 성공·실패 카운트 + 최근 실패 5건.</p>
+
+<p><strong>시나리오 적용</strong>: 4 유통사 + service_mart 의 통합 운영 상태 첫 진입 시 확인. 실패가 있으면 즉시 Operations Dashboard 로 이동.</p>
+
 <p><strong>다음 스텝</strong>: 좌측 메뉴 <strong>"Source / API Connector"</strong> 클릭 → 4 유통사 API 등록 확인.</p>
-<br/>
+
 <hr/>
-<br/>
+
 <h2>STEP 3 — Source / API Connector</h2>
-<br/>
-<figure><img src="screenshots/03_source_api_connector.png" alt="Source / API Connector"/><figcaption>Source / API Connector</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: 외부 OpenAPI 등록 (URL + 인증 + 파라미터 + 응답 형식). 코딩 없이 새</p>
-<p>유통사 API 추가.</p>
-<br/>
-<p><strong>시나리오 적용</strong> (이미 시드됨):</p>
-<li><code>이마트 PRICE API</code> → <code>emart_mart.product_price</code> (표준 API)</li>
-<li><code>홈플러스 PROMO API</code> → <code>homeplus_mart.product_promo</code> (행사/할인)</li>
-<li><code>롯데마트 CANON API</code> → <code>lottemart_mart.product_canon</code> (상품명 정규화)</li>
-<li><code>하나로마트 AGRI API</code> → <code>hanaro_mart.agri_product</code> (산지/등급/단위)</li>
-<br/>
-<p>각 connector 는 <em>PUBLISHED</em> 상태 + cron <code>0 9 <em> </em> *</code> 활성. 인증 = <code>X-Api-Key</code> 헤더.</p>
-<br/>
-<p><strong>다음 스텝</strong>: <strong>"Inbound Channel"</strong> 클릭 → 외부 push 채널 (크롤러/OCR/업로드)</p>
-<p>확인.</p>
-<br/>
+
+<p><figure><img src="screenshots/03_source_api_connector.png" alt="Source / API Connector" /><figcaption>Source / API Connector</figcaption></figure></p>
+
+<p><strong>기능</strong>: OpenAPI 형 외부 데이터 소스 등록. Phase 8.4 에서 <strong>URL 자동 파싱</strong> 추가 — endpoint_url 에 query string 이 있으면 params 폼으로 자동 분리.</p>
+
+<p><strong>시나리오 적용</strong>: 이마트 / 홈플러스 / 롯데마트 / 하나로마트 4 connector 가 PUBLISHED 상태로 시드되어 있음. 신규 추가 시 [+] 버튼 → URL 입력 → 자동 파싱 → Auth 설정 → 저장.</p>
+
+<p><strong>다음 스텝</strong>: 외부 push 채널이 필요하면 <strong>Inbound Channel</strong> 등록 (단방향 push 수신).</p>
+
 <hr/>
-<br/>
-<h2>STEP 4 — Inbound Channel</h2>
-<br/>
-<figure><img src="screenshots/04_inbound_channel.png" alt="Inbound Channel"/><figcaption>Inbound Channel</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: <em>우리가 fetch</em> 가 아닌 <em>외부에서 push</em> 하는 채널 등록. HMAC SHA256 +</p>
-<p>replay window ±5분 + idempotency key 강제.</p>
-<br/>
-<p><strong>시나리오 적용</strong>:</p>
-<li><code>vendor_a_crawler</code> (CRAWLER_RESULT) — 외부 크롤링 업체 push</li>
-<li><code>ocr_partner_b</code> (OCR_RESULT) — 외부 OCR 업체가 결과 push</li>
-<li><code>smb_uploads</code> (FILE_UPLOAD) — 소상공인 CSV/Excel 업로드</li>
-<br/>
-<p><strong>Endpoint</strong>: <code>POST /v1/inbound/{channel_code}</code> (예: <code>/v1/inbound/vendor_a_crawler</code>)</p>
-<br/>
-<p><strong>다음 스텝</strong>: <strong>"Mart Workbench"</strong> → 4 유통사용 mart 테이블 + 적재 정책 설계.</p>
-<br/>
+
+<h2>STEP 4 — Inbound Channel (외부 Push 수신)</h2>
+
+<p><figure><img src="screenshots/04_inbound_channel.png" alt="Inbound Channel" /><figcaption>Inbound Channel</figcaption></figure></p>
+
+<p><strong>기능</strong>: 외부 OCR/크롤러/소상공인 업로드 등 *push* 트래픽 수신 채널 정의.</p>
+
+<ul>
+<li><strong>인증 방식</strong>: - <code>hmac_sha256</code> (Stripe 패턴) - <strong><code>api_key</code> (Phase 8.4 신규)</strong> — <code>X-API-Key</code> 헤더 + <code>secret_ref</code> env 매칭 - <code>mtls</code> (Phase 9)</li>
+<li><strong>Auto Dispatcher (Phase 8.5)</strong>: RECEIVED envelope 을 5초 polling 으로 PROCESSING 전환 → 매핑된 workflow 자동 trigger.</li>
+</ul>
+
+<p><strong>시나리오 적용</strong>: <code>vendor_a_crawler</code> / <code>ocr_partner_b</code> / <code>smb_uploads</code> 3 채널이 시드되어 있음. 외부 업체 추가 시 채널 코드 / domain / channel_kind / auth_method / secret_ref 입력.</p>
+
+<p><strong>다음 스텝</strong>: 수집된 데이터를 적재할 mart 가 없으면 <strong>Mart Workbench</strong> 에서 정의.</p>
+
 <hr/>
-<br/>
-<h2>STEP 5 — Mart Workbench (Mart Schema + Load Policy)</h2>
-<br/>
-<figure><img src="screenshots/05_mart_workbench.png" alt="Mart Workbench"/><figcaption>Mart Workbench</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: 두 탭으로 구성:</p>
-<p>1. <strong>Mart Schema</strong> — 컬럼 / 타입 / PK / partition / index 폼 → DDL 자동 생성</p>
-<p>2. <strong>Load Policy</strong> — append_only / upsert / SCD2 / current_snapshot 모드 + key_columns</p>
-<br/>
-<p><strong>시나리오 적용</strong>: 5개 mart_design_draft + 5개 load_policy 모두 <code>PUBLISHED</code>:</p>
-<li>4 유통사 mart (각 도메인별)</li>
-<li><code>service_mart.product_price</code> (4 유통사 통합)</li>
-<br/>
-<p>모두 <code>mode=upsert</code>, <code>key_columns=[retailer_code, retailer_product_code]</code>.</p>
-<br/>
-<p><strong>다음 스텝</strong>: <strong>"Field Mapping Designer"</strong> → API 응답 → mart 컬럼 매핑.</p>
-<br/>
+
+<h2>STEP 5 — Mart Workbench</h2>
+
+<p><figure><img src="screenshots/05_mart_workbench.png" alt="Mart Workbench" /><figcaption>Mart Workbench</figcaption></figure></p>
+
+<p><strong>기능</strong>: 마트 테이블 DDL 시각 설계 + DRAFT/REVIEW/APPROVED/PUBLISHED 라이프사이클.</p>
+
+<ul>
+<li><strong>Phase 8.2 — Mart 템플릿 4종</strong>: <code>price_fact</code>, <code>product_master</code>, <code>stock_snapshot</code>, <code>promo_fact</code> — PK/partition/index/load_mode 일괄 적용.</li>
+<li>DDL 자동 생성 + diff 미리보기 후 저장.</li>
+</ul>
+
+<p><strong>시나리오 적용</strong>: 4 유통사 mart schema (<code>emart_mart</code> / <code>homeplus_mart</code> / ...) 가 이미 PUBLISHED. 신규 컬럼 추가 시 템플릿 → 컬럼 추가 → DDL 미리보기 → DRAFT 저장 → APPROVE → PUBLISH.</p>
+
+<p><strong>다음 스텝</strong>: 외부 응답을 mart 컬럼으로 매핑하기 위해 <strong>Field Mapping Designer</strong>.</p>
+
 <hr/>
-<br/>
+
 <h2>STEP 6 — Field Mapping Designer</h2>
-<br/>
-<figure><img src="screenshots/06_field_mapping_designer.png" alt="Field Mapping Designer"/><figcaption>Field Mapping Designer</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: source 응답의 JSONPath → target mart 컬럼 매핑. 26+ allowlist 함수</p>
-<p>(text.trim / number.parse_decimal / date.parse 등) 적용 가능.</p>
-<br/>
-<p><strong>시나리오 적용</strong>: 4 contract × 평균 5 매핑 = <strong>21 매핑 rows</strong>.</p>
-<br/>
-<p>예시 — 하나로마트:</p>
-<table>
-<thead><tr><th>source_path</th><th>target_column</th><th>transform</th><th>type</th></tr></thead>
-<tbody>
-<tr><td><code>$.product_cd</code></td><td><code>product_cd</code></td><td>—</td><td>TEXT</td></tr>
-<tr><td><code>$.name</code></td><td><code>name</code></td><td>—</td><td>TEXT</td></tr>
-<tr><td><code>$.origin</code></td><td><code>origin</code></td><td>—</td><td>TEXT</td></tr>
-<tr><td><code>$.grade</code></td><td><code>grade</code></td><td>—</td><td>TEXT</td></tr>
-<tr><td><code>$.unit</code></td><td><code>unit</code></td><td>—</td><td>TEXT</td></tr>
-<tr><td><code>$.price</code></td><td><code>price</code></td><td>—</td><td>NUMERIC</td></tr>
-</tbody></table>
-<br/>
-<p><strong>다음 스텝</strong>: <strong>"Transform Designer"</strong> → SQL Asset / HTTP / Function / Provider</p>
-<p>4탭에서 변환 자산 등록.</p>
-<br/>
+
+<p><figure><img src="screenshots/06_field_mapping_designer.png" alt="Field Mapping Designer" /><figcaption>Field Mapping Designer</figcaption></figure></p>
+
+<p><strong>기능</strong>: 외부 JSON/XML 응답의 source_path → target_column 매핑 + 변환 함수 (26+ allowlist) 적용.</p>
+
+<ul>
+<li><strong>Phase 8.2 — JSON Path Picker (시각 매핑)</strong>: 샘플 JSON 응답 텍스트박스 → tree 빌드 → leaf 노드 클릭 시 <code>source_path</code> + 추천 변환 함수 자동 입력. <code>price</code> → <code>number.parse_decimal</code>, <code>regday</code> → <code>date.normalize_ymd</code> 같은 키 힌트 기반.</li>
+</ul>
+
+<p><strong>시나리오 적용</strong>: 이마트 응답 <code>items[].price</code> → <code>mart.product_price.unit_price</code> 매핑 시드 완료. 신규 매핑 추가 시 [+] → 샘플 JSON 붙여넣기 → tree 클릭 → 변환 함수 자동 추천.</p>
+
+<p><strong>다음 스텝</strong>: 단순 매핑 외 SQL 기반 변환은 <strong>Transform Designer</strong>.</p>
+
 <hr/>
-<br/>
+
 <h2>STEP 7 — Transform Designer</h2>
-<br/>
-<figure><img src="screenshots/07_transform_designer.png" alt="Transform Designer"/><figcaption>Transform Designer</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: 4 탭 — SQL Asset (등록·승인된 SQL) / HTTP Provider (외부 정제 API) /</p>
-<p>Function 카탈로그 / Provider 등록.</p>
-<br/>
-<p><strong>시나리오 적용</strong>:</p>
-<li>3 SQL Assets — <code>service_mart_unified_query</code> (PUBLISHED) /</li>
-<p>  <code>low_confidence_review_queue</code> (PUBLISHED) / <code>promo_period_validator</code> (DRAFT)</p>
-<li>8 Providers (Phase 7 Wave 3 시드) — OpenAI / Clova HCX / juso.go.kr / etc.</li>
-<br/>
-<p><strong>다음 스텝</strong>: <strong>"Quality Workbench"</strong> → DQ Rule + 표준코드 namespace.</p>
-<br/>
+
+<p><figure><img src="screenshots/07_transform_designer.png" alt="Transform Designer" /><figcaption>Transform Designer</figcaption></figure></p>
+
+<p><strong>기능</strong>: SQL 자산 (sql_asset) 등록 — DRAFT → APPROVED → PUBLISHED 라이프사이클로 운영 중인 SQL 만 노드에서 사용 가능. version 관리.</p>
+
+<ul>
+<li>HTTP_TRANSFORM (외부 정제 API 호출, provider binding) 도 같은 메뉴에서 등록.</li>
+</ul>
+
+<p><strong>시나리오 적용</strong>: <code>service_mart_unified_query</code> (4 유통사 통합) sql_asset 이 PUBLISHED. 신규 추가 시 SQL 작성 → Dry-run → APPROVE → PUBLISH.</p>
+
+<p><strong>다음 스텝</strong>: 적재 전 데이터 품질 룰을 <strong>Quality Workbench</strong> 에서 정의.</p>
+
 <hr/>
-<br/>
+
 <h2>STEP 8 — Quality Workbench</h2>
-<br/>
-<figure><img src="screenshots/08_quality_workbench.png" alt="Quality Workbench"/><figcaption>Quality Workbench</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: 두 탭:</p>
-<p>1. <strong>DQ Rules</strong> — 9종 rule_kind (row_count_min / null_pct_max / unique_columns /</p>
-<p>   reference / range / custom_sql / freshness / anomaly_zscore / drift)</p>
-<p>2. <strong>Standardization</strong> — 표준코드 namespace + std_code_table 미리보기</p>
-<br/>
-<p><strong>시나리오 적용</strong>: <strong>16 DQ rules</strong> PUBLISHED + 1 namespace <code>STANDARD_PRODUCT</code></p>
-<p>(10 표준 품목 — 사과/양파/한우 등).</p>
-<br/>
-<p>각 유통사별 rule 예시:</p>
-<li><strong>이마트</strong>: row_count_min(1), null_pct_max(price 5%), range(price 0~1M),</li>
-<p>  range(stock_qty 0~100K)</p>
-<li><strong>홈플러스</strong>: row_count_min(1), custom_sql (행사 종료일 < 시작일 차단)</li>
-<li><strong>롯데마트</strong>: range(standardize_confidence 0.5~1.0), row_count_min(1)</li>
-<li><strong>하나로마트</strong>: row_count_min(1), null_pct_max(origin 10%)</li>
-<li><strong>service_mart</strong>: row_count_min(1), freshness(24h)</li>
-<br/>
-<p><strong>다음 스텝</strong>: <strong>"ETL Canvas"</strong> → 위에서 만든 자산을 박스로 끌어와 조립.</p>
-<br/>
+
+<p><figure><img src="screenshots/08_quality_workbench.png" alt="Quality Workbench" /><figcaption>Quality Workbench</figcaption></figure></p>
+
+<p><strong>기능</strong>: DQ rule (필수값 / 이상값 / 기간 / 중복 / freshness / anomaly_zscore / drift) 정의 + 실행 결과 조회.</p>
+
+<ul>
+<li><strong>Phase 8.2 — DQ rule 템플릿 4 카테고리</strong>: 필수값 / 이상값 / 기간 / 중복. {target_table} placeholder 치환.</li>
+<li><strong>Phase 8.4 — kind 확장</strong>: freshness, anomaly_zscore, drift.</li>
+</ul>
+
+<p><strong>시나리오 적용</strong>: <code>service_mart.product_price.row_count_min</code> (최소 1행) + <code>freshness max_age_minutes=1440</code> (24h 내 데이터 도착) 시드. 신규 추가 시 카테고리 선택 → 템플릿 클릭 → SQL 자동 생성 → 저장.</p>
+
+<p><strong>다음 스텝</strong>: 자산 (Source / Mapping / SQL / DQ / Mart) 들을 조립하여 <strong>ETL Canvas</strong> 에 워크플로 정의.</p>
+
 <hr/>
-<br/>
-<h2>STEP 9 — ETL Canvas v2</h2>
-<br/>
-<figure><img src="screenshots/09_etl_canvas.png" alt="ETL Canvas v2"/><figcaption>ETL Canvas v2</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: 좌측 17종 노드 palette → 캔버스 드래그 → 박스 클릭 시 우측 drawer 에서</p>
-<p>자산 dropdown 선택 → 화살표 연결 → 저장 → PUBLISH.</p>
-<br/>
-<p><strong>시나리오 적용</strong>: 5 workflows 시드됨 (모두 PUBLISHED, cron <code>0 9 <em> </em> *</code>):</p>
-<br/>
-<pre><code>
-emart_price_daily         : PUBLIC_API_FETCH → MAP_FIELDS → DQ_CHECK → LOAD_TARGET
-homeplus_promo_daily      : 동일 (행사 데이터)
-lottemart_canon_daily     : 동일 (정규화)
-hanaro_agri_daily         : 동일 (산지/등급)
-service_mart_unification  : SQL_ASSET_TRANSFORM (4 유통사 → service_mart 통합)
-</code></pre>
-<br/>
-<p><strong>좌측 palette 노드 17종</strong>:</p>
-<li>DATA SOURCES (8): SOURCE_DATA / PUBLIC_API_FETCH / WEBHOOK_INGEST /</li>
-<p>  FILE_UPLOAD_INGEST / DB_INCREMENTAL_FETCH / OCR_RESULT_INGEST /</p>
-<p>  CRAWLER_RESULT_INGEST / OCR_TRANSFORM / CRAWL_FETCH</p>
-<li>TRANSFORM (6): MAP_FIELDS / SQL_INLINE / SQL_ASSET / HTTP / FUNCTION /</li>
-<p>  STANDARDIZE</p>
-<li>VALIDATE (2): DEDUP / DQ_CHECK</li>
-<li>LOAD (2): LOAD_TARGET / NOTIFY</li>
-<br/>
-<p><strong>다음 스텝</strong>: 캔버스 toolbar 의 <strong>"Dry-run"</strong> → 결과 트리 확인 → <strong>"PUBLISH"</strong>.</p>
-<br/>
+
+<h2>STEP 9 — ETL Canvas V2</h2>
+
+<p><figure><img src="screenshots/09_etl_canvas_v2_new.png" alt="ETL Canvas V2" /><figcaption>ETL Canvas V2</figcaption></figure></p>
+
+<p><strong>기능</strong>: 등록된 자산 박스를 끌어다 놓고 edge 로 연결하여 <strong>코딩 0줄</strong> 로 워크플로 완성.</p>
+
+<ul>
+<li><strong>20 노드 (Phase 8.4 검증)</strong>: <code>SOURCE_DATA</code>, <code>PUBLIC_API_FETCH</code>, <code>WEBHOOK_INGEST</code>, <code>FILE_UPLOAD_INGEST</code>, <code>DB_INCREMENTAL_FETCH</code>, <code>OCR_TRANSFORM</code>, <code>OCR_RESULT_INGEST</code>, <code>CRAWL_FETCH</code>, <strong><code>CRAWLER_RESULT_INGEST</code> (Phase 8.4 노출)</strong>, <strong><code>CDC_EVENT_FETCH STUB</code> (Phase 9 정식 구현)</strong>, <code>MAP_FIELDS</code>, <code>SQL_INLINE_TRANSFORM</code>, <code>SQL_ASSET_TRANSFORM</code>, <code>HTTP_TRANSFORM</code>, <code>FUNCTION_TRANSFORM</code>, <code>STANDARDIZE</code>, <code>DEDUP</code>, <code>DQ_CHECK</code>, <code>LOAD_TARGET</code>, <code>NOTIFY</code>.</li>
+<li><strong>Phase 8.2 보강</strong>: Canvas Readiness Checklist (source/load 박스 존재, asset 선택 검증), 자산 상태 배지 (PUBLISHED/DRAFT 경고).</li>
+</ul>
+
+<p><strong>시나리오 적용</strong>: <code>emart_price_daily</code> 워크플로 = <code>PUBLIC_API_FETCH → MAP_FIELDS → DQ_CHECK → LOAD_TARGET</code> 4 박스. Pipeline Runs 화면의 [보기] 버튼으로 진입 시 ETL Canvas V2 에서 그대로 보임.</p>
+
+<p><strong>다음 스텝</strong>: 작성한 워크플로의 실행 이력은 <strong>Pipeline Runs</strong>.</p>
+
 <hr/>
-<br/>
+
 <h2>STEP 10 — Pipeline Runs</h2>
-<br/>
-<figure><img src="screenshots/10_pipeline_runs.png" alt="Pipeline Runs"/><figcaption>Pipeline Runs</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: 모든 워크플로 실행 이력. 클릭 시 박스별 상세 (PENDING / RUNNING /</p>
-<p>SUCCESS / FAILED / SKIPPED) + 실시간 SSE 진행 상황.</p>
-<br/>
-<p><strong>시나리오 적용</strong>: <strong>28 runs</strong> (4 유통사 × 7 일치).</p>
-<br/>
-<p><strong>의도적 실패 케이스</strong> (시나리오상 운영자가 발견해야 할 부분):</p>
-<li>롯데마트 Day 3 = FAILED (DQ 실패)</li>
-<li>홈플러스 Day 5 = FAILED</li>
-<li>이마트 Day 7 = FAILED</li>
-<br/>
-<p>각 FAILED run 의 후속 노드는 SKIPPED 처리. 운영자는 상세 화면에서 어느 박스에서</p>
-<p>실패했는지 확인 가능.</p>
-<br/>
-<p><strong>다음 스텝</strong>: <strong>"Releases"</strong> → workflow 의 PUBLISHED 이력 확인.</p>
-<br/>
+
+<p><figure><img src="screenshots/10_pipeline_runs.png" alt="Pipeline Runs" /><figcaption>Pipeline Runs</figcaption></figure></p>
+
+<p><strong>기능</strong>: 워크플로 목록 + 최근 실행 이력. 각 워크플로의 [보기] 버튼은 <strong>Phase 8.5 에서 v2 ETL Canvas 로 라우팅 수정</strong> 됨 (이전 버그: v1 designer 로 갔음).</p>
+
+<ul>
+<li><strong>신규 디자이너</strong> 버튼 → ETL Canvas V2 진입 (workflow 신규 작성).</li>
+<li>실행 행 클릭 → Pipeline Run Detail.</li>
+</ul>
+
+<p><strong>시나리오 적용</strong>: emart/homeplus/lottemart/hanaro/service_mart_unification 5 워크플로 + 최근 SUCCESS 4건씩.</p>
+
+<p><strong>다음 스텝</strong>: 특정 run 의 상세 흐름은 <strong>Pipeline Run Detail</strong>.</p>
+
 <hr/>
-<br/>
-<h2>STEP 11 — Releases</h2>
-<br/>
-<figure><img src="screenshots/11_releases.png" alt="Releases"/><figcaption>Releases</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: workflow 의 PUBLISH 이력. 어떤 버전이 언제 누가 배포했는지. 롤백 가능.</p>
-<br/>
-<p><strong>시나리오 적용</strong>: 4 retailer workflow 의 release v1 시드 — 각 release 는</p>
-<p>nodes_snapshot 으로 당시 박스 구성을 보존.</p>
-<br/>
-<p><strong>다음 스텝</strong>: <strong>"Service Mart Viewer"</strong> → 4 유통사 통합 마트 데이터 확인 (시연 핵심).</p>
-<br/>
+
+<h2>STEP 11 — Pipeline Run Detail (Phase 8.5 보강)</h2>
+
+<p><figure><img src="screenshots/11_pipeline_run_detail.png" alt="Pipeline Run Detail" /><figcaption>Pipeline Run Detail</figcaption></figure></p>
+
+<p><strong>기능 (Phase 8.5 ⑥)</strong>:</p>
+<ul>
+<li>ReactFlow 캔버스 — 노드 상태 색상 (PENDING/READY/RUNNING/SUCCESS/FAILED)</li>
+<li><strong>노드별 duration 시간선 (gantt-mini)</strong> — 각 노드의 시작/종료 + 상대적 길이 시각화</li>
+<li>output_json preview (성공 노드의 결과)</li>
+<li>error_message 강조 박스 (실패 시)</li>
+<li><strong>재실행 버튼</strong>: - 처음부터 재실행 - <strong>이 노드부터 재실행</strong> (이전 노드는 SUCCESS 로 시드)</li>
+<li>SSE 실시간 — 실행 중 상태 자동 갱신.</li>
+</ul>
+
+<p><strong>시나리오 적용</strong>: <code>homeplus_promo_daily</code> run #279 (SUCCESS, 51초) — fetch_api(5s) → map_fields(12s) → dq_check(16s) → load_target(18s). 운영자가 lag 가 큰 노드를 timeline 으로 즉시 식별.</p>
+
+<p><strong>다음 스텝</strong>: 운영 환경 배포 이력은 <strong>Releases</strong>.</p>
+
 <hr/>
-<br/>
-<h2>STEP 12 — Service Mart Viewer ★ 시연 핵심</h2>
-<br/>
-<figure><img src="screenshots/12_service_mart_viewer.png" alt="Service Mart Viewer"/><figcaption>Service Mart Viewer</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: 4 유통사 데이터가 동일 구조 (<code>service_mart.product_price</code>) 로 통합된</p>
-<p>가격 마트 조회.</p>
-<br/>
-<p><strong>시나리오 적용</strong>:</p>
-<li><strong>상단 카드</strong>: 4 유통사 채널별 통계 (row_count / 행사 / avg_confidence / 검수)</li>
-<li><strong>좌측 사이드바</strong>: 표준 품목 10종 (사과 / 양파 / 한우불고기 등)</li>
-<li><strong>우측 표</strong>: 표준품목 / 유통사 / 정상가 / 행사가 / 행사 / 재고 / 산지 / 등급 /</li>
-<p>  confidence / 수집</p>
-<br/>
-<p>**같은 "사과"가 4 유통사에서 다 다른 상품명으로 들어왔지만 같은 표준 품목 코드</p>
-<p>(FRT_APPLE)로 묶임** — 공용 플랫폼의 핵심 시연.</p>
-<br/>
-<p><strong>다음 스텝</strong>: <strong>"Raw Objects"</strong> → 원천 데이터 추적.</p>
-<br/>
+
+<h2>STEP 12 — Releases</h2>
+
+<p><figure><img src="screenshots/12_releases.png" alt="Releases" /><figcaption>Releases</figcaption></figure></p>
+
+<p><strong>기능</strong>: PUBLISHED 워크플로 release 이력 + 환경 배포 추적. 각 release 에서 [워크플로] 버튼은 v2 ETL Canvas 로 진입 (Phase 8.5 라우팅 수정).</p>
+
+<p><strong>시나리오 적용</strong>: 4 유통사 + service_mart 통합 워크플로 release 5건 시드.</p>
+
+<p><strong>다음 스텝</strong>: 적재된 통합 가격은 <strong>Service Mart Viewer</strong>.</p>
+
 <hr/>
-<br/>
-<h2>STEP 13 — Raw Objects</h2>
-<br/>
-<figure><img src="screenshots/13_raw_objects.png" alt="Raw Objects"/><figcaption>Raw Objects</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: API/크롤러/OCR 으로 받은 <strong>raw payload 원본</strong> 보기. idempotency_key 기준</p>
-<p>중복 검사. 재처리 시 raw 다시 활용.</p>
-<br/>
-<p><strong>시나리오 적용</strong>: <strong>127 raw rows</strong> 시드 (4 유통사 × 10 + 일부 기존).</p>
-<br/>
-<p>partition by <code>partition_date</code> (월별). 각 row 는 source_id, content_hash,</p>
-<p>payload_json (원본 JSON), object_type=JSON.</p>
-<br/>
-<p><strong>다음 스텝</strong>: <strong>"Collection Jobs"</strong> → 수집 작업 단위 추적.</p>
-<br/>
+
+<h2>STEP 13 — Service Mart Viewer</h2>
+
+<p><figure><img src="screenshots/13_service_mart_viewer.png" alt="Service Mart Viewer" /><figcaption>Service Mart Viewer</figcaption></figure></p>
+
+<p><strong>기능 (Phase 8.4 보강)</strong>: 4 유통사 통합 가격 (<code>service_mart.product_price</code>) 조회 + 시연용 인터랙션.</p>
+
+<ul>
+<li>채널별 통계 카드 (4 유통사 row 수 + 행사수 + confidence + 검수 필요)</li>
+<li>표준품목 사이드바 + 선택 시: - <strong>PriceSummaryCard (Phase 8.4)</strong> — 최저/최고/평균/편차% - <strong>PriceCompareCard</strong> — 4 유통사 가격 막대 비교 - <strong>PriceTrendChart (Phase 8.2)</strong> — 7일 라인 차트</li>
+<li><strong>필터 토글 3종 (Phase 8.4)</strong>: 「할인 중만」 / 「품절만」 / 「검수 필요만」</li>
+<li>마지막 수집시간 컬럼 + 「원천」 lineage 링크 (raw / ops)</li>
+</ul>
+
+<p><strong>시나리오 적용</strong>: 사과 1.5kg 표준품목 클릭 → 이마트(12,900원) vs 홈플러스(11,900원 행사가) vs 롯데마트(13,500원) vs 하나로마트(10,800원) 비교 → 「할인 중만」 토글 → 행사 상품만 노출.</p>
+
+<p><strong>다음 스텝</strong>: 원천 데이터 추적은 <strong>Raw Objects</strong>.</p>
+
 <hr/>
-<br/>
-<h2>STEP 14 — Collection Jobs</h2>
-<br/>
-<figure><img src="screenshots/14_collection_jobs.png" alt="Collection Jobs"/><figcaption>Collection Jobs</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: 단일 수집 작업 (<code>run.ingest_job</code>) 의 상태. 어떤 source 가 언제 trigger</p>
-<p>되어 raw 몇 건 받았는지.</p>
-<br/>
-<p><strong>시나리오 적용</strong>: <strong>28 jobs</strong> 시드 (4 유통사 × 7 일).</p>
-<br/>
-<p>각 job: SCHEDULED 타입, SUCCESS 상태, input/output count 80~500.</p>
-<br/>
-<p><strong>다음 스텝</strong>: <strong>"Review Queue"</strong> → 검수가 필요한 데이터.</p>
-<br/>
+
+<h2>STEP 14 — Raw Objects</h2>
+
+<p><figure><img src="screenshots/14_raw_objects.png" alt="Raw Objects" /><figcaption>Raw Objects</figcaption></figure></p>
+
+<p><strong>기능</strong>: 외부 응답을 그대로 보존한 raw_object 목록. content_hash 로 중복 방지, partition_date 로 파티션 분리.</p>
+
+<p><strong>시나리오 적용</strong>: 4 유통사 raw_object 127건 시드. 운영자가 적재 결과가 의심될 때 채널별 raw 응답 원본 확인.</p>
+
+<p><strong>다음 스텝</strong>: 시스템이 자동 실행한 작업 이력은 <strong>Collection Jobs</strong>.</p>
+
 <hr/>
-<br/>
-<h2>STEP 15 — Review Queue</h2>
-<br/>
-<figure><img src="screenshots/15_review_queue.png" alt="Review Queue"/><figcaption>Review Queue</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: 사람의 눈이 필요한 작업 큐. 표준코드 매칭 confidence 가 낮을 때</p>
-<p>자동으로 분기.</p>
-<br/>
-<p><strong>시나리오 적용</strong>: <strong>9 review tasks</strong> — 모두 <code>task_kind=std_low_confidence</code>.</p>
-<br/>
-<p>롯데마트의 confidence < 0.75 데이터 (예: "프리미엄 빨간 과일 봉지", "채소 묶음")</p>
-<p>가 검수 큐로 이동. payload_json 에 candidates 후보 (사과 / 배 / 포도) 포함.</p>
-<br/>
-<p><strong>다음 스텝</strong>: <strong>"Operations Dashboard"</strong> → 전체 운영 통합 모니터링.</p>
-<br/>
+
+<h2>STEP 15 — Collection Jobs</h2>
+
+<p><figure><img src="screenshots/15_collection_jobs.png" alt="Collection Jobs" /><figcaption>Collection Jobs</figcaption></figure></p>
+
+<p><strong>기능</strong>: schedule_cron 또는 manual trigger 로 실행된 ingest_job 이력.</p>
+
+<p><strong>시나리오 적용</strong>: 4 유통사 ingest_job 28건 + 의도적 FAILED 케이스 1건 시드 (운영자 발견·복구 시연용).</p>
+
+<p><strong>다음 스텝</strong>: 표준화 confidence 가 낮아 자동 표준코드 결정이 어려운 항목은 <strong>Review Queue</strong>.</p>
+
 <hr/>
-<br/>
-<h2>STEP 16 — Operations Dashboard ★ 운영 핵심</h2>
-<br/>
-<figure><img src="screenshots/16_operations_dashboard.png" alt="Operations Dashboard"/><figcaption>Operations Dashboard</figcaption></figure>
-<br/>
-<p><strong>기능</strong>: 8 channels (workflow) 동시 운영 상태 한 화면.</p>
-<br/>
-<p><strong>시나리오 적용</strong>:</p>
-<li><strong>상단 4 카드</strong>: Workflows (5 PUBLISHED) / Runs 24h / Success Rate / Pending Replay</li>
-<li><strong>좌측 채널 목록</strong>: 각 workflow 의 마지막 run 상태 + 24h 성공률</li>
-<li><strong>우측 heatmap</strong>: 선택된 channel 의 노드별 7d success/failed/skipped color bar</li>
-<br/>
-<p><strong>Wave 6 dispatch</strong>: 우측 상단 "Dispatch Pending Inbound" 버튼 — RECEIVED</p>
-<p>상태의 inbound envelope 을 일괄 처리하여 workflow trigger.</p>
-<br/>
-<p><strong>polling</strong>: 30초마다 자동 갱신 (요약). run detail 만 SSE 실시간.</p>
-<br/>
+
+<h2>STEP 16 — Review Queue</h2>
+
+<p><figure><img src="screenshots/16_review_queue.png" alt="Review Queue" /><figcaption>Review Queue</figcaption></figure></p>
+
+<p><strong>기능</strong>: <code>crowd.task</code> 의 <code>std_low_confidence</code> task 검수 — 검수자가 표준코드를 직접 선택하여 보정.</p>
+
+<p><strong>시나리오 적용</strong>: 롯데마트의 low confidence 매핑 3+ 건 시드 (<code>삼겹살 600g 등심</code> 같은 모호한 상품명). 검수 → 표준코드 결정 → 매핑 보정 → 다음 run 부터 자동 적용.</p>
+
+<p><strong>다음 스텝</strong>: 운영자가 시스템 전체 상태를 한 화면에서 보는 곳은 <strong>Operations Dashboard</strong>.</p>
+
 <hr/>
-<br/>
-<h2>부록 A — 시나리오 흐름 요약</h2>
-<br/>
-<pre><code>
-[1] 로그인 (admin/admin)
-  ↓
-[2] Dashboard 진입
-  ↓
-[3] Source / API Connector — 4 유통사 API 확인
-  ↓
-[4] Inbound Channel — 외부 push 3 채널 확인
-  ↓
-[5] Mart Workbench — 5 mart + 5 load policy
-  ↓
-[6] Field Mapping Designer — 21 매핑
-  ↓
-[7] Transform Designer — 3 SQL + 8 provider
-  ↓
-[8] Quality Workbench — 16 DQ rules
-  ↓
-[9] ETL Canvas — 5 workflow 박스 조립
-  ↓
-[10] Pipeline Runs — 28 runs (3 의도적 FAILED)
-  ↓
-[11] Releases — 4 배포 이력
-  ↓
-[12] Service Mart Viewer — 29 통합 row (시연 핵심)
-  ↓
-[13] Raw Objects — 127 원천
-  ↓
-[14] Collection Jobs — 28 수집 작업
-  ↓
-[15] Review Queue — 9 검수 task
-  ↓
-[16] Operations Dashboard — 8 channel 통합 모니터
-</code></pre>
-<br/>
+
+<h2>STEP 17 — Operations Dashboard (Phase 8.5 — Real Operation)</h2>
+
+<p><figure><img src="screenshots/17_operations_dashboard.png" alt="Operations Dashboard" /><figcaption>Operations Dashboard</figcaption></figure></p>
+
+<p><strong>기능</strong>: 본 매뉴얼의 *운영 핵심*. Phase 8 ~ 8.5 보강이 모두 모인 화면.</p>
+
+<h3>17.1 상단 KPI 카드 4종 (Phase 7 Wave 5)</h3>
+<ul>
+<li>Workflows (PUBLISHED)</li>
+<li>Runs (24h)</li>
+<li>Success Rate (24h)</li>
+<li>Pending Replay</li>
+</ul>
+
+<h3>17.2 Phase 8.5 — Real Operation 카드 4종</h3>
+<ul>
+<li><strong>SLA Lag (수집→적재)</strong> — p95 색상 (≤60s 녹색 / ≤180s 황색 / >180s 적색). CLAUDE.md "수집 후 1분 이내" 추적.</li>
+<li><strong>Auto Dispatcher</strong> — RUNNING/STALE 표시, 대기 envelope 수, 마지막 dispatch 시각.</li>
+<li><strong>채널 데이터 신선도</strong> — PUBLISHED 채널별 마지막 inbound 수신 시각 + 60min 임계 STALE.</li>
+<li><strong>Provider 호출/비용 (24h)</strong> — provider별 호출수 / 오류수 / 평균 ms / 추정 비용.</li>
+</ul>
+
+<h3>17.3 Phase 8.2 — 24h 시간별 추이 차트</h3>
+<p>recharts BarChart — success/failed 누적 막대.</p>
+
+<h3>17.4 Phase 8.4 — 최근 실패 10건</h3>
+<p>실패 노드 + 원천 (raw_object / inbound_envelope) 링크 + 재실행 버튼. 30s 자동 갱신.</p>
+
+<h3>17.5 Phase 8.1 — 실패 원인 분류 (24h)</h3>
+<p>node_type 별 실패 카테고리 (외부 API 실패 / Inbound 수신 실패 / DQ 실패 / 마트 적재 실패 등).</p>
+
+<h3>17.6 Phase 7 Wave 5 — Channels (workflow 카드)</h3>
+<p>6 워크플로 (시드 4 유통사 + service_mart 통합 + IT 테스트) 의 24h 카운트 / 성공률 / 마지막 run 시각. 클릭 시 우측에 노드별 7일 heatmap 노출.</p>
+
+<h3>17.7 Phase 8.5 ⑤ — System Alert (백그라운드)</h3>
+<ul>
+<li><strong>3 Rules</strong>: - <code>failure_rate_24h</code> (workflow 실패율 30% 초과, ERROR, 30분 cooldown) - <code>sla_lag_p95</code> (p95 lag > 180s, WARN, 15분 cooldown) - <code>channel_stale</code> (60min 이상 inbound 미수신, WARN, 60분 cooldown)</li>
+<li>5분마다 평가 → cooldown 통과 시 Slack webhook (env <code>ALERT_SLACK_WEBHOOK_URL</code>) 또는 log fallback.</li>
+<li>발사 이력은 <code>audit.alert_log</code> 에 적재.</li>
+</ul>
+
+<p><strong>시나리오 적용</strong>: 운영자가 출근 시 본 화면 1개로 전체 상태 파악.</p>
+<ol>
+<li>SLA Lag 카드 — 녹색이면 OK, 황색이면 주의.</li>
+<li>채널 데이터 신선도 — STALE 채널 있으면 즉시 클릭하여 확인.</li>
+<li>최근 실패 10건 — 실패 노드 / 원천 링크 클릭 → Pipeline Run Detail 진입 → 「이 노드부터 재실행」.</li>
+<li>Provider 비용 — 일일 비용 임계 추적.</li>
+</ol>
+
+<p><strong>다음 스텝</strong>: 시연 종료. 본 매뉴얼은 모든 메뉴를 한 바퀴 돌아온 시점.</p>
+
 <hr/>
-<br/>
-<h2>부록 B — Phase 8 의도적 오류 케이스 매트릭스</h2>
-<br/>
+
+<h2>부록 — Phase 8.5 누적 완성도 추적</h2>
+
 <table>
-<thead><tr><th>화면</th><th>시나리오</th><th>기대 동작</th></tr></thead>
+<thead><tr><th>단계</th><th>완성도</th><th>주요 산출</th></tr></thead>
 <tbody>
-<tr><td>Pipeline Runs</td><td>롯데마트 Day 3 FAILED</td><td>downstream SKIPPED</td></tr>
-<tr><td>Pipeline Runs</td><td>홈플러스 Day 5 FAILED</td><td>DQ 실패 메시지</td></tr>
-<tr><td>Pipeline Runs</td><td>이마트 Day 7 FAILED</td><td>error_message 표시</td></tr>
-<tr><td>Service Mart Viewer</td><td>롯데마트 confidence < 0.85</td><td>행마다 ⚠ 마크</td></tr>
-<tr><td>Review Queue</td><td>low confidence 9건</td><td>candidates 후보 표시</td></tr>
-<tr><td>Operations Dashboard</td><td>채널별 success rate</td><td>100%~75% 범위</td></tr>
-<tr><td>Inbound Events (audit)</td><td>일부 FAILED status</td><td>schema mismatch 사유</td></tr>
+<tr><td>Phase 8</td><td>80~82%</td><td>4 유통사 시드 + service_mart</td></tr>
+<tr><td>Phase 8.1</td><td>84~85%</td><td>E2E hardening + auto dispatcher</td></tr>
+<tr><td>Phase 8.2</td><td>87~88%</td><td>Deep UX 8 영역 (템플릿 / picker / 차트 / 배지)</td></tr>
+<tr><td>Phase 8.3</td><td>88~89%</td><td>DB cleanup (iot_spike / connector / expired_at)</td></tr>
+<tr><td>Phase 8.4</td><td>93~95%</td><td>Final Polish 9 영역 (NodePalette / API Key / 운영 UX)</td></tr>
+<tr><td><strong>Phase 8.5</strong></td><td><strong>96~98%</strong></td><td><strong>Real Operation (SLA / Freshness / Alert / Cost)</strong></td></tr>
 </tbody></table>
-<br/>
-<hr/>
-<br/>
-<h2>부록 C — 다음 단계 (Phase 9 진입 전 보완)</h2>
-<br/>
-<p>본 매뉴얼의 시나리오는 <strong>가상 데이터</strong> 기준이며, Phase 9 (실증) 진입 전에 다음을</p>
-<p>보완해야 한다:</p>
-<br/>
-<p>1. 백엔드 테스트 환경 + Phase 8 E2E 테스트 자동화</p>
-<p>2. Inbound 자동화 (수동 dispatch 제거 → outbox actor)</p>
-<p>3. 운영 dashboard 의 placeholder 지표 → 실값 연결</p>
-<p>4. ETL Canvas 의 사용자 진행 가이드 (1.수집→2.매핑→...→6.배포)</p>
-<p>5. Field Mapping 의 시각 매핑 (JSON tree drag&drop)</p>
-<p>6. Service Mart Viewer 의 가격 비교 차트 + lineage</p>
-<br/>
-<p>상세는 <code>docs/phases/PHASE_8_1_HARDENING.md</code> 참조.</p>
-<br/>
-<hr/>
-<br/>
-<p><em>문서 끝.</em></p>
-<br/>
+
+<h2>부록 — 자동 스크린샷 재생성 방법</h2>
+
+<pre><code class="lang-bash"># backend (port 8000) + frontend dev (port 5173) 가동 + Phase 8 seed 적용 상태에서
+cd frontend
+node scripts/capture_manual_screenshots.mjs
+
+# 특정 run_id 로 detail 스크린샷 재촬영 (기본 279)
+MANUAL_RUN_ID=279 node scripts/capture_manual_screenshots.mjs</code></pre>
+
+<p>스크립트는 <code>docs/manual/screenshots/*.png</code> 17장을 덮어쓴다.</p>
+
+<h2>부록 — Phase 9 이월</h2>
+
+<ul>
+<li>KAMIS 실증 (Phase 9 main)</li>
+<li>CDC_EVENT_FETCH 정식 구현 (CDC 소스 3+ 또는 500K rows/일+ 시점)</li>
+<li>pgvector IVFFLAT 재정책 (표준코드 1k+ rows)</li>
+<li>파티션 자동 생성 cron + matview 2종</li>
+<li>intentional-fail Canvas E2E 시나리오 자동화</li>
+</ul>
+
 </body></html>

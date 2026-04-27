@@ -1,98 +1,118 @@
-// Phase 8 시나리오 매뉴얼용 화면 캡처 자동화.
+// Phase 8.5 — 사용자 매뉴얼 스크린샷 자동 캡처.
 //
-// 실행: cd frontend && node scripts/capture_manual_screenshots.mjs
-// 결과: docs/manual/screenshots/*.png
+// 실행 (frontend dir 에서, playwright 패키지 활용):
+//   cd frontend
+//   node scripts/capture_manual_screenshots.mjs
+//
+// 전제:
+//   - backend (port 8000) + frontend dev (port 5173) 가동 중
+//   - Phase 8 seed 적용 (admin/admin 계정 + 4 유통사 데이터)
 
-import { chromium } from "playwright";
-import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { chromium } from "playwright";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const ROOT = join(__dirname, "..", "..");
-const OUT_DIR = join(ROOT, "docs", "manual", "screenshots");
+const __dirname = path.dirname(__filename);
 
-const BASE_URL = "http://127.0.0.1:5173";
-const ADMIN_LOGIN = "admin";
-const ADMIN_PASSWORD = "admin";
+const BASE_URL = process.env.MANUAL_BASE_URL ?? "http://127.0.0.1:5173";
+const ADMIN_LOGIN = process.env.MANUAL_ADMIN_LOGIN ?? "admin";
+const ADMIN_PW = process.env.MANUAL_ADMIN_PW ?? "admin";
+const SS_DIR = path.resolve(__dirname, "../../docs/manual/screenshots");
 
-const PAGES = [
-  // [filename, path, description, optional-wait-for-selector]
-  ["01_login", "/login", "로그인", null],
-  ["02_dashboard", "/", "Dashboard", null],
-  ["03_source_api_connector", "/v2/connectors/public-api", "Source / API Connector — 4 유통사", null],
-  ["04_inbound_channel", "/v2/inbound-channels/designer", "Inbound Channel — 외부 push 채널 3개", null],
-  ["05_mart_workbench", "/v2/marts/designer", "Mart Workbench — 5 mart drafts + 5 load policies", null],
-  ["06_field_mapping_designer", "/v2/mappings/designer", "Field Mapping Designer — 4 contracts + 21 mappings", null],
-  ["07_transform_designer", "/v2/transforms/designer", "Transform Designer — SQL Asset / Provider 카탈로그", null],
-  ["08_quality_workbench", "/v2/quality/designer", "Quality Workbench — 16 DQ rules + 표준코드", null],
-  ["09_etl_canvas", "/v2/pipelines/designer", "ETL Canvas v2 — 17종 노드 palette", null],
-  ["10_pipeline_runs", "/pipelines/runs", "Pipeline Runs — 28 runs 이력", null],
-  ["11_releases", "/pipelines/releases", "Releases — 4 배포 이력", null],
-  ["12_service_mart_viewer", "/v2/service-mart", "Service Mart Viewer — 4 유통사 통합 가격", null],
-  ["13_raw_objects", "/raw-objects", "Raw Objects — 127 raw payload", null],
-  ["14_collection_jobs", "/jobs", "Collection Jobs — 28 ingest jobs", null],
-  ["15_review_queue", "/crowd-tasks", "Review Queue — 9 검수 tasks", null],
-  ["16_operations_dashboard", "/v2/operations/dashboard", "Operations Dashboard — 8 channels + heatmap", null],
-];
+const VIEWPORT = { width: 1366, height: 900 };
 
-async function main() {
-  await mkdir(OUT_DIR, { recursive: true });
-
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    viewport: { width: 1440, height: 900 },
-    locale: "ko-KR",
-  });
-  const page = await context.newPage();
-
-  // 1. 로그인 페이지 먼저 캡처
-  console.log("→ /login 캡처 중...");
-  await page.goto(BASE_URL + "/login", { waitUntil: "networkidle" });
-  await page.waitForTimeout(500);
-  await page.screenshot({ path: join(OUT_DIR, "01_login.png"), fullPage: true });
-
-  // 2. 로그인
-  await page.fill('input[type="text"], input[name="login_id"], input[id="login_id"]', ADMIN_LOGIN).catch(() => {});
-  // Try common selectors
-  const loginInput = await page.$('input[name="login_id"], input[placeholder*="ID"], input[placeholder*="아이디"]');
-  if (loginInput) await loginInput.fill(ADMIN_LOGIN);
-  else {
-    const inputs = await page.$$("input");
-    if (inputs[0]) await inputs[0].fill(ADMIN_LOGIN);
-    if (inputs[1]) await inputs[1].fill(ADMIN_PASSWORD);
-  }
-  const passwordInput = await page.$('input[type="password"]');
-  if (passwordInput) await passwordInput.fill(ADMIN_PASSWORD);
-
-  // submit (button "로그인" or first submit button)
-  await page.click('button[type="submit"], button:has-text("로그인"), button:has-text("Login"), button:has-text("Sign in")').catch(async () => {
-    await page.keyboard.press("Enter");
-  });
-  await page.waitForURL(/^(?!.*\/login).*/, { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(1500);
-
-  // 3. 각 페이지 순회
-  for (const [name, path, desc] of PAGES.slice(1)) {
-    try {
-      console.log(`→ ${path} 캡처 중 (${desc})...`);
-      await page.goto(BASE_URL + path, { waitUntil: "networkidle", timeout: 15000 });
-      await page.waitForTimeout(2500); // 데이터 로드 대기
-      await page.screenshot({
-        path: join(OUT_DIR, `${name}.png`),
-        fullPage: true,
-      });
-    } catch (e) {
-      console.error(`  ⚠ 실패: ${path} — ${e.message}`);
-    }
-  }
-
-  await browser.close();
-  console.log("✅ 완료. " + OUT_DIR);
+async function login(page) {
+  await page.goto(`${BASE_URL}/login`);
+  await page.waitForLoadState("networkidle");
+  await page.fill("#login_id", ADMIN_LOGIN);
+  await page.fill('input[type="password"]', ADMIN_PW);
+  await Promise.all([
+    page
+      .waitForURL((u) => !u.toString().endsWith("/login"), { timeout: 15_000 })
+      .catch(() => {}),
+    page.click('button[type="submit"]'),
+  ]);
+  await page.waitForLoadState("networkidle").catch(() => {});
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+async function shoot(page, fname, opts = {}) {
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(opts.delay ?? 1200);
+  const out = path.join(SS_DIR, fname);
+  await page.screenshot({ path: out, fullPage: opts.fullPage ?? true });
+  console.log(`[shot] ${fname}`);
+}
+
+async function navAndShoot(page, urlPath, fname, opts = {}) {
+  await page.goto(`${BASE_URL}${urlPath}`);
+  await shoot(page, fname, opts);
+}
+
+const SHOTS = [
+  // url, filename, opts
+  ["__login_screen__", "01_login.png", { fullPage: false }],
+  ["/", "02_dashboard.png", {}],
+  ["/v2/connectors/public-api", "03_source_api_connector.png", {}],
+  ["/v2/inbound-channels/designer", "04_inbound_channel.png", {}],
+  ["/v2/marts/designer", "05_mart_workbench.png", {}],
+  ["/v2/mappings/designer", "06_field_mapping_designer.png", {}],
+  ["/v2/transforms/designer", "07_transform_designer.png", {}],
+  ["/v2/quality/designer", "08_quality_workbench.png", {}],
+  ["/v2/pipelines/designer", "09_etl_canvas_v2_new.png", { delay: 1800 }],
+  ["/pipelines/runs", "10_pipeline_runs.png", {}],
+  ["__first_run_detail__", "11_pipeline_run_detail.png", { delay: 1500 }],
+  ["/pipelines/releases", "12_releases.png", {}],
+  ["/v2/service-mart", "13_service_mart_viewer.png", {}],
+  ["/raw-objects", "14_raw_objects.png", {}],
+  ["/jobs", "15_collection_jobs.png", {}],
+  ["/crowd-tasks", "16_review_queue.png", {}],
+  ["/v2/operations/dashboard", "17_operations_dashboard.png", { delay: 1800 }],
+];
+
+const browser = await chromium.launch({ headless: true });
+const context = await browser.newContext({ viewport: VIEWPORT });
+const page = await context.newPage();
+
+const successes = [];
+const failures = [];
+
+let loggedIn = false;
+
+try {
+  for (const [target, fname, opts] of SHOTS) {
+    try {
+      if (target === "__login_screen__") {
+        await page.goto(`${BASE_URL}/login`);
+        await shoot(page, fname, opts);
+        continue;
+      }
+      // 인증 필요한 첫 페이지 진입 시 한 번만 로그인.
+      if (!loggedIn) {
+        await login(page);
+        loggedIn = true;
+      }
+      if (target === "__first_run_detail__") {
+        // Phase 8 시드된 emart workflow run 1건 (4 nodes 가진 SUCCESS) 으로 진입.
+        const runId = process.env.MANUAL_RUN_ID ?? "279";
+        await page.goto(`${BASE_URL}/pipelines/runs/${runId}`);
+        await shoot(page, fname, opts);
+        continue;
+      }
+      await navAndShoot(page, target, fname, opts);
+      successes.push(fname);
+    } catch (err) {
+      console.error(`[fail] ${fname}:`, err.message);
+      failures.push([fname, err.message]);
+    }
+  }
+} finally {
+  await browser.close();
+}
+
+console.log(`\n=== capture summary ===`);
+console.log(`success: ${successes.length} / ${SHOTS.length}`);
+if (failures.length) {
+  console.log(`\nfailures:`);
+  for (const [fname, msg] of failures) console.log(`  - ${fname}: ${msg}`);
+}

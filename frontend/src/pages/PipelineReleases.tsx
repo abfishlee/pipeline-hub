@@ -90,7 +90,7 @@ export function PipelineReleases() {
                       상세
                     </button>
                     <Link
-                      to={`/pipelines/designer/${r.released_workflow_id}`}
+                      to={`/v2/pipelines/designer/${r.released_workflow_id}`}
                       className="text-primary underline"
                     >
                       워크플로

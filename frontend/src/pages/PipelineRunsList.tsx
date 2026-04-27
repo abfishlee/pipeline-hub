@@ -73,7 +73,7 @@ export function PipelineRunsList() {
             <h3 className="text-sm font-semibold">워크플로 목록</h3>
             {canDesign && (
               <Link
-                to="/pipelines/designer"
+                to="/v2/pipelines/designer"
                 className="ml-auto inline-flex h-8 items-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
                 <Plus className="h-3 w-3" />
@@ -127,7 +127,7 @@ export function PipelineRunsList() {
                     </Button>
                     {canDesign && (
                       <Link
-                        to={`/pipelines/designer/${w.workflow_id}`}
+                        to={`/v2/pipelines/designer/${w.workflow_id}`}
                         className="inline-flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium text-foreground/80 hover:bg-accent hover:text-accent-foreground"
                       >
                         <Pencil className="h-3 w-3" />
