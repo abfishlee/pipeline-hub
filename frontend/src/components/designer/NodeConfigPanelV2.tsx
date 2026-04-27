@@ -198,6 +198,25 @@ function AssetSection({ node_type, config, onPatch }: AssetSectionProps) {
       );
     case "DB_INCREMENTAL_FETCH":
       return <DbIncrementalAsset config={config} onPatch={onPatch} />;
+    // Phase 8.4 — 외부 OCR/Crawler push 결과 + CDC stub
+    case "OCR_RESULT_INGEST":
+      return (
+        <InboundChannelAsset
+          config={config}
+          onPatch={onPatch}
+          channelKindFilter="OCR_RESULT"
+        />
+      );
+    case "CRAWLER_RESULT_INGEST":
+      return (
+        <InboundChannelAsset
+          config={config}
+          onPatch={onPatch}
+          channelKindFilter="CRAWLER_RESULT"
+        />
+      );
+    case "CDC_EVENT_FETCH":
+      return <CdcStubAsset />;
     default:
       return (
         <Card>
@@ -208,6 +227,34 @@ function AssetSection({ node_type, config, onPatch }: AssetSectionProps) {
         </Card>
       );
   }
+}
+
+// Phase 8.4 — CDC_EVENT_FETCH 는 Phase 9 정식 구현 예정 (CLAUDE.md 정책: CDC 소스
+// 3개 초과 또는 트래픽 500K/일 초과 시 활성화). 현재는 stub 안내.
+function CdcStubAsset() {
+  return (
+    <Card className="border-amber-300 bg-amber-50">
+      <CardContent className="space-y-1 p-3 text-xs">
+        <div className="flex items-center gap-1 font-semibold text-amber-700">
+          <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px]">
+            STUB
+          </span>
+          CDC_EVENT_FETCH (Phase 9 예정)
+        </div>
+        <p className="text-amber-900">
+          DB logical replication slot stream 노드. dry-run/실행 시 stub 응답만
+          반환합니다. 정식 구현 조건:
+        </p>
+        <ul className="ml-4 list-disc space-y-0.5 text-[11px] text-amber-900">
+          <li>CDC 소스 3개 초과</li>
+          <li>또는 일 트래픽 500K rows 초과</li>
+        </ul>
+        <p className="text-[10px] text-amber-700">
+          ※ Canvas 검토용으로만 배치 가능 — 실제 데이터 흐름은 Phase 9.
+        </p>
+      </CardContent>
+    </Card>
+  );
 }
 
 interface AssetProps {

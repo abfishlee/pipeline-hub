@@ -165,12 +165,14 @@ def test_connector_spec_round_trip(cleanup: dict[str, list[Any]]) -> None:
 
 
 # ===========================================================================
-# 4. dispatcher 14 종
+# 4. dispatcher 20 종 (Phase 8.4 — Phase 7 Wave 1A/1B 추가 반영)
 # ===========================================================================
 def test_dispatcher_includes_public_api_fetch() -> None:
     types = list_v2_node_types()
     assert "PUBLIC_API_FETCH" in types
-    assert len(types) == 14
+    # Phase 6: 14 → Phase 7 Wave 1A (+3: WEBHOOK/FILE_UPLOAD/DB_INCREMENTAL)
+    # → Phase 7 Wave 1B (+3: OCR_RESULT_INGEST/CRAWLER_RESULT_INGEST/CDC_EVENT_FETCH) = 20
+    assert len(types) == 20
     runner = get_v2_runner("PUBLIC_API_FETCH")
     assert runner.node_type == "PUBLIC_API_FETCH"
 

@@ -238,10 +238,32 @@
 ### 신규 migration
 - `0051_synthetic_retailer_domains.py` — 4 유통사 도메인 + mart schema + service_mart
 
-### 신규 seed scripts
-- `scripts/phase8_seed_retailers.py` — 4 유통사의 connector + mapping + load_policy
-- `scripts/phase8_seed_synthetic_data.py` — 가상 mart 데이터 (정상 + 이상치)
-- `scripts/phase8_seed_inbound_events.py` — OCR/Crawler/Upload envelope 시뮬
+### 신규 seed scripts (Phase 8.4 정합성 정리)
+
+실제 산출물은 **2개** 파일로 통합되어 있습니다 (구상한 3개 분리 파일 → 통합):
+
+| 파일 | 역할 | 실행 시점 |
+|---|---|---|
+| `scripts/phase8_seed_synthetic_data.py` | **화면 확인용** — 4 유통사 mart 데이터 + service_mart 통합 (가격/할인/재고/검수 등 화면 노출 데이터) | `alembic upgrade head` 직후 |
+| `scripts/phase8_seed_full_e2e.py` | **Canvas E2E 검증용** — 4 도메인 connector + mapping + load_policy + DQ + workflow + inbound channel 3종 + pipeline_run + node_run + crowd.task + 의도적 FAILED 케이스 | synthetic_data 다음 |
+
+**실행 순서**:
+```bash
+# 1) 마이그레이션
+cd backend && alembic upgrade head
+
+# 2) 화면 확인용 mart 데이터
+python scripts/phase8_seed_synthetic_data.py
+
+# 3) Canvas E2E 자산 + run 이력
+python scripts/phase8_seed_full_e2e.py
+
+# 4) 검증
+pytest backend/tests/integration/test_phase8_full_e2e.py
+```
+
+기존 문서가 언급한 `phase8_seed_retailers.py`, `phase8_seed_inbound_events.py` 는 작성되지
+않았고, 동일 기능이 `phase8_seed_full_e2e.py` 안에 통합되어 있습니다 (사용자 § 5.6 보완 항목 #2).
 
 ### 신규 frontend
 - `pages/v2/ServiceMartViewer.tsx` — 통합 service_mart 조회 화면

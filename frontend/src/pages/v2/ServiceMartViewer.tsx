@@ -25,6 +25,7 @@ import {
   useStdProducts,
 } from "@/api/v2/service_mart";
 import { PriceCompareCard } from "@/components/service_mart/PriceCompareCard";
+import { PriceSummaryCard } from "@/components/service_mart/PriceSummaryCard";
 import { PriceTrendChart } from "@/components/service_mart/PriceTrendChart";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -79,6 +80,10 @@ export function ServiceMartViewer() {
   const [selectedStd, setSelectedStd] = useState<string | null>(null);
   const [retailerFilter, setRetailerFilter] = useState<string>("");
   const [search, setSearch] = useState("");
+  // Phase 8.4 — 시연용 필터 토글
+  const [onlyPromo, setOnlyPromo] = useState(false);
+  const [onlyOutOfStock, setOnlyOutOfStock] = useState(false);
+  const [onlyNeedsReview, setOnlyNeedsReview] = useState(false);
   const prices = useServicePrices({
     std_product_code: selectedStd ?? undefined,
     retailer_code: retailerFilter || undefined,
@@ -87,15 +92,27 @@ export function ServiceMartViewer() {
 
   const filteredPrices = useMemo(() => {
     if (!prices.data) return [];
-    if (!search) return prices.data;
-    const q = search.toLowerCase();
-    return prices.data.filter(
-      (p) =>
-        p.product_name.toLowerCase().includes(q) ||
-        p.retailer_product_code.toLowerCase().includes(q) ||
-        (p.display_name?.toLowerCase().includes(q) ?? false),
-    );
-  }, [prices.data, search]);
+    let rows = prices.data;
+    if (search) {
+      const q = search.toLowerCase();
+      rows = rows.filter(
+        (p) =>
+          p.product_name.toLowerCase().includes(q) ||
+          p.retailer_product_code.toLowerCase().includes(q) ||
+          (p.display_name?.toLowerCase().includes(q) ?? false),
+      );
+    }
+    if (onlyPromo) {
+      rows = rows.filter((p) => p.price_promo && Number(p.price_promo) > 0);
+    }
+    if (onlyOutOfStock) {
+      rows = rows.filter((p) => p.stock_status === "OUT_OF_STOCK");
+    }
+    if (onlyNeedsReview) {
+      rows = rows.filter((p) => p.needs_review);
+    }
+    return rows;
+  }, [prices.data, search, onlyPromo, onlyOutOfStock, onlyNeedsReview]);
 
   const selectedStdName = useMemo(() => {
     if (!selectedStd || !std.data) return null;
@@ -161,6 +178,14 @@ export function ServiceMartViewer() {
         )}
       </div>
 
+      {/* Phase 8.4 — 표준품목 선택 시 가격 요약 카드 */}
+      {selectedStd && filteredPrices.length > 0 && (
+        <PriceSummaryCard
+          prices={filteredPrices}
+          stdProductName={selectedStdName}
+        />
+      )}
+
       {/* Phase 8.1/8.2 — 표준품목 선택 시 4 유통사 비교 + 추이 차트 */}
       {selectedStd && filteredPrices.length > 0 && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -205,6 +230,45 @@ export function ServiceMartViewer() {
             <div className="ml-auto text-xs text-muted-foreground">
               <Filter className="inline h-3 w-3" /> {filteredPrices.length} rows
             </div>
+          </div>
+          {/* Phase 8.4 — 시연용 필터 토글 */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setOnlyPromo(!onlyPromo)}
+              className={cn(
+                "rounded-md border px-2 py-0.5",
+                onlyPromo
+                  ? "border-rose-400 bg-rose-50 text-rose-700"
+                  : "border-border hover:bg-secondary",
+              )}
+            >
+              할인 중만
+            </button>
+            <button
+              type="button"
+              onClick={() => setOnlyOutOfStock(!onlyOutOfStock)}
+              className={cn(
+                "rounded-md border px-2 py-0.5",
+                onlyOutOfStock
+                  ? "border-zinc-500 bg-zinc-100 text-zinc-700"
+                  : "border-border hover:bg-secondary",
+              )}
+            >
+              품절만
+            </button>
+            <button
+              type="button"
+              onClick={() => setOnlyNeedsReview(!onlyNeedsReview)}
+              className={cn(
+                "rounded-md border px-2 py-0.5",
+                onlyNeedsReview
+                  ? "border-amber-400 bg-amber-50 text-amber-700"
+                  : "border-border hover:bg-secondary",
+              )}
+            >
+              검수 필요만
+            </button>
           </div>
         </CardContent>
       </Card>

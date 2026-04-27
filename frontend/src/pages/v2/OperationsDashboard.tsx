@@ -29,6 +29,7 @@ import {
   useWorkflowHeatmap,
 } from "@/api/v2/operations";
 import { HourlyTrendChart } from "@/components/dashboard/HourlyTrendChart";
+import { RecentFailuresPanel } from "@/components/dashboard/RecentFailuresPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -170,6 +171,9 @@ export function OperationsDashboard() {
 
       {/* Hourly Trend Chart — Phase 8.2 */}
       <HourlyTrendChart data={hourlyTrend.data} />
+
+      {/* Recent Failures (Phase 8.4) — 운영자 즉시 대응 */}
+      <RecentFailuresPanel />
 
       {/* Failure Categories — Phase 8.1 */}
       {failures.data && failures.data.length > 0 && (

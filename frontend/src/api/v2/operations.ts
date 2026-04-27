@@ -63,7 +63,35 @@ export function useTriggerRerun() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2-operations-summary"] });
       qc.invalidateQueries({ queryKey: ["v2-operations-channels"] });
+      qc.invalidateQueries({ queryKey: ["v2-operations-recent-failures"] });
+      qc.invalidateQueries({ queryKey: ["v2-operations-hourly-trend"] });
     },
+  });
+}
+
+// Phase 8.4 — 최근 실패 10건 (운영자 즉시 대응)
+export interface RecentFailureRow {
+  pipeline_run_id: number;
+  run_date: string;
+  workflow_id: number;
+  workflow_name: string | null;
+  failed_node_key: string | null;
+  failed_node_type: string | null;
+  error_message: string | null;
+  started_at: string;
+  finished_at: string | null;
+  raw_object_id: number | null;
+  inbound_envelope_id: number | null;
+}
+
+export function useRecentFailures(limit = 10) {
+  return useQuery({
+    queryKey: ["v2-operations-recent-failures", limit],
+    queryFn: () =>
+      apiRequest<RecentFailureRow[]>("/v2/operations/recent-failures", {
+        params: { limit },
+      }),
+    refetchInterval: 30_000,
   });
 }
 

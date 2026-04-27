@@ -458,6 +458,94 @@ async def failure_summary() -> list[FailureCategoryRow]:
 
 
 # ---------------------------------------------------------------------------
+# Phase 8.4 — 최근 실패 N건 (운영자 즉시 대응)
+# ---------------------------------------------------------------------------
+class RecentFailureRow(BaseModel):
+    pipeline_run_id: int
+    run_date: str
+    workflow_id: int
+    workflow_name: str | None
+    failed_node_key: str | None
+    failed_node_type: str | None
+    error_message: str | None
+    started_at: datetime
+    finished_at: datetime | None
+    # 원천 추적용 (있으면 채움 — 없으면 null).
+    raw_object_id: int | None
+    inbound_envelope_id: int | None
+
+
+@router.get("/recent-failures", response_model=list[RecentFailureRow])
+async def recent_failures(
+    limit: int = Query(default=10, ge=1, le=50),
+) -> list[RecentFailureRow]:
+    """24h 내 FAILED 상태 pipeline_run 최근 N건 — 노드/원천 링크 포함."""
+
+    def _do(s: Session) -> list[RecentFailureRow]:
+        since = datetime.utcnow() - timedelta(hours=24)
+        rows = s.execute(
+            text(
+                """
+                WITH failed_runs AS (
+                  SELECT pipeline_run_id, run_date, workflow_id,
+                         started_at, finished_at, trigger_payload
+                    FROM run.pipeline_run
+                   WHERE status = 'FAILED'
+                     AND started_at >= :since
+                   ORDER BY started_at DESC
+                   LIMIT :limit
+                ),
+                first_failed_node AS (
+                  SELECT DISTINCT ON (nr.pipeline_run_id, nr.run_date)
+                         nr.pipeline_run_id, nr.run_date,
+                         nr.node_key, nr.node_type, nr.error_message
+                    FROM run.node_run nr
+                    JOIN failed_runs fr USING (pipeline_run_id, run_date)
+                   WHERE nr.status = 'FAILED'
+                   ORDER BY nr.pipeline_run_id, nr.run_date, nr.finished_at
+                )
+                SELECT fr.pipeline_run_id, fr.run_date, fr.workflow_id,
+                       w.name AS workflow_name,
+                       fn.node_key AS failed_node_key,
+                       fn.node_type AS failed_node_type,
+                       fn.error_message,
+                       fr.started_at, fr.finished_at,
+                       (fr.trigger_payload->>'raw_object_id')::bigint
+                         AS raw_object_id,
+                       (fr.trigger_payload->>'envelope_id')::bigint
+                         AS inbound_envelope_id
+                  FROM failed_runs fr
+                  LEFT JOIN first_failed_node fn USING (pipeline_run_id, run_date)
+                  LEFT JOIN wf.workflow_definition w
+                         ON w.workflow_id = fr.workflow_id
+                 ORDER BY fr.started_at DESC
+                """
+            ),
+            {"since": since, "limit": limit},
+        ).all()
+        return [
+            RecentFailureRow(
+                pipeline_run_id=int(r.pipeline_run_id),
+                run_date=str(r.run_date),
+                workflow_id=int(r.workflow_id),
+                workflow_name=r.workflow_name,
+                failed_node_key=r.failed_node_key,
+                failed_node_type=r.failed_node_type,
+                error_message=r.error_message,
+                started_at=r.started_at,
+                finished_at=r.finished_at,
+                raw_object_id=int(r.raw_object_id) if r.raw_object_id else None,
+                inbound_envelope_id=(
+                    int(r.inbound_envelope_id) if r.inbound_envelope_id else None
+                ),
+            )
+            for r in rows
+        ]
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+# ---------------------------------------------------------------------------
 # Phase 7 Wave 6 — outbox dispatch (manual trigger 우선)
 # ---------------------------------------------------------------------------
 class DispatchSummary(BaseModel):

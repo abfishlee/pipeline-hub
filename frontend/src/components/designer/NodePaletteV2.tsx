@@ -1,4 +1,5 @@
-// Phase 6 Wave 4 — v2 ETL Canvas palette (13 v2 노드 카테고리 분류).
+// Phase 6 Wave 4 — v2 ETL Canvas palette.
+// Phase 8.4 — 누락 3종 추가 (OCR_RESULT_INGEST / CRAWLER_RESULT_INGEST / CDC_EVENT_FETCH).
 //
 // v1 PipelineDesigner 의 NodePalette 와 별개. v2 generic 파이프라인은 자산 박스
 // (connector / mapping / sql_asset / load_policy / dq_rule) 를 끌어다 조립.
@@ -7,6 +8,7 @@ import {
   Code2,
   Database,
   DatabaseZap,
+  FileText,
   Filter,
   FunctionSquare,
   Globe,
@@ -15,6 +17,7 @@ import {
   Image,
   Inbox,
   Network,
+  Repeat,
   ShieldCheck,
   Sigma,
   Sparkles,
@@ -29,6 +32,8 @@ interface PaletteEntry {
   label: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
+  // Phase 8.4 — Phase 9 에서 정식 구현될 stub 노드 표기.
+  stub?: boolean;
 }
 
 interface PaletteCategory {
@@ -83,6 +88,27 @@ const PALETTE: PaletteCategory[] = [
         label: "CRAWL_FETCH",
         description: "웹 페이지 크롤링",
         icon: Network,
+      },
+      // Phase 7 Wave 1B — 외부 OCR/Crawler 업체 push 결과 수신 (Phase 8.4 팔레트 노출)
+      {
+        type: "OCR_RESULT_INGEST",
+        label: "OCR_RESULT_INGEST",
+        description: "외부 OCR 업체 결과 push 수신 (텍스트 + 신뢰도)",
+        icon: FileText,
+      },
+      {
+        type: "CRAWLER_RESULT_INGEST",
+        label: "CRAWLER_RESULT_INGEST",
+        description: "외부 Crawler 업체 결과 push 수신 (페이지/상품)",
+        icon: Network,
+      },
+      // Phase 7 Wave 1B — DB CDC stream (Phase 9 정식 구현 예정).
+      {
+        type: "CDC_EVENT_FETCH",
+        label: "CDC_EVENT_FETCH",
+        description: "DB logical replication slot stream (Phase 9 stub)",
+        icon: Repeat,
+        stub: true,
       },
     ],
   },
@@ -193,14 +219,27 @@ export function NodePaletteV2({ onAdd }: Props) {
                 draggable
                 onDragStart={(e) => handleDragStart(e, p.type)}
                 onDoubleClick={() => onAdd?.(p.type)}
-                className="cursor-grab select-none active:cursor-grabbing"
-                title="드래그하거나 더블클릭으로 추가"
+                className={`cursor-grab select-none active:cursor-grabbing ${
+                  p.stub ? "opacity-60" : ""
+                }`}
+                title={
+                  p.stub
+                    ? "Phase 9 정식 구현 예정 — Canvas 배치는 가능하지만 dry-run/실행은 stub 응답"
+                    : "드래그하거나 더블클릭으로 추가"
+                }
               >
                 <div className="flex items-start gap-2 p-2 text-xs">
                   <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <div className="flex-1">
-                    <div className="font-mono text-[11px] font-semibold">
-                      {p.label}
+                    <div className="flex items-center gap-1">
+                      <span className="font-mono text-[11px] font-semibold">
+                        {p.label}
+                      </span>
+                      {p.stub && (
+                        <span className="rounded bg-amber-100 px-1 text-[9px] font-semibold text-amber-700">
+                          STUB
+                        </span>
+                      )}
                     </div>
                     <div className="text-[10px] text-muted-foreground">
                       {p.description}

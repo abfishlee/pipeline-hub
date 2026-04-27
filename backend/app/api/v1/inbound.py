@@ -33,6 +33,8 @@ import secrets as secrets_mod
 import uuid
 from typing import Any
 
+import hmac as _hmac
+
 from fastapi import APIRouter, Header, HTTPException, Path, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -97,6 +99,46 @@ def _build_object_key(
     return f"inbound/{channel_code}/{envelope_id}.{ext}"
 
 
+def _safe_ip(ip_addr: str | None) -> str | None:
+    """INET 컬럼에 캐스팅 가능한 값만 통과 — TestClient 'testclient' 같은 hostname 은
+    NULL 처리. ip_address 파싱 실패 시 NULL 반환."""
+    if not ip_addr:
+        return None
+    import ipaddress
+
+    try:
+        ipaddress.ip_address(ip_addr)
+        return ip_addr
+    except ValueError:
+        return None
+
+
+def _record_security_event(
+    *, kind: str, ip_addr: str | None, user_agent: str | None, details: dict[str, Any]
+) -> None:
+    """audit.security_event INSERT — best-effort, 인증 실패 audit."""
+    sm = get_sync_sessionmaker()
+    try:
+        with sm() as session:
+            session.execute(
+                text(
+                    "INSERT INTO audit.security_event "
+                    "(kind, severity, ip_addr, user_agent, details_json) "
+                    "VALUES (:k, 'WARN', :ip, :ua, CAST(:d AS JSONB))"
+                ),
+                {
+                    "k": kind,
+                    "ip": _safe_ip(ip_addr),
+                    "ua": user_agent,
+                    "d": json.dumps(details),
+                },
+            )
+            session.commit()
+    except Exception as exc:
+        # security_event 기록 실패는 인증 실패 응답을 가리지 않게 swallow.
+        logger.warning("inbound.security_event_insert_failed", exc_info=exc)
+
+
 @router.post("/{channel_code}", status_code=202)
 async def receive_inbound_event(
     request: Request,
@@ -106,6 +148,7 @@ async def receive_inbound_event(
     x_idempotency_key: str | None = Header(
         default=None, alias="X-Idempotency-Key"
     ),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
 ) -> JSONResponse:
     """외부 시스템 push receiver (HMAC + idempotency + replay protection)."""
     # ── 1. 헤더 / 메타 ──────────────────────────────────────────────────
@@ -122,7 +165,7 @@ async def receive_inbound_event(
         request.headers.get("X-Request-ID") or uuid.uuid4().hex
     )
     set_request_id(request_id)
-    sender_ip = request.client.host if request.client else None
+    sender_ip = _safe_ip(request.client.host if request.client else None)
     user_agent = request.headers.get("User-Agent")
     content_type = request.headers.get("Content-Type", "application/octet-stream")
 
@@ -194,11 +237,50 @@ async def receive_inbound_event(
                 },
             )
             raise HTTPException(401, detail=str(exc)) from exc
-    elif channel.auth_method in ("api_key", "mtls"):
-        # Phase 7 Wave 1B+ 에서 구현
+    elif channel.auth_method == "api_key":
+        # Phase 8.4 — channel.secret_ref 가 가리키는 env 의 값과 X-API-Key 헤더를
+        # constant-time 비교. 실패 시 audit.security_event(KIND='OTHER') + 401.
+        # 외부 OCR/Crawler 업체가 X-API-Key 만 보내는 단순 case 를 지원.
+        if not x_api_key:
+            _record_security_event(
+                kind="OTHER",
+                ip_addr=sender_ip,
+                user_agent=user_agent,
+                details={
+                    "reason": "missing_api_key",
+                    "channel_code": channel_code,
+                    "request_id": request_id,
+                },
+            )
+            raise HTTPException(401, detail="X-API-Key header required")
+        try:
+            expected = _resolve_secret(channel.secret_ref)
+        except HTTPException:
+            raise
+        if not _hmac.compare_digest(x_api_key, expected):
+            _record_security_event(
+                kind="OTHER",
+                ip_addr=sender_ip,
+                user_agent=user_agent,
+                details={
+                    "reason": "api_key_mismatch",
+                    "channel_code": channel_code,
+                    "request_id": request_id,
+                },
+            )
+            logger.warning(
+                "inbound.api_key_mismatch",
+                extra={
+                    "channel_code": channel_code,
+                    "request_id": request_id,
+                },
+            )
+            raise HTTPException(401, detail="invalid X-API-Key")
+    elif channel.auth_method == "mtls":
+        # Phase 9 — mTLS (NCP NLB / Ingress 종단 인증서 검증).
         raise HTTPException(
             501,
-            detail=f"auth_method {channel.auth_method!r} not yet implemented",
+            detail="auth_method 'mtls' not yet implemented (Phase 9)",
         )
 
     # ── 5. payload 저장 + envelope INSERT ───────────────────────────────
