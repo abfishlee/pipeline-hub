@@ -44,11 +44,12 @@ def dispatch_received_envelopes(
             """
             SELECT e.envelope_id, e.channel_code, e.channel_id, e.domain_code,
                    c.workflow_id
-              FROM audit.inbound_event e
-              JOIN domain.inbound_channel c ON e.channel_id = c.channel_id
+             FROM audit.inbound_event e
+             JOIN domain.inbound_channel c ON e.channel_id = c.channel_id
              WHERE e.status = 'RECEIVED'
                AND c.is_active = true
                AND c.status = 'PUBLISHED'
+               AND c.workflow_id IS NOT NULL
              ORDER BY e.received_at
              LIMIT :lim
             """

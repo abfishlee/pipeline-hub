@@ -44,6 +44,10 @@ from app.config import get_settings
 from app.core.hmac_verifier import HmacVerificationError, verify_hmac_signature
 from app.core.request_context import set_request_id
 from app.db.sync_session import get_sync_sessionmaker
+from app.domain.inbound_contracts import (
+    get_contract,
+    validate_payload_against_contract,
+)
 from app.integrations.object_storage import get_object_storage
 from app.models.domain import InboundChannel
 
@@ -288,14 +292,39 @@ async def receive_inbound_event(
         payload_size <= _INLINE_THRESHOLD_BYTES and "json" in content_type
     )
     payload_inline_dict: dict[str, Any] | None = None
+    parsed_json_payload: Any | None = None
     if is_inline:
         try:
-            payload_inline_dict = json.loads(payload.decode("utf-8"))
+            parsed_json_payload = json.loads(payload.decode("utf-8"))
+            payload_inline_dict = parsed_json_payload
             if not isinstance(payload_inline_dict, dict):
                 # JSON list 등은 dict 로 wrapping
                 payload_inline_dict = {"data": payload_inline_dict}
         except (json.JSONDecodeError, UnicodeDecodeError):
             is_inline = False  # JSON 파싱 실패 시 object storage 로 fallback
+
+    if "json" in content_type:
+        if parsed_json_payload is None:
+            try:
+                parsed_json_payload = json.loads(payload.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                raise HTTPException(422, detail="invalid JSON payload") from exc
+
+        def _validate_contract(s: Session) -> None:
+            contract = get_contract(s, channel_code)
+            if contract is None or not contract.get("reject_on_schema_mismatch", True):
+                return
+            result = validate_payload_against_contract(parsed_json_payload, contract)
+            if not result.ok:
+                raise HTTPException(
+                    422,
+                    detail={
+                        "message": "payload does not match inbound contract",
+                        "errors": result.errors[:20],
+                    },
+                )
+
+        await asyncio.to_thread(_run_in_sync, _validate_contract)
 
     object_key: str | None = None
     if not is_inline:

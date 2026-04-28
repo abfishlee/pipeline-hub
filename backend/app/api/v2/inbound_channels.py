@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime
 from typing import Any
 
@@ -18,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.db.sync_session import get_sync_sessionmaker
 from app.deps import CurrentUserDep, require_roles
+from app.domain.inbound_contracts import get_contract, upsert_contract
 from app.models.domain import DomainDefinition, InboundChannel
 
 router = APIRouter(
@@ -52,6 +54,24 @@ class InboundChannelOut(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class InboundChannelContractOut(BaseModel):
+    channel_code: str
+    payload_schema: dict[str, Any]
+    sample_payload: dict[str, Any]
+    item_path: str | None
+    reject_on_schema_mismatch: bool
+    notes: str | None
+    updated_at: datetime
+
+
+class InboundChannelContractIn(BaseModel):
+    payload_schema: dict[str, Any] = Field(default_factory=dict)
+    sample_payload: dict[str, Any] = Field(default_factory=dict)
+    item_path: str | None = None
+    reject_on_schema_mismatch: bool = True
+    notes: str | None = None
 
 
 class InboundChannelIn(BaseModel):
@@ -133,6 +153,50 @@ async def get_channel(channel_id: int) -> InboundChannelOut:
         if m is None:
             raise HTTPException(404, detail=f"channel {channel_id} not found")
         return InboundChannelOut.model_validate(m)
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+@router.get("/{channel_id}/contract", response_model=InboundChannelContractOut)
+async def get_channel_contract(channel_id: int) -> InboundChannelContractOut:
+    def _do(s: Session) -> InboundChannelContractOut:
+        m = s.get(InboundChannel, channel_id)
+        if m is None:
+            raise HTTPException(404, detail=f"channel {channel_id} not found")
+        contract = get_contract(s, m.channel_code)
+        if contract is None:
+            contract = upsert_contract(
+                s,
+                channel_code=m.channel_code,
+                payload_schema=_default_payload_schema(m.channel_kind),
+                sample_payload=_default_sample_payload(m.channel_kind),
+                item_path="items",
+                reject_on_schema_mismatch=True,
+                notes="Default contract generated from channel kind.",
+            )
+        return InboundChannelContractOut(**contract)
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+@router.put("/{channel_id}/contract", response_model=InboundChannelContractOut)
+async def put_channel_contract(
+    channel_id: int, body: InboundChannelContractIn
+) -> InboundChannelContractOut:
+    def _do(s: Session) -> InboundChannelContractOut:
+        m = s.get(InboundChannel, channel_id)
+        if m is None:
+            raise HTTPException(404, detail=f"channel {channel_id} not found")
+        contract = upsert_contract(
+            s,
+            channel_code=m.channel_code,
+            payload_schema=json.loads(json.dumps(body.payload_schema)),
+            sample_payload=json.loads(json.dumps(body.sample_payload)),
+            item_path=body.item_path,
+            reject_on_schema_mismatch=body.reject_on_schema_mismatch,
+            notes=body.notes,
+        )
+        return InboundChannelContractOut(**contract)
 
     return await asyncio.to_thread(_run_in_sync, _do)
 
@@ -254,3 +318,64 @@ async def transition_channel(
 
 
 __all__ = ["router"]
+
+
+def _default_payload_schema(kind: str) -> dict[str, Any]:
+    item_required = ["product_name", "price"]
+    if kind == "OCR_RESULT":
+        item_required = ["product_name", "price", "confidence"]
+    return {
+        "type": "object",
+        "required": ["event_id", "vendor_code", "captured_at", "items"],
+        "properties": {
+            "event_id": {"type": "string"},
+            "vendor_code": {"type": "string"},
+            "captured_at": {"type": "string"},
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": item_required,
+                    "properties": {
+                        "product_name": {"type": "string"},
+                        "price": {"type": "number"},
+                        "unit": {"type": "string"},
+                        "store_name": {"type": "string"},
+                        "confidence": {"type": "number"},
+                    },
+                },
+            },
+        },
+    }
+
+
+def _default_sample_payload(kind: str) -> dict[str, Any]:
+    if kind == "OCR_RESULT":
+        return {
+            "event_id": "ocr-20260428-0001",
+            "vendor_code": "local_ocr",
+            "document_id": "receipt-001",
+            "captured_at": "2026-04-28T12:00:00+09:00",
+            "items": [
+                {
+                    "product_name": "사과 10kg",
+                    "price": 32000,
+                    "unit": "box",
+                    "store_name": "A마트 강남점",
+                    "confidence": 0.93,
+                }
+            ],
+        }
+    return {
+        "event_id": "vendor-a-20260428-0001",
+        "vendor_code": "vendor_a",
+        "captured_at": "2026-04-28T12:00:00+09:00",
+        "items": [
+            {
+                "product_name": "사과 10kg",
+                "price": 32000,
+                "unit": "box",
+                "store_name": "A마트 강남점",
+            }
+        ],
+    }

@@ -27,6 +27,7 @@ import {
   type InboundChannelIn,
   useCreateInboundChannel,
   useDeleteInboundChannel,
+  useInboundChannelContract,
   useInboundChannels,
   useTransitionInboundChannel,
   useUpdateInboundChannel,
@@ -62,26 +63,26 @@ const KIND_META: Record<
   }
 > = {
   WEBHOOK: {
-    label: "Webhook / 외부 Push",
-    description: "유통사, 협력사, 외부 시스템이 JSON 이벤트를 실시간으로 보냅니다.",
+    label: "Webhook Push",
+    description: "External systems push product or price events as JSON.",
     contentType: "application/json",
     icon: Webhook,
   },
   FILE_UPLOAD: {
     label: "File Upload",
-    description: "사용자나 외부 시스템이 CSV, Excel, JSON 파일을 업로드합니다.",
+    description: "Users or partners upload CSV, Excel, or JSON files.",
     contentType: "text/csv",
     icon: FileInput,
   },
   OCR_RESULT: {
     label: "OCR Result",
-    description: "OCR 업체가 가격표/영수증 인식 결과를 push합니다.",
+    description: "OCR vendors push recognized price-table or receipt results.",
     contentType: "application/json",
     icon: Clipboard,
   },
   CRAWLER_RESULT: {
     label: "Crawler Result",
-    description: "크롤러가 온라인몰/웹 가격 수집 결과를 push합니다.",
+    description: "Crawlers push web price collection results.",
     contentType: "application/json",
     icon: Globe,
   },
@@ -116,7 +117,7 @@ function formatBytes(bytes: number) {
 }
 
 function workflowLabel(workflows: WorkflowOut[] | undefined, workflowId: number | null) {
-  if (!workflowId) return "수동 처리";
+  if (!workflowId) return "Manual handling";
   const wf = workflows?.find((w) => w.workflow_id === workflowId);
   return wf ? `#${wf.workflow_id} ${wf.name}` : `#${workflowId}`;
 }
@@ -142,8 +143,9 @@ export function InboundChannelDesigner() {
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">Inbound Channel</h2>
           <p className="max-w-4xl text-sm text-muted-foreground">
-            외부에서 우리 시스템으로 들어오는 Push, 파일, OCR, 크롤링 결과의 수신 입구입니다.
-            데이터가 수신되면 envelope로 보관되고, 연결된 Job이 이벤트 기반으로 실행됩니다.
+            Register push entry points for webhook, OCR, crawler, and file data.
+            Each channel owns authentication, payload contract, size limits, and
+            the event-triggered Job that runs after data arrives.
           </p>
         </div>
         <div className="flex gap-2">
@@ -155,7 +157,7 @@ export function InboundChannelDesigner() {
           </Link>
           <Button onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
-            새 채널
+            New Channel
           </Button>
         </div>
       </div>
@@ -183,23 +185,21 @@ export function InboundChannelDesigner() {
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 p-4">
-          <div>
-            <label className="text-xs text-muted-foreground">도메인</label>
+          <Field label="Domain">
             <select
               className="mt-1 h-9 w-52 rounded-md border bg-background px-3 text-sm"
               value={domainCode}
               onChange={(e) => setDomainCode(e.target.value)}
             >
-              <option value="">전체</option>
+              <option value="">All</option>
               {domains.data?.map((d) => (
                 <option key={d.domain_code} value={d.domain_code}>
                   {d.domain_code} ({d.name})
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">수신 방식</label>
+          </Field>
+          <Field label="Kind">
             <select
               className="mt-1 h-9 w-48 rounded-md border bg-background px-3 text-sm"
               value={kindFilter}
@@ -207,16 +207,15 @@ export function InboundChannelDesigner() {
                 setKindFilter((e.target.value || "") as ChannelKind | "")
               }
             >
-              <option value="">전체</option>
+              <option value="">All</option>
               {KINDS.map((k) => (
                 <option key={k} value={k}>
                   {KIND_META[k].label}
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">상태</label>
+          </Field>
+          <Field label="Status">
             <select
               className="mt-1 h-9 w-36 rounded-md border bg-background px-3 text-sm"
               value={statusFilter}
@@ -224,43 +223,44 @@ export function InboundChannelDesigner() {
                 setStatusFilter((e.target.value || "") as ChannelStatus | "")
               }
             >
-              <option value="">전체</option>
+              <option value="">All</option>
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>
               ))}
             </select>
-          </div>
+          </Field>
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="p-0">
           {channels.isLoading && (
-            <div className="p-6 text-sm text-muted-foreground">불러오는 중...</div>
+            <div className="p-6 text-sm text-muted-foreground">Loading...</div>
           )}
           {channels.error && (
             <div className="p-6 text-sm text-destructive">
-              조회 실패: {(channels.error as Error).message}
+              Load failed: {(channels.error as Error).message}
             </div>
           )}
           {channels.data && channels.data.length === 0 && (
             <div className="p-6 text-sm text-muted-foreground">
-              등록된 inbound channel이 없습니다. 새 채널을 만들고 연결할 Job을 지정해 주세요.
+              No inbound channels yet. Create a channel, publish it, then share
+              its endpoint and API spec with the sender.
             </div>
           )}
           {channels.data && channels.data.length > 0 && (
             <Table>
               <Thead>
                 <Tr>
-                  <Th>채널</Th>
-                  <Th>도메인</Th>
-                  <Th>수신 방식</Th>
-                  <Th>트리거</Th>
-                  <Th>보안/제한</Th>
-                  <Th>상태</Th>
-                  <Th>수정</Th>
+                  <Th>Channel</Th>
+                  <Th>Domain</Th>
+                  <Th>Kind</Th>
+                  <Th>Trigger</Th>
+                  <Th>Security / Limits</Th>
+                  <Th>Status</Th>
+                  <Th></Th>
                 </Tr>
               </Thead>
               <Tbody>
@@ -274,7 +274,9 @@ export function InboundChannelDesigner() {
                     </Td>
                     <Td className="text-xs">{c.domain_code}</Td>
                     <Td>
-                      <Badge variant="secondary">{KIND_META[c.channel_kind].label}</Badge>
+                      <Badge variant="secondary">
+                        {KIND_META[c.channel_kind].label}
+                      </Badge>
                     </Td>
                     <Td className="text-xs">
                       <div className="font-medium">
@@ -349,6 +351,7 @@ function ChannelEditDialog({
   onClose,
 }: ChannelEditDialogProps) {
   const domains = useDomains();
+  const contract = useInboundChannelContract(existing?.channel_id ?? null);
   const create = useCreateInboundChannel();
   const update = useUpdateInboundChannel(existing?.channel_id ?? 0);
   const transition = useTransitionInboundChannel(existing?.channel_id ?? 0);
@@ -407,6 +410,10 @@ function ChannelEditDialog({
   const selectedKind = KIND_META[form.channel_kind];
   const endpointPath = `/v1/inbound/${form.channel_code || "{channel_code}"}`;
   const endpointUrl = `${window.location.origin}${endpointPath}`;
+  const samplePayload =
+    contract.data?.sample_payload ?? defaultSamplePayload(form.channel_kind);
+  const payloadSchema =
+    contract.data?.payload_schema ?? defaultPayloadSchema(form.channel_kind);
 
   function updateKind(kind: ChannelKind) {
     setForm({
@@ -425,7 +432,7 @@ function ChannelEditDialog({
           expected_content_type: form.expected_content_type?.trim() || null,
           workflow_id: form.workflow_id || null,
         });
-        toast.success("Inbound Channel을 DRAFT로 등록했습니다");
+        toast.success("Inbound channel created as DRAFT");
         onClose();
       } else if (existing) {
         await update.mutateAsync({
@@ -438,11 +445,11 @@ function ChannelEditDialog({
           replay_window_sec: form.replay_window_sec,
           workflow_id: form.workflow_id || null,
         });
-        toast.success("저장했습니다");
+        toast.success("Saved");
       }
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : (e as Error).message;
-      toast.error(`저장 실패: ${msg}`);
+      toast.error(`Save failed: ${msg}`);
     }
   }
 
@@ -450,29 +457,29 @@ function ChannelEditDialog({
     if (!existing) return;
     try {
       await transition.mutateAsync(target);
-      toast.success(`상태를 ${target}로 변경했습니다`);
+      toast.success(`Status changed to ${target}`);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : (e as Error).message;
-      toast.error(`상태 변경 실패: ${msg}`);
+      toast.error(`Transition failed: ${msg}`);
     }
   }
 
   async function handleDelete() {
     if (!existing) return;
-    if (!confirm(`channel ${existing.channel_code}을 삭제할까요?`)) return;
+    if (!confirm(`Delete channel ${existing.channel_code}?`)) return;
     try {
       await remove.mutateAsync(existing.channel_id);
-      toast.success("삭제했습니다");
+      toast.success("Deleted");
       onClose();
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : (e as Error).message;
-      toast.error(`삭제 실패: ${msg}`);
+      toast.error(`Delete failed: ${msg}`);
     }
   }
 
-  function copyEndpoint() {
-    navigator.clipboard.writeText(endpointUrl);
-    toast.success("Endpoint를 복사했습니다");
+  function copyText(label: string, text: string) {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied`);
   }
 
   const transitionsFromCurrent: ChannelStatus[] = useMemo(() => {
@@ -491,20 +498,17 @@ function ChannelEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="max-w-6xl">
         <DialogHeader>
           <DialogTitle>
-            {mode === "create" ? "새 Inbound Channel" : `채널 수정: ${existing?.channel_code}`}
+            {mode === "create" ? "New Inbound Channel" : `Channel: ${existing?.channel_code}`}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-4">
             <section className="space-y-3 rounded-md border p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Webhook className="h-4 w-4 text-primary" />
-                1. 수신 채널
-              </div>
+              <SectionTitle icon={Webhook} title="1. Entry point" />
               <div className="grid gap-3 md:grid-cols-3">
                 <Field label="channel_code">
                   <Input
@@ -513,10 +517,10 @@ function ChannelEditDialog({
                       setForm({ ...form, channel_code: e.target.value })
                     }
                     disabled={mode === "edit"}
-                    placeholder="vendor_a_price_push"
+                    placeholder="vendor_a_price_webhook"
                   />
                 </Field>
-                <Field label="도메인">
+                <Field label="domain">
                   <select
                     className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm"
                     value={form.domain_code}
@@ -525,7 +529,7 @@ function ChannelEditDialog({
                     }
                     disabled={mode === "edit"}
                   >
-                    <option value="">선택</option>
+                    <option value="">Select</option>
                     {domains.data?.map((d) => (
                       <option key={d.domain_code} value={d.domain_code}>
                         {d.domain_code} ({d.name})
@@ -533,7 +537,7 @@ function ChannelEditDialog({
                     ))}
                   </select>
                 </Field>
-                <Field label="수신 방식">
+                <Field label="kind">
                   <select
                     className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm"
                     value={form.channel_kind}
@@ -551,32 +555,29 @@ function ChannelEditDialog({
               <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
                 {selectedKind.description}
               </div>
-              <Field label="이름">
+              <Field label="name">
                 <Input
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="A 유통사 가격 webhook"
+                  placeholder="Vendor A price webhook"
                 />
               </Field>
-              <Field label="설명">
+              <Field label="description">
                 <Input
                   value={form.description ?? ""}
                   onChange={(e) =>
                     setForm({ ...form, description: e.target.value })
                   }
                   disabled={!!isReadOnly}
-                  placeholder="원천, 데이터 형태, 운영 담당자 메모"
+                  placeholder="Source owner, payload notes, operating memo"
                 />
               </Field>
             </section>
 
             <section className="space-y-3 rounded-md border p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Workflow className="h-4 w-4 text-primary" />
-                2. 수신 후 실행
-              </div>
+              <SectionTitle icon={Workflow} title="2. Event trigger" />
               <div className="grid gap-3 md:grid-cols-[1fr_180px]">
-                <Field label="연결 Job / Workflow">
+                <Field label="Job / Workflow to run after receive">
                   <select
                     className="mt-1 h-9 w-full rounded-md border bg-background px-3 text-sm"
                     value={form.workflow_id ?? ""}
@@ -588,7 +589,7 @@ function ChannelEditDialog({
                     }
                     disabled={!!isReadOnly}
                   >
-                    <option value="">연결 안 함: Inbox에만 쌓고 수동 처리</option>
+                    <option value="">No job: keep in Inbox for manual handling</option>
                     {workflows.map((w) => (
                       <option key={w.workflow_id} value={w.workflow_id}>
                         #{w.workflow_id} {w.name} v{w.version}
@@ -596,23 +597,20 @@ function ChannelEditDialog({
                     ))}
                   </select>
                 </Field>
-                <Field label="Trigger Type">
+                <Field label="trigger type">
                   <div className="mt-1 flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm">
                     {form.workflow_id ? "Event Trigger" : "Manual"}
                   </div>
                 </Field>
               </div>
-              <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
-                Push 수집은 우리가 주기를 정하지 않습니다. 데이터가 들어오면 연결된 Job이 실행되고,
-                연결하지 않으면 Inbound Inbox에서 검수 후 수동 처리합니다.
-              </div>
+              <p className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
+                Push collection has no cron schedule. The sender controls when
+                data arrives; this channel controls what Job runs after receive.
+              </p>
             </section>
 
             <section className="space-y-3 rounded-md border p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                3. 보안과 수신 제한
-              </div>
+              <SectionTitle icon={ShieldCheck} title="3. Security and limits" />
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="auth_method">
                   <select
@@ -630,7 +628,7 @@ function ChannelEditDialog({
                     </option>
                   </select>
                 </Field>
-                <Field label="secret_ref (env name)">
+                <Field label="secret_ref (environment variable)">
                   <Input
                     value={form.secret_ref}
                     onChange={(e) =>
@@ -651,7 +649,7 @@ function ChannelEditDialog({
                     disabled={!!isReadOnly}
                   />
                 </Field>
-                <Field label="max payload">
+                <Field label="max payload bytes">
                   <Input
                     type="number"
                     value={form.max_payload_bytes ?? 10_485_760}
@@ -690,25 +688,25 @@ function ChannelEditDialog({
           <aside className="space-y-4">
             <section className="space-y-3 rounded-md border p-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <Globe className="h-4 w-4 text-primary" />
-                  외부 공유 Endpoint
-                </div>
+                <SectionTitle icon={Globe} title="API spec for sender" />
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={copyEndpoint}
+                  onClick={() => copyText("Endpoint", endpointUrl)}
                   disabled={!form.channel_code}
                 >
                   <Copy className="h-3 w-3" />
-                  복사
+                  Copy URL
                 </Button>
               </div>
               <code className="block break-all rounded bg-muted/50 p-3 text-xs">
                 POST {endpointUrl}
               </code>
               <div className="space-y-2 text-xs text-muted-foreground">
-                <div className="font-medium text-foreground">필수 헤더</div>
+                <div className="font-medium text-foreground">Required headers</div>
+                <code className="block rounded bg-muted/40 p-2">
+                  Content-Type: {form.expected_content_type || "application/json"}
+                </code>
                 <code className="block rounded bg-muted/40 p-2">
                   X-Idempotency-Key: unique-event-id
                 </code>
@@ -730,22 +728,57 @@ function ChannelEditDialog({
             </section>
 
             <section className="space-y-3 rounded-md border p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <TimerReset className="h-4 w-4 text-primary" />
-                처리 흐름
+              <div className="flex items-center justify-between">
+                <SectionTitle icon={Clipboard} title="Payload contract" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    copyText("Sample payload", JSON.stringify(samplePayload, null, 2))
+                  }
+                >
+                  <Copy className="h-3 w-3" />
+                  Copy sample
+                </Button>
               </div>
+              <div className="grid gap-2 text-xs">
+                <div>
+                  <div className="mb-1 font-medium">Item path</div>
+                  <code className="block rounded bg-muted/40 p-2">
+                    {contract.data?.item_path ?? "items"}
+                  </code>
+                </div>
+                <div>
+                  <div className="mb-1 font-medium">Sample payload</div>
+                  <pre className="max-h-56 overflow-auto rounded bg-muted/40 p-3 text-[11px]">
+                    {JSON.stringify(samplePayload, null, 2)}
+                  </pre>
+                </div>
+                <details>
+                  <summary className="cursor-pointer text-muted-foreground">
+                    JSON schema
+                  </summary>
+                  <pre className="mt-2 max-h-56 overflow-auto rounded bg-muted/40 p-3 text-[11px]">
+                    {JSON.stringify(payloadSchema, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            </section>
+
+            <section className="space-y-3 rounded-md border p-4">
+              <SectionTitle icon={TimerReset} title="Processing flow" />
               <ol className="space-y-2 text-xs text-muted-foreground">
-                <li>1. 외부 시스템이 endpoint로 데이터를 push합니다.</li>
-                <li>2. payload는 audit.inbound_event에 envelope로 저장됩니다.</li>
-                <li>3. 연결 Job이 있으면 Event Trigger로 run이 생성됩니다.</li>
-                <li>4. Job이 정규화, 표준화, DQ, 마트 적재를 수행합니다.</li>
+                <li>1. Sender posts data to the endpoint.</li>
+                <li>2. HMAC/API key, replay window, idempotency, and schema are checked.</li>
+                <li>3. Accepted payload is stored as audit.inbound_event.</li>
+                <li>4. Connected workflow is triggered, or the envelope waits in Inbox.</li>
               </ol>
             </section>
 
             {isReadOnly && existing && (
               <section className="rounded-md border bg-muted/40 p-4 text-xs text-muted-foreground">
-                현재 상태는 {existing.status}입니다. DRAFT 상태에서만 직접 수정할 수 있고,
-                PUBLISHED 상태의 채널만 실제 inbound 수신을 받습니다.
+                Status is {existing.status}. Only DRAFT channels are directly editable.
+                Only PUBLISHED active channels accept inbound data.
               </section>
             )}
           </aside>
@@ -757,28 +790,43 @@ function ChannelEditDialog({
               {transitionsFromCurrent.map((t) => (
                 <Button key={t} variant="secondary" size="sm" onClick={() => handleTransition(t)}>
                   <Send className="h-3 w-3" />
-                  {t}로 변경
+                  Move to {t}
                 </Button>
               ))}
               {existing.status !== "PUBLISHED" && (
                 <Button variant="destructive" size="sm" onClick={handleDelete}>
-                  삭제
+                  Delete
                 </Button>
               )}
             </>
           )}
           <Button variant="outline" onClick={onClose}>
-            닫기
+            Close
           </Button>
           {!isReadOnly && (
             <Button onClick={handleSubmit}>
               <RefreshCw className="h-4 w-4" />
-              {mode === "create" ? "등록" : "저장"}
+              {mode === "create" ? "Register" : "Save"}
             </Button>
           )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SectionTitle({
+  icon: Icon,
+  title,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm font-semibold">
+      <Icon className="h-4 w-4 text-primary" />
+      {title}
+    </div>
   );
 }
 
@@ -795,4 +843,67 @@ function Field({
       {children}
     </label>
   );
+}
+
+function defaultSamplePayload(kind: ChannelKind) {
+  if (kind === "OCR_RESULT") {
+    return {
+      event_id: "ocr-20260428-0001",
+      vendor_code: "local_ocr",
+      document_id: "receipt-001",
+      captured_at: "2026-04-28T12:00:00+09:00",
+      items: [
+        {
+          product_name: "apple 10kg",
+          price: 32000,
+          unit: "box",
+          store_name: "A Mart Gangnam",
+          confidence: 0.93,
+        },
+      ],
+    };
+  }
+  return {
+    event_id: "vendor-a-20260428-0001",
+    vendor_code: "vendor_a",
+    captured_at: "2026-04-28T12:00:00+09:00",
+    items: [
+      {
+        product_name: "apple 10kg",
+        price: 32000,
+        unit: "box",
+        store_name: "A Mart Gangnam",
+      },
+    ],
+  };
+}
+
+function defaultPayloadSchema(kind: ChannelKind) {
+  const itemRequired =
+    kind === "OCR_RESULT"
+      ? ["product_name", "price", "confidence"]
+      : ["product_name", "price"];
+  return {
+    type: "object",
+    required: ["event_id", "vendor_code", "captured_at", "items"],
+    properties: {
+      event_id: { type: "string" },
+      vendor_code: { type: "string" },
+      captured_at: { type: "string" },
+      items: {
+        type: "array",
+        items: {
+          type: "object",
+          required: itemRequired,
+          properties: {
+            product_name: { type: "string" },
+            price: { type: "number" },
+            unit: { type: "string" },
+            store_name: { type: "string" },
+            confidence: { type: "number" },
+          },
+        },
+      },
+    },
+  };
 }

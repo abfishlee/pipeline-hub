@@ -57,6 +57,16 @@ export interface InboundChannelUpdate {
   is_active?: boolean;
 }
 
+export interface InboundChannelContract {
+  channel_code: string;
+  payload_schema: Record<string, unknown>;
+  sample_payload: Record<string, unknown>;
+  item_path: string | null;
+  reject_on_schema_mismatch: boolean;
+  notes: string | null;
+  updated_at: string;
+}
+
 const BASE = "/v2/inbound-channels";
 
 export interface ListInboundChannelsParams {
@@ -116,5 +126,14 @@ export function useTransitionInboundChannel(channelId: number) {
       }),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["v2-inbound-channels"] }),
+  });
+}
+
+export function useInboundChannelContract(channelId: number | null) {
+  return useQuery({
+    queryKey: ["v2-inbound-channel-contract", channelId],
+    enabled: channelId != null,
+    queryFn: () =>
+      apiRequest<InboundChannelContract>(`${BASE}/${channelId}/contract`),
   });
 }
