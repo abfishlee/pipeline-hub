@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.sync_session import get_sync_sessionmaker
@@ -147,9 +148,44 @@ def _run_in_sync(fn: Any) -> Any:
             res = fn(session)
             session.commit()
             return res
+        except IntegrityError as exc:
+            session.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Public API Connector 저장 중 DB 제약조건에 걸렸습니다. "
+                    "도메인이 존재하는지, 상태/enum 값이 올바른지, 참조값이 유효한지 확인해 주세요."
+                ),
+            ) from exc
         except Exception:
             session.rollback()
             raise
+
+
+def _validate_connector_body(s: Session, body: ConnectorIn) -> None:
+    if s.get(DomainDefinition, body.domain_code) is None:
+        raise HTTPException(404, detail=f"domain {body.domain_code!r} not found")
+    if not body.endpoint_url.startswith(("http://", "https://")):
+        raise HTTPException(
+            422,
+            detail="endpoint_url은 http:// 또는 https:// 로 시작해야 합니다.",
+        )
+    if body.auth_method != AuthMethod.NONE and not body.secret_ref:
+        raise HTTPException(
+            422,
+            detail="인증 방식이 none이 아니면 secret_ref 환경변수명을 입력해야 합니다.",
+        )
+    if body.auth_method in (AuthMethod.QUERY_PARAM, AuthMethod.HEADER) and not body.auth_param_name:
+        raise HTTPException(
+            422,
+            detail="query_param/header 인증은 auth_param_name을 입력해야 합니다.",
+        )
+    if body.pagination_kind == PaginationKind.PAGE_NUMBER and not body.pagination_config.get("page_param_name"):
+        raise HTTPException(422, detail="page_number pagination은 page_param_name이 필요합니다.")
+    if body.pagination_kind == PaginationKind.OFFSET_LIMIT and not body.pagination_config.get("offset_param_name"):
+        raise HTTPException(422, detail="offset_limit pagination은 offset_param_name이 필요합니다.")
+    if body.pagination_kind == PaginationKind.CURSOR and not body.pagination_config.get("cursor_response_path"):
+        raise HTTPException(422, detail="cursor pagination은 cursor_response_path가 필요합니다.")
 
 
 def _spec_from_in(body: ConnectorIn, *, connector_id: int | None) -> ConnectorSpec:
@@ -324,6 +360,7 @@ def _ensure_contract_from_test_sample(
 @router.post("", response_model=ConnectorOut, status_code=201)
 async def create(body: ConnectorIn, user: CurrentUserDep) -> ConnectorOut:
     def _do(s: Session) -> ConnectorOut:
+        _validate_connector_body(s, body)
         spec = _spec_from_in(body, connector_id=None)
         cid = save_spec_to_db(s, spec, created_by=user.user_id)
         s.flush()
@@ -392,6 +429,7 @@ async def update(
                     f"connector status={existing.status} — DRAFT 로 되돌린 뒤 수정하세요."
                 ),
             )
+        _validate_connector_body(s, body)
         spec = _spec_from_in(body, connector_id=connector_id)
         # status 는 별도 transition 으로만.
         spec.status = existing.status

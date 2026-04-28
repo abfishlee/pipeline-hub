@@ -7,6 +7,7 @@ import { ArrowRight, Pencil, PlayCircle, Plus, Send, Trash2 } from "lucide-react
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
+import { apiErrorMessage } from "@/lib/api-error";
 import {
   type AuthMethod,
   type ConnectorIn,
@@ -337,6 +338,11 @@ function ConnectorEditDialog({
       response_path: form.response_path?.trim() || null,
       description: form.description?.trim() || null,
     };
+    const validationError = validateConnectorPayload(payload);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
 
     try {
       if (mode === "create") {
@@ -348,7 +354,7 @@ function ConnectorEditDialog({
         toast.success("저장 완료");
       }
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : (e as Error).message;
+      const msg = e instanceof ApiError ? apiErrorMessage(e) : (e as Error).message;
       toast.error(`저장 실패: ${msg}`);
     }
   }
@@ -836,6 +842,37 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <div className="space-y-2">{children}</div>
     </div>
   );
+}
+
+function validateConnectorPayload(payload: ConnectorIn) {
+  if (!payload.domain_code) return "도메인을 선택해 주세요.";
+  if (!payload.resource_code.trim()) return "리소스 코드를 입력해 주세요.";
+  if (!/^[A-Za-z][A-Za-z0-9_]{1,62}$/.test(payload.resource_code)) {
+    return "리소스 코드는 영문자로 시작하고 영문/숫자/underscore만 사용할 수 있습니다.";
+  }
+  if (!payload.name.trim()) return "API 이름을 입력해 주세요.";
+  if (!/^https?:\/\//.test(payload.endpoint_url)) {
+    return "Endpoint URL은 http:// 또는 https:// 로 시작해야 합니다.";
+  }
+  if (payload.auth_method !== "none" && !payload.secret_ref) {
+    return "인증 방식이 none이 아니면 Secret 참조(env name)를 입력해야 합니다.";
+  }
+  if (
+    (payload.auth_method === "query_param" || payload.auth_method === "header") &&
+    !payload.auth_param_name
+  ) {
+    return "query_param/header 인증은 Auth 파라미터 이름을 입력해야 합니다.";
+  }
+  if (payload.pagination_kind === "page_number" && !payload.pagination_config?.page_param_name) {
+    return "page_number pagination은 page_param_name이 필요합니다.";
+  }
+  if (payload.pagination_kind === "offset_limit" && !payload.pagination_config?.offset_param_name) {
+    return "offset_limit pagination은 offset_param_name이 필요합니다.";
+  }
+  if (payload.pagination_kind === "cursor" && !payload.pagination_config?.cursor_response_path) {
+    return "cursor pagination은 cursor_response_path가 필요합니다.";
+  }
+  return null;
 }
 
 interface FieldTextProps {

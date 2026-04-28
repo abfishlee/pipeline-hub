@@ -1,6 +1,7 @@
 import { ArrowRight, Check, Database, RefreshCw, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { apiErrorMessage } from "@/lib/api-error";
 import { useDomains } from "@/api/v2/domains";
 import {
   type FieldMapping,
@@ -124,6 +125,11 @@ export function FieldMappingDesigner() {
       toast.info("저장할 매핑이 없습니다.");
       return;
     }
+    const validationError = validateDraftMappings(rows);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
 
     const existingBySourcePath = new Map(
       (mappings.data ?? []).map((m) => [m.source_path, m]),
@@ -153,7 +159,7 @@ export function FieldMappingDesigner() {
       }
       toast.success(`저장 완료: 신규 ${created}건, 수정 ${updated}건`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "매핑 저장 실패");
+      toast.error(`매핑 저장 실패: ${apiErrorMessage(e)}`);
     }
   }
 
@@ -441,6 +447,25 @@ function inferType(value: unknown, key: string): FieldType {
   }
   if (Array.isArray(value) || isRecord(value)) return "jsonb";
   return "varchar";
+}
+
+function validateDraftMappings(rows: DraftMapping[]) {
+  const seen = new Set<string>();
+  const columnRe = /^[a-z][a-z0-9_]{0,62}$/;
+  for (const row of rows) {
+    const column = normalizeColumn(row.targetColumn);
+    if (!columnRe.test(column)) {
+      return `target field '${row.targetColumn}'은 영문 소문자/숫자/underscore 형식이어야 합니다.`;
+    }
+    if (seen.has(column)) {
+      return `target field '${column}'이 중복되었습니다. 한 컬럼에는 하나의 source key만 저장할 수 있습니다.`;
+    }
+    seen.add(column);
+    if (row.transformExpr && row.transformExpr.includes("$") && !row.transformExpr.includes("$_value")) {
+      return `함수 '${row.transformExpr}'는 현재 source 값을 $_value로 참조해야 합니다.`;
+    }
+  }
+  return null;
 }
 
 function inferConfidence(value: unknown, dataType: FieldType) {

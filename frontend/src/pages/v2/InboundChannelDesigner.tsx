@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
+import { apiErrorMessage } from "@/lib/api-error";
 import { type WorkflowOut, useWorkflows } from "@/api/pipelines";
 import { useDomains } from "@/api/v2/domains";
 import {
@@ -424,6 +425,11 @@ function ChannelEditDialog({
   }
 
   async function handleSubmit() {
+    const validationError = validateInboundForm(form, mode);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
     try {
       if (mode === "create") {
         await create.mutateAsync({
@@ -448,7 +454,7 @@ function ChannelEditDialog({
         toast.success("Saved");
       }
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : (e as Error).message;
+      const msg = e instanceof ApiError ? apiErrorMessage(e) : (e as Error).message;
       toast.error(`Save failed: ${msg}`);
     }
   }
@@ -843,6 +849,28 @@ function Field({
       {children}
     </label>
   );
+}
+
+function validateInboundForm(form: InboundChannelIn, mode: "create" | "edit") {
+  if (mode === "create" && !/^[a-z][a-z0-9_]{1,62}$/.test(form.channel_code)) {
+    return "channel_code는 영문 소문자로 시작하고 소문자/숫자/underscore만 사용할 수 있습니다.";
+  }
+  if (!form.domain_code) return "도메인을 선택해 주세요.";
+  if (!form.name.trim()) return "채널 이름을 입력해 주세요.";
+  if (!form.secret_ref.trim()) return "secret_ref 환경변수명을 입력해 주세요.";
+  if ((form.max_payload_bytes ?? 0) < 1024) return "max payload는 최소 1024 bytes 이상이어야 합니다.";
+  if ((form.rate_limit_per_min ?? 0) < 1) return "rate limit/min은 1 이상이어야 합니다.";
+  const replay = form.replay_window_sec ?? 300;
+  if (replay < 30 || replay > 3600) return "replay window/sec는 30~3600 사이여야 합니다.";
+  const contentType = (form.expected_content_type ?? "").toLowerCase();
+  if (
+    ["WEBHOOK", "OCR_RESULT", "CRAWLER_RESULT"].includes(form.channel_kind) &&
+    contentType &&
+    !contentType.includes("json")
+  ) {
+    return `${form.channel_kind} 채널은 application/json 계열 content type을 사용해야 합니다.`;
+  }
+  return null;
 }
 
 function defaultSamplePayload(kind: ChannelKind) {

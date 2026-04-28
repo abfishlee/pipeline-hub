@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.sync_session import get_sync_sessionmaker
@@ -118,9 +119,36 @@ def _run_in_sync(fn: Any) -> Any:
             res = fn(session)
             session.commit()
             return res
+        except IntegrityError as exc:
+            session.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Inbound Channel 저장 중 DB 제약조건에 걸렸습니다. "
+                    "channel_code 중복, 도메인 참조, 상태/enum 값을 확인해 주세요."
+                ),
+            ) from exc
         except Exception:
             session.rollback()
             raise
+
+
+def _validate_content_type(kind: str, content_type: str | None) -> None:
+    if not content_type:
+        return
+    lowered = content_type.lower()
+    if kind in {"WEBHOOK", "OCR_RESULT", "CRAWLER_RESULT"} and "json" not in lowered:
+        raise HTTPException(
+            422,
+            detail=f"{kind} 채널은 expected_content_type에 application/json 계열을 사용해야 합니다.",
+        )
+    if kind == "FILE_UPLOAD" and not any(
+        token in lowered for token in ("csv", "json", "excel", "spreadsheet", "octet-stream")
+    ):
+        raise HTTPException(
+            422,
+            detail="FILE_UPLOAD 채널은 csv/json/excel/octet-stream 계열 content type을 사용해야 합니다.",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +236,7 @@ async def create_channel(
     def _do(s: Session) -> InboundChannelOut:
         if s.get(DomainDefinition, body.domain_code) is None:
             raise HTTPException(404, detail=f"domain {body.domain_code} not found")
+        _validate_content_type(body.channel_kind, body.expected_content_type)
         dup = s.execute(
             select(InboundChannel).where(
                 InboundChannel.channel_code == body.channel_code
@@ -260,6 +289,8 @@ async def update_channel(
                     "PUBLISHED 는 새 channel_code 로 등록."
                 ),
             )
+        if body.expected_content_type is not None:
+            _validate_content_type(m.channel_kind, body.expected_content_type)
         for field_name, value in body.model_dump(exclude_unset=True).items():
             setattr(m, field_name, value)
         s.flush()
