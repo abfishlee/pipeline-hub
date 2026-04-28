@@ -283,10 +283,11 @@ async def list_catalog_tables(
                 SELECT t.table_schema, t.table_name, t.table_type,
                        c.reltuples::bigint AS estimated_rows
                   FROM information_schema.tables t
+                  LEFT JOIN pg_namespace n
+                         ON n.nspname = t.table_schema
                   LEFT JOIN pg_class c
                          ON c.relname = t.table_name
-                  LEFT JOIN pg_namespace n
-                         ON n.oid = c.relnamespace AND n.nspname = t.table_schema
+                        AND c.relnamespace = n.oid
                  WHERE {where}
                  ORDER BY t.table_schema, t.table_name
                 """
@@ -305,7 +306,7 @@ async def list_catalog_tables(
             for r in rows
         ]
 
-    return await asyncio.to_thread(_do)
+    return await asyncio.to_thread(_run_in_sync, _do)
 
 
 @router.get("/columns/{schema}/{table}", response_model=list[TableColumnOut])

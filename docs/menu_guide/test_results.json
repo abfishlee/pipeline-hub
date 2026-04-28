@@ -1,0 +1,297 @@
+{
+  "timestamp": "2026-04-28T00:31:43.413Z",
+  "results": [
+    {
+      "path": "/",
+      "label": "Dashboard",
+      "finalUrl": "http://127.0.0.1:5173/",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [
+        "GET http://127.0.0.1:5173/v1/auth/me: net::ERR_ABORTED"
+      ],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/v2/connectors/public-api",
+      "label": "Source / API Connector",
+      "finalUrl": "http://127.0.0.1:5173/v2/connectors/public-api",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/v2/inbound-channels/designer",
+      "label": "Inbound Channel",
+      "finalUrl": "http://127.0.0.1:5173/v2/inbound-channels/designer",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/v2/marts/designer",
+      "label": "Mart Workbench",
+      "finalUrl": "http://127.0.0.1:5173/v2/marts/designer",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/v2/mappings/designer",
+      "label": "Field Mapping Designer",
+      "finalUrl": "http://127.0.0.1:5173/v2/mappings/designer",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/v2/transforms/designer",
+      "label": "Transform Designer",
+      "finalUrl": "http://127.0.0.1:5173/v2/transforms/designer",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/v2/quality/designer",
+      "label": "Quality Workbench",
+      "finalUrl": "http://127.0.0.1:5173/v2/quality/designer",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/v2/pipelines/designer",
+      "label": "ETL Canvas V2 (new)",
+      "finalUrl": "http://127.0.0.1:5173/v2/pipelines/designer",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/pipelines/runs",
+      "label": "Pipeline Runs",
+      "finalUrl": "http://127.0.0.1:5173/pipelines/runs",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/pipelines/releases",
+      "label": "Releases",
+      "finalUrl": "http://127.0.0.1:5173/pipelines/releases",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/v2/service-mart",
+      "label": "Service Mart Viewer",
+      "finalUrl": "http://127.0.0.1:5173/v2/service-mart",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/raw-objects",
+      "label": "Raw Objects",
+      "finalUrl": "http://127.0.0.1:5173/raw-objects",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/jobs",
+      "label": "Collection Jobs",
+      "finalUrl": "http://127.0.0.1:5173/jobs",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/master-merge",
+      "label": "Master Merge",
+      "finalUrl": "http://127.0.0.1:5173/master-merge",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/sql-studio",
+      "label": "SQL Studio",
+      "finalUrl": "http://127.0.0.1:5173/sql-studio",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/crowd-tasks",
+      "label": "Review Queue",
+      "finalUrl": "http://127.0.0.1:5173/crowd-tasks",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/v2/operations/dashboard",
+      "label": "Operations Dashboard",
+      "finalUrl": "http://127.0.0.1:5173/v2/operations/dashboard",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/runtime",
+      "label": "Runtime Monitor",
+      "finalUrl": "http://127.0.0.1:5173/runtime",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [
+        "GET http://localhost:3000/d/pipeline-hub-runtime?orgId=1&kiosk=tv: net::ERR_CONNECTION_REFUSED"
+      ],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/v2/mock-api",
+      "label": "Mock API (Admin)",
+      "finalUrl": "http://127.0.0.1:5173/v2/mock-api",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/dead-letters",
+      "label": "Dead Letters",
+      "finalUrl": "http://127.0.0.1:5173/dead-letters",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/users",
+      "label": "Users",
+      "finalUrl": "http://127.0.0.1:5173/users",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/api-keys",
+      "label": "API Keys",
+      "finalUrl": "http://127.0.0.1:5173/api-keys",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/security-events",
+      "label": "Security Events",
+      "finalUrl": "http://127.0.0.1:5173/security-events",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/admin/partitions",
+      "label": "Partition Archive",
+      "finalUrl": "http://127.0.0.1:5173/admin/partitions",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/v2/pipelines/designer/2",
+      "label": "ETL Canvas V2 (existing)",
+      "finalUrl": "http://127.0.0.1:5173/v2/pipelines/designer/2",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [],
+      "failedResponses": [],
+      "pass": true
+    },
+    {
+      "path": "/pipelines/runs/2",
+      "label": "Pipeline Run Detail",
+      "finalUrl": "http://127.0.0.1:5173/pipelines/runs/2",
+      "redirectedToLogin": false,
+      "navError": null,
+      "consoleErrors": [],
+      "networkErrors": [
+        "GET http://127.0.0.1:5173/v1/pipelines/runs/2/events: net::ERR_ABORTED"
+      ],
+      "failedResponses": [],
+      "pass": true
+    }
+  ]
+}
