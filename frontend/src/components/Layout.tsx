@@ -1,23 +1,14 @@
 import {
   Activity,
-  AlertTriangle,
-  ClipboardCheck,
   Database,
-  FileBox,
   Gauge,
   GitBranch,
-  Archive,
-  GitMerge,
   Globe,
-  KeyRound,
   ListChecks,
   LogOut,
   Server,
-  Shield,
   ShieldCheck,
-  ShoppingBag,
   Sigma,
-  TestTube,
   Users,
   Workflow,
 } from "lucide-react";
@@ -41,16 +32,40 @@ interface NavItem {
   operatorOk?: boolean;
 }
 
-// 데이터 수집 워크플로 순서로 정렬 (Phase 6 Wave 6 — 메뉴 정리).
-// 숨겨진 라우트: /sources (v1 SourcesPage), /pipelines/designer (v1 ETL).
-//   기능 중복으로 메뉴에서 제외. 라우트는 backward compat 위해 App.tsx 유지.
-const NAV_ITEMS: NavItem[] = [
+interface NavSection {
+  kind: "section";
+  label: string;
+  adminOnly?: boolean;
+}
+
+type NavEntry = NavItem | NavSection;
+
+function section(label: string, options: Pick<NavSection, "adminOnly"> = {}): NavSection {
+  return { kind: "section", label, ...options };
+}
+
+function isSection(item: NavEntry): item is NavSection {
+  return "kind" in item && item.kind === "section";
+}
+
+// V3 메뉴 원칙:
+// - 사용자가 실제로 반복 수행하는 핵심 업무만 1차 메뉴에 둔다.
+// - 세부 조회/운영 보조 화면은 라우트는 유지하되 사이드바에서 숨긴다.
+// - 업무 순서는 설계 → 조립/실행 → 운영 → 관리.
+//
+// 숨겨진 라우트:
+// - /sources, /pipelines/designer: v1 legacy.
+// - /raw-objects, /jobs, /pipelines/releases, /sql-studio, /crowd-tasks,
+//   /runtime, /dead-letters, /api-keys, /security-events, /admin/partitions,
+//   /master-merge, /v2/service-mart:
+//   상세 링크/관리자 직접 URL/기존 문서 호환을 위해 App.tsx 에는 유지.
+const NAV_ITEMS: NavEntry[] = [
   { to: "/", label: "Dashboard", icon: Gauge },
 
-  // ─── 1. Design — 자산 설계 (개발자 없이) ──────────────────────
+  section("1. 자산 설계"),
   {
     to: "/v2/connectors/public-api",
-    label: "Source / API Connector",
+    label: "Source/API",
     icon: Globe,
     operatorOk: true,
   },
@@ -61,57 +76,44 @@ const NAV_ITEMS: NavItem[] = [
     operatorOk: true,
   },
   {
-    to: "/v2/marts/designer",
-    label: "Mart Workbench",
-    icon: Database,
-    operatorOk: true,
-  },
-  {
     to: "/v2/mappings/designer",
-    label: "Field Mapping Designer",
+    label: "Field Mapping",
     icon: Workflow,
     operatorOk: true,
   },
   {
+    to: "/v2/quality/designer",
+    label: "DQ / Quality",
+    icon: ShieldCheck,
+    operatorOk: true,
+  },
+  {
     to: "/v2/transforms/designer",
-    label: "Transform Designer",
+    label: "Transform",
     icon: Sigma,
     operatorOk: true,
   },
   {
-    to: "/v2/quality/designer",
-    label: "Quality Workbench",
-    icon: ShieldCheck,
+    to: "/v2/marts/designer",
+    label: "Mart Designer",
+    icon: Database,
     operatorOk: true,
   },
 
-  // ─── 2. Compose & Release — 박스 조립 + 배포 ──────────────────
+  section("2. 프로세스 조립/실행"),
   {
     to: "/v2/pipelines/designer",
     label: "ETL Canvas",
     icon: Workflow,
     approverOk: true,
   },
-  { to: "/pipelines/runs", label: "Pipeline Runs", icon: Workflow },
-  { to: "/pipelines/releases", label: "Releases", icon: GitBranch },
+  { to: "/pipelines/runs", label: "Jobs & Runs", icon: ListChecks },
 
-  // ─── 3. Operate — 실 운영 (수집/검수/머지) ─────────────────────
-  { to: "/v2/service-mart", label: "Service Mart Viewer", icon: ShoppingBag, operatorOk: true },
-  { to: "/raw-objects", label: "Raw Objects", icon: FileBox },
-  { to: "/jobs", label: "Collection Jobs", icon: ListChecks },
-  { to: "/master-merge", label: "Master Merge", icon: GitMerge, approverOk: true },
-  { to: "/sql-studio", label: "SQL Studio", icon: Sigma, operatorOk: true },
-  { to: "/crowd-tasks", label: "Review Queue", icon: ClipboardCheck, reviewerOk: true },
-  { to: "/v2/operations/dashboard", label: "Operations Dashboard", icon: Activity },
-  { to: "/runtime", label: "Runtime Monitor", icon: Activity },
+  section("3. 운영 모니터링"),
+  { to: "/v2/operations/dashboard", label: "Monitoring", icon: Activity },
 
-  // ─── 4. Admin — 시스템 관리 ────────────────────────────────────
-  { to: "/v2/mock-api", label: "Mock API (테스트)", icon: TestTube, adminOnly: true },
-  { to: "/dead-letters", label: "Dead Letters", icon: AlertTriangle, adminOnly: true },
+  section("4. 시스템 관리", { adminOnly: true }),
   { to: "/users", label: "Users", icon: Users, adminOnly: true },
-  { to: "/api-keys", label: "API Keys", icon: KeyRound, adminOnly: true },
-  { to: "/security-events", label: "Security Events", icon: Shield, adminOnly: true },
-  { to: "/admin/partitions", label: "Partition Archive", icon: Archive, adminOnly: true },
 ];
 
 export function Layout(_: PropsWithChildren) {
@@ -138,29 +140,45 @@ export function Layout(_: PropsWithChildren) {
         </div>
         <nav className="flex-1 space-y-1 p-2">
           {NAV_ITEMS.filter((it) => {
+            if (isSection(it)) {
+              if (it.adminOnly) return isAdmin;
+              return true;
+            }
             if (it.adminOnly) return isAdmin;
             if (it.approverOk) return isApprover;
             if (it.operatorOk) return isOperator;
             if (it.reviewerOk) return isReviewer;
             return true;
-          }).map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === "/"}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition",
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-foreground/80 hover:bg-secondary",
-                )
-              }
-            >
-              <item.icon className="h-4 w-4" />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
+          }).map((item, index) => {
+            if (isSection(item)) {
+              return (
+                <div
+                  key={`${item.label}-${index}`}
+                  className="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                >
+                  {item.label}
+                </div>
+              );
+            }
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === "/"}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-foreground/80 hover:bg-secondary",
+                  )
+                }
+              >
+                <item.icon className="h-4 w-4" />
+                <span>{item.label}</span>
+              </NavLink>
+            );
+          })}
         </nav>
         <div className="border-t border-border p-3 text-xs text-muted-foreground">
           <div className="mb-1 truncate font-medium text-foreground">
@@ -203,19 +221,19 @@ function currentTitle(pathname: string): string {
   if (pathname === "/") return "Dashboard";
   if (pathname.startsWith("/sources")) return "Sources (legacy)";
   if (pathname.startsWith("/v2/connectors/public-api"))
-    return "Source / API Connector";
+    return "Source/API";
   if (pathname.startsWith("/v2/inbound-channels"))
     return "Inbound Channel Designer";
   if (pathname.startsWith("/v2/mappings/designer"))
-    return "Field Mapping Designer";
+    return "Field Mapping";
   if (pathname.startsWith("/v2/transforms/designer"))
-    return "Transform Designer";
+    return "Transform";
   if (pathname.startsWith("/v2/quality/designer"))
-    return "Quality Workbench";
+    return "DQ / Quality";
   if (pathname.startsWith("/v2/marts/designer"))
-    return "Mart Workbench";
+    return "Mart Designer";
   if (pathname.startsWith("/v2/operations/dashboard"))
-    return "Operations Dashboard";
+    return "Monitoring";
   if (pathname.startsWith("/v2/service-mart"))
     return "Service Mart Viewer";
   if (pathname.startsWith("/v2/dryrun/workflow"))
@@ -225,7 +243,7 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/jobs")) return "Collection Jobs";
   if (pathname.startsWith("/raw-objects")) return "Raw Objects";
   if (pathname.startsWith("/pipelines/runs/")) return "Pipeline Run Detail";
-  if (pathname.startsWith("/pipelines/runs")) return "Pipeline Runs";
+  if (pathname.startsWith("/pipelines/runs")) return "Jobs & Runs";
   if (pathname.startsWith("/v2/pipelines/designer")) return "ETL Canvas";
   if (pathname.startsWith("/pipelines/designer")) return "Visual ETL Designer (legacy)";
   if (pathname.startsWith("/pipelines/releases")) return "Releases";

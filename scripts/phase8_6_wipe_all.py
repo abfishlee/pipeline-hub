@@ -1,30 +1,13 @@
-"""Phase 8.6.14 — 데이터 wipe.
-
-운영자가 시스템을 *깨끗한 상태* 로 리셋한 후 Mock API 시나리오로 처음부터 끝까지
-검증할 수 있도록 사용자 데이터 (run/raw/audit/domain 자산 등) 만 truncate.
+"""Clean all non-user data for feature-by-feature validation.
 
 남기는 것:
-  - ctl.app_user / ctl.role / ctl.user_role        — 로그인 계정 유지
-  - ctl.api_key                                     — API key 유지
-  - ctl.mock_api_endpoint                           — mock 페이지 등록 유지 (Phase 8.6 시나리오)
-  - alembic_version                                 — 마이그레이션 상태 유지
-  - mart.standard_code (있으면)                     — 시스템 시드 표준코드 유지
+  - ctl.app_user / ctl.role / ctl.user_role — 로그인 계정과 전역 역할
+  - public.alembic_version                  — 마이그레이션 상태
 
 지우는 것:
-  - run.* (pipeline_run, node_run, ingest_job, event_outbox, hold_decision)
-  - raw.* (raw_object 모든 파티션)
-  - audit.* (access_log, inbound_event, security_event, alert_log, sql_execution_log,
-            public_api_usage, perf_slo, provider_usage)
-  - dq.quality_result
-  - crowd.task / crowd_task
-  - domain.* 자산 (public_api_connector, field_mapping, sql_asset, dq_rule,
-                  load_policy, mart_design_draft, inbound_channel,
-                  source_provider_binding, source_contract,
-                  resource_definition, domain_definition)
-  - wf.workflow_definition / node_definition / edge_definition / pipeline_release
-  - mart.product_master / retailer_master / seller_master / product_mapping (있으면)
-  - service_mart.* / *_mart.* / *_stg.*
-  - stg.*
+  - 위 보호 테이블을 제외한 모든 업무/운영/테스트 데이터
+  - API Key, 도메인 권한, source, mapping, workflow, run, raw, audit, mart,
+    service mart, mock/demo 잔재 포함
 
 실행:
   cd backend
@@ -46,110 +29,42 @@ from sqlalchemy import text
 
 from app.db.sync_session import get_sync_sessionmaker
 
-# 도메인 무관 — 모든 사용자 schema 자동 검출
-SAFE_SYSTEM_SCHEMAS = frozenset(
+PROTECTED_TABLES = frozenset(
     {
-        "pg_catalog",
-        "information_schema",
-        "alembic_version_schema",  # 일부 alembic config
-        "public",  # alembic_version 만 있으므로 별도 처리
+        ("ctl", "app_user"),
+        ("ctl", "role"),
+        ("ctl", "user_role"),
+        ("public", "alembic_version"),
     }
 )
 
-WIPE_TABLES_ORDERED: list[tuple[str, str]] = [
-    # 의존성 순서 — child 부터
-    ("audit", "alert_log"),
-    ("audit", "security_event"),
-    ("audit", "sql_execution_log"),
-    ("audit", "perf_slo"),
-    ("audit", "download_log"),
-    ("audit", "public_api_usage"),
-    ("audit", "provider_usage"),
-    ("audit", "access_log"),
-    ("audit", "inbound_event"),
-    ("dq", "quality_result"),
-    ("crowd", "task"),
-    ("crowd", "skill_tag"),
-    ("crowd", "payout"),
-    ("crowd", "reviewer_stats"),
-    ("run", "event_outbox"),
-    ("run", "hold_decision"),
-    ("run", "node_run"),
-    ("run", "pipeline_run"),
-    ("run", "ingest_job"),
-    ("raw", "raw_object_audit"),
-    ("raw", "ocr_result"),
-    ("raw", "raw_object"),
-    ("raw", "content_hash_index"),
-    ("raw", "db_cdc_event"),
-    ("raw", "db_snapshot"),
-    ("wf", "edge_definition"),
-    ("wf", "node_definition"),
-    ("wf", "pipeline_release"),
-    ("wf", "workflow_dag_lock"),
-    ("wf", "pipeline_template"),
-    ("wf", "workflow_definition"),
-    ("domain", "field_mapping"),
-    ("domain", "dq_rule"),
-    ("domain", "load_policy"),
-    ("domain", "mart_design_draft"),
-    ("domain", "sql_asset"),
-    ("domain", "inbound_channel"),
-    ("domain", "source_provider_binding"),
-    ("domain", "public_api_connector"),
-    ("domain", "source_contract"),
-    ("domain", "resource_definition"),
-    ("domain", "provider_definition"),
-    ("domain", "domain_definition"),
-    ("ctl", "dry_run_record"),
-    ("ctl", "cdc_subscription"),
-    ("ctl", "data_source"),
-    ("mart", "product_mapping"),
-    ("mart", "product_master"),
-    ("mart", "seller_master"),
-    ("mart", "retailer_master"),
-    ("mart", "price_daily_agg"),
-    ("mart", "price_fact"),  # partitioned
-    ("service_mart", "product_price"),
-    ("service_mart", "std_product"),
-    ("agri_mart", "kamis_price"),
-    ("pos_mart", "pos_transaction"),
-    ("pos_mart", "std_payment_method_alias"),
-]
 
-
-def _table_exists(session: object, schema: str, table: str) -> bool:
-    return bool(
-        session.execute(  # type: ignore[attr-defined]
-            text(
-                "SELECT to_regclass(:fqdn) IS NOT NULL"
-            ),
-            {"fqdn": f"{schema}.{table}"},
-        ).scalar()
-    )
-
-
-def _all_schemas_with_pattern(session: object, pattern: str) -> list[str]:
+def _wipe_targets(session: object) -> list[tuple[str, str, str]]:
     rows = session.execute(  # type: ignore[attr-defined]
         text(
-            "SELECT nspname FROM pg_namespace "
-            "WHERE nspname LIKE :pat "
-            "  AND nspname NOT IN ('pg_catalog','information_schema') "
-            "ORDER BY nspname"
-        ),
-        {"pat": pattern},
+            """
+            SELECT
+              n.nspname AS schema_name,
+              c.relname AS table_name,
+              format('%I.%I', n.nspname, c.relname) AS qualified_name
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind IN ('r', 'p')
+              AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+              AND n.nspname NOT LIKE 'pg_toast%'
+            ORDER BY
+              CASE WHEN c.relkind = 'r' THEN 0 ELSE 1 END,
+              n.nspname,
+              c.relname
+            """
+        )
     ).all()
-    return [str(r[0]) for r in rows]
-
-
-def _all_tables_in_schema(session: object, schema: str) -> list[str]:
-    rows = session.execute(  # type: ignore[attr-defined]
-        text(
-            "SELECT tablename FROM pg_tables WHERE schemaname=:s ORDER BY tablename"
-        ),
-        {"s": schema},
-    ).all()
-    return [str(r[0]) for r in rows]
+    targets: list[tuple[str, str, str]] = []
+    for schema, table, qualified in rows:
+        if (str(schema), str(table)) in PROTECTED_TABLES:
+            continue
+        targets.append((str(schema), str(table), str(qualified)))
+    return targets
 
 
 def main(args: Iterable[str]) -> None:
@@ -157,28 +72,16 @@ def main(args: Iterable[str]) -> None:
 
     sm = get_sync_sessionmaker()
     with sm() as session:
-        print("== Phase 8.6 Data Wipe — 시작 ==")
+        print("== Data Wipe — 사용자/역할 제외 전체 초기화 시작 ==")
 
-        # 1. 알려진 테이블 truncate
-        wiped: list[str] = []
-        skipped: list[str] = []
-        for schema, table in WIPE_TABLES_ORDERED:
-            if _table_exists(session, schema, table):
-                session.execute(text(f"TRUNCATE {schema}.{table} CASCADE"))
-                wiped.append(f"{schema}.{table}")
-            else:
-                skipped.append(f"{schema}.{table}")
+        targets = _wipe_targets(session)
+        if targets:
+            qualified_targets = ", ".join(t[2] for t in targets)
+            session.execute(text(f"TRUNCATE {qualified_targets} RESTART IDENTITY CASCADE"))
 
-        # 2. 동적으로 _stg / _mart 스키마 전체 truncate
-        stg_schemas = _all_schemas_with_pattern(session, "%_stg")
-        mart_schemas = _all_schemas_with_pattern(session, "%_mart")
-        for sc in stg_schemas + mart_schemas:
-            for tbl in _all_tables_in_schema(session, sc):
-                # service_mart 는 위 list 에서 처리됨 — 중복 ok (TRUNCATE idempotent)
-                session.execute(text(f"TRUNCATE {sc}.{tbl} CASCADE"))
-                wiped.append(f"{sc}.{tbl}")
+        wiped = [f"{schema}.{table}" for schema, table, _ in targets]
 
-        # 3. wf.tmp_run_* 임시 sandbox 테이블 정리 (이전 run 잔재)
+        # wf.tmp_run_* 임시 sandbox 테이블 정리 (이전 run 잔재)
         tmp_tables = session.execute(
             text(
                 "SELECT tablename FROM pg_tables "
@@ -189,14 +92,10 @@ def main(args: Iterable[str]) -> None:
             session.execute(text(f"DROP TABLE IF EXISTS wf.{r[0]} CASCADE"))
             wiped.append(f"wf.{r[0]} (DROPPED)")
 
-        # 4. sequence reset
-        session.execute(text("SELECT setval(c.oid, 1, false) "
-                             "FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
-                             "WHERE c.relkind='S' AND n.nspname IN ('raw','run','audit','wf','domain','dq','crowd','service_mart')"))
-
         if not auto_yes:
+            protected = ", ".join(f"{s}.{t}" for s, t in sorted(PROTECTED_TABLES))
             print(f"\n  truncated/dropped: {len(wiped)} 객체")
-            print(f"  skipped (미존재): {len(skipped)} 객체")
+            print(f"  protected: {protected}")
             ans = input("commit 하시겠습니까? (y/N): ").strip().lower()
             if ans != "y":
                 session.rollback()
@@ -205,8 +104,8 @@ def main(args: Iterable[str]) -> None:
 
         session.commit()
         print(f"\n✓ wipe 완료 — {len(wiped)} 객체 정리.")
-        print("  남은 것: ctl.app_user / ctl.role / ctl.api_key / ctl.mock_api_endpoint / mart.standard_code")
-        print("  다음 단계: scripts/phase8_6_validate_scenario.py 실행")
+        print("  남은 것: ctl.app_user / ctl.role / ctl.user_role / public.alembic_version")
+        print("  다음 단계: 기능 단위 실증 데이터를 화면에서 새로 생성")
 
 
 if __name__ == "__main__":

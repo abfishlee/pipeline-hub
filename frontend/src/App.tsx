@@ -28,7 +28,6 @@ import { EtlCanvasV2 } from "@/pages/v2/EtlCanvasV2";
 import { FieldMappingDesigner } from "@/pages/v2/FieldMappingDesigner";
 import { InboundChannelDesigner } from "@/pages/v2/InboundChannelDesigner";
 import { MartDesigner } from "@/pages/v2/MartDesigner";
-import { MockApiPage } from "@/pages/v2/MockApiPage";
 import { OperationsDashboard } from "@/pages/v2/OperationsDashboard";
 import { PublishApproval } from "@/pages/v2/PublishApproval";
 import { QualityWorkbench } from "@/pages/v2/QualityWorkbench";
@@ -153,7 +152,6 @@ export default function App() {
                 path="/v2/service-mart"
                 element={<ServiceMartViewer />}
               />
-              <Route path="/v2/mock-api" element={<MockApiPage />} />
               <Route
                 path="/v2/dryrun/workflow/:workflowId"
                 element={<DryRunResults />}

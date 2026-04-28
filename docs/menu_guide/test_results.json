@@ -204,17 +204,6 @@
       "pass": true
     },
     {
-      "path": "/v2/mock-api",
-      "label": "Mock API (Admin)",
-      "finalUrl": "http://127.0.0.1:5173/v2/mock-api",
-      "redirectedToLogin": false,
-      "navError": null,
-      "consoleErrors": [],
-      "networkErrors": [],
-      "failedResponses": [],
-      "pass": true
-    },
-    {
       "path": "/dead-letters",
       "label": "Dead Letters",
       "finalUrl": "http://127.0.0.1:5173/dead-letters",

@@ -20,7 +20,7 @@ node scripts/test_all_menus.mjs
 
 SSE long-poll URL (`/events`) 과 Vite HMR 은 무시 처리.
 
-## 결과 — 26/26 통과 ✓
+## 결과 — 25/25 통과 ✓
 
 | 카테고리 | # | 메뉴 | URL | 결과 |
 |---|---|---|---|---|
@@ -44,12 +44,11 @@ SSE long-poll URL (`/events`) 과 Vite HMR 은 무시 처리.
 | Operate | 18 | Review Queue | `/crowd-tasks` | ✓ |
 | Operate | 19 | Operations Dashboard | `/v2/operations/dashboard` | ✓ |
 | Operate | 20 | Runtime Monitor | `/runtime` | ✓ |
-| Admin | 21 | Mock API (테스트) | `/v2/mock-api` | ✓ |
-| Admin | 22 | Dead Letters | `/dead-letters` | ✓ |
-| Admin | 23 | Users | `/users` | ✓ |
-| Admin | 24 | API Keys | `/api-keys` | ✓ |
-| Admin | 25 | Security Events | `/security-events` | ✓ |
-| Admin | 26 | Partition Archive | `/admin/partitions` | ✓ |
+| Admin | 21 | Dead Letters | `/dead-letters` | ✓ |
+| Admin | 22 | Users | `/users` | ✓ |
+| Admin | 23 | API Keys | `/api-keys` | ✓ |
+| Admin | 24 | Security Events | `/security-events` | ✓ |
+| Admin | 25 | Partition Archive | `/admin/partitions` | ✓ |
 
 ## 검증 중 발견 + 수정한 이슈
 

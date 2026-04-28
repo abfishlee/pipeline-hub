@@ -2,7 +2,7 @@
 
 **날짜:** 2026-04-27
 **선행:** Phase 8.5 (Real Operation, 96~98%)
-**목적:** Phase 9 실증 진입 전, **공용 (도메인 무관) 플랫폼** 정체성 회복 + 사용자 친화도 + Mock API 자체 검증 도구 + 풀체인 작동 증명
+**목적:** Phase 9 실증 진입 전, **공용 (도메인 무관) 플랫폼** 정체성 회복 + 사용자 친화도 + 실 API 기반 풀체인 작동 증명
 
 ---
 
@@ -43,7 +43,6 @@ SQL Studio = ad-hoc SQL 자유 작성 + 일회성 실행 도구.
 | # | sub-step | 산출물 | 그룹 |
 |---|---|---|---|
 | 8.6.1 | 도메인 특정 표현 제거 | CLAUDE.md, docs/, frontend 16 파일 | A |
-| 8.6.5 | Mock API 페이지 | backend `/v1/mock-api/*` + frontend 관리 화면 | B |
 | 8.6.2 | 응답 포맷 7종 + parser | json/xml/csv/tsv/text/excel/binary | B |
 | 8.6.3 | Cron Picker (6 모드) | 즉시/N분/N시간/매일/요일+시각/고급 | C |
 | 8.6.4 | Airflow 기동 + 실증 | scheduled_pipelines DAG 검증 + ops 문서 | C |
@@ -53,15 +52,15 @@ SQL Studio = ad-hoc SQL 자유 작성 + 일회성 실행 도구.
 | 8.6.9 | Field Mapping 마법사 | 5 단계 마법사 + sample JSON 자동 평탄화 | E |
 | 8.6.10 | Quality 카탈로그 통합 | target_table dropdown + column 자동완성 | E |
 | 8.6.11 | SQL Studio 정책 재정의 | 테이블 트리 + sql_asset 승급 버튼 | E |
-| 8.6.13 | 9 노드 풀체인 e2e | Mock API → MAP → FUNCTION → STANDARDIZE → SQL_ASSET → DEDUP → DQ → LOAD 통합 테스트 | F |
-| **8.6.14** | **데이터 wipe + 시나리오 검증** | **truncate 후 Mock API 로 처음부터 끝까지 자동 시나리오 + 시나리오 markdown** | **F** |
+| 8.6.13 | 9 노드 풀체인 e2e | 실 API → MAP → FUNCTION → STANDARDIZE → SQL_ASSET → DEDUP → DQ → LOAD 통합 테스트 | F |
+| **8.6.14** | **데이터 wipe + 시나리오 검증** | **사용자/역할 제외 전체 초기화 후 실 API 로 처음부터 끝까지 검증 + 시나리오 markdown** | **F** |
 
 ### 그룹별 commit 전략
 
 | 그룹 | commit 주제 |
 |---|---|
 | **A** | `feat(phase8.6): 공용 플랫폼 정체성 회복 — 도메인 표현 제거` |
-| **B** | `feat(phase8.6): Mock API 자체 검증 도구 + 응답 포맷 7종 파서` |
+| **B** | `feat(phase8.6): 응답 포맷 7종 파서 + 실 API connector 검증` |
 | **C** | `feat(phase8.6): Cron Picker + Airflow 기동 검증` |
 | **D** | `feat(phase8.6): UX 진입경험 + Canvas 권장 패턴 도식` |
 | **E** | `feat(phase8.6): 디자이너 카탈로그 통합 + SQL Studio 정책 정정` |
@@ -76,10 +75,10 @@ SQL Studio = ad-hoc SQL 자유 작성 + 일회성 실행 도구.
 
 | 단계 | 화면 | 행동 | 기대 결과 |
 |---|---|---|---|
-| 1 | Mock API 관리 페이지 | "sample_iot_sensors" mock 등록 (JSON 응답) | mock endpoint URL 노출 |
-| 2 | Source / API Connector | mock URL 로 connector 등록 + dry-run | dry-run 통과 |
+| 1 | Source / API Connector | 실 API endpoint 등록 + dry-run | dry-run 통과 |
+| 2 | Source / API Connector | 응답 sample 과 response_path 확인 | row preview 노출 |
 | 3 | Mart Workbench | `iot_mart.sensor_reading` 마트 + load_policy 정의 | PUBLISHED |
-| 4 | Field Mapping Designer | mock JSON path → mart 컬럼 매핑 (마법사) | PUBLISHED |
+| 4 | Field Mapping Designer | sample JSON path → mart 컬럼 매핑 (마법사) | PUBLISHED |
 | 5 | Quality Workbench | `null_pct_max` + `range` 룰 정의 (카탈로그 dropdown) | PUBLISHED |
 | 6 | ETL Canvas | SOURCE → MAP → DQ → LOAD 4 노드 chain + Cron Picker 1분마다 + PUBLISHED | PUBLISHED |
 | 7 | Pipeline Runs / Operations Dashboard | 1분 안에 자동 trigger → SUCCESS run 1건 + iot_mart 에 row 적재 | row count > 0 |

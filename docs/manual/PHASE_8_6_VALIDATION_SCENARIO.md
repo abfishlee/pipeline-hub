@@ -30,21 +30,11 @@ cd frontend && pnpm dev
 
 ## 시나리오 단계 (웹 화면)
 
-### Step 1 — Mock API 등록 (자체 검증용)
+### Step 1 — 실 API 선정
 
-화면: **좌측 메뉴 → "Mock API (테스트)"** (`/v2/mock-api`)
+외부에서 호출 가능한 테스트/실증 API endpoint 를 하나 정한다. 응답은 JSON/XML/CSV/TSV/TEXT/Excel/Binary 중 하나여야 한다.
 
-1. [Mock 등록] 클릭
-2. 입력:
-   - code: `phase86_iot_sensors`
-   - name: `Phase 8.6 IoT 센서 mock`
-   - 응답 포맷: `json`
-   - 응답 본문: (sample 자동 채움 — 그대로 사용 가능)
-   - 활성: 체크
-3. [저장] → 표에 등록 확인
-4. **serve URL 복사 버튼** 클릭 → URL 메모 (예: `http://localhost:8000/v2/mock-api/serve/phase86_iot_sensors`)
-
-**검증**: 새 탭에서 serve URL 호출 → JSON 응답 200.
+**검증**: 브라우저나 curl 로 endpoint 호출 시 200 응답과 샘플 body 확인.
 
 ### Step 2 — Source / API Connector 등록
 
@@ -53,7 +43,7 @@ cd frontend && pnpm dev
 1. [+ 새 API 등록]
 2. domain: `iot` (없으면 신규 등록 — 도메인 무관 시나리오 시연용)
 3. resource_code: `sensor_reading`
-4. endpoint_url: Step 1 의 serve URL 붙여넣기
+4. endpoint_url: Step 1 의 실 API URL 붙여넣기
 5. http_method: `GET`, auth_method: `none`
 6. response_format: `json`, response_path: `$.items`
 7. [저장] → DRAFT
@@ -79,7 +69,7 @@ cd frontend && pnpm dev
 화면: **좌측 메뉴 → "Field Mapping Designer"** (`/v2/mappings/designer`)
 
 1. domain: `iot`, contract: Step 2 connector 자동 생성
-2. [+ 새 매핑 행] → 우측의 **JSON Path Picker** 에 Step 1 sample body 붙여넣기
+2. [+ 새 매핑 행] → 우측의 **JSON Path Picker** 에 Step 2 test call sample body 붙여넣기
 3. tree 의 leaf (`sensor_id`, `value`, `ts`) 클릭 → source_path 자동 입력
 4. target_table: `iot_mart.sensor_reading`, target_column 각각 매핑
 5. transform_expr: `sensor_id` 는 `text.trim`, `value` 는 `number.parse_decimal`

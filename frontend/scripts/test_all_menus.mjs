@@ -37,7 +37,6 @@ const MENUS = [
   ["/crowd-tasks", "Review Queue"],
   ["/v2/operations/dashboard", "Operations Dashboard"],
   ["/runtime", "Runtime Monitor"],
-  ["/v2/mock-api", "Mock API (Admin)", true],
   ["/dead-letters", "Dead Letters", true],
   ["/users", "Users", true],
   ["/api-keys", "API Keys", true],
