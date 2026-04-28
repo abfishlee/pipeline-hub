@@ -26,13 +26,18 @@ import { UsersPage } from "@/pages/UsersPage";
 import { DryRunResults } from "@/pages/v2/DryRunResults";
 import { EtlCanvasV2 } from "@/pages/v2/EtlCanvasV2";
 import { FieldMappingDesigner } from "@/pages/v2/FieldMappingDesigner";
+import { InboundInbox } from "@/pages/v2/InboundInbox";
 import { InboundChannelDesigner } from "@/pages/v2/InboundChannelDesigner";
+import { MartFreshness } from "@/pages/v2/MartFreshness";
 import { MartDesigner } from "@/pages/v2/MartDesigner";
 import { OperationsDashboard } from "@/pages/v2/OperationsDashboard";
 import { PublishApproval } from "@/pages/v2/PublishApproval";
 import { QualityWorkbench } from "@/pages/v2/QualityWorkbench";
+import { ReviewQueueV2 } from "@/pages/v2/ReviewQueueV2";
 import { ServiceMartViewer } from "@/pages/v2/ServiceMartViewer";
 import { SourceApiDesigner } from "@/pages/v2/SourceApiDesigner";
+import { SourcesHub } from "@/pages/v2/SourcesHub";
+import { StandardizationWorkbench } from "@/pages/v2/StandardizationWorkbench";
 import { TransformDesigner } from "@/pages/v2/TransformDesigner";
 import { useAuthStore } from "@/store/auth";
 
@@ -120,6 +125,7 @@ export default function App() {
             }
           >
             <Route element={<Layout />}>
+              <Route path="/v2/sources" element={<SourcesHub />} />
               <Route
                 path="/v2/connectors/public-api"
                 element={<SourceApiDesigner />}
@@ -128,10 +134,16 @@ export default function App() {
                 path="/v2/inbound-channels/designer"
                 element={<InboundChannelDesigner />}
               />
+              <Route path="/v2/inbound-events" element={<InboundInbox />} />
               <Route
                 path="/v2/mappings/designer"
                 element={<FieldMappingDesigner />}
               />
+              <Route
+                path="/v2/standardization"
+                element={<StandardizationWorkbench />}
+              />
+              <Route path="/v2/review-queue" element={<ReviewQueueV2 />} />
               <Route
                 path="/v2/transforms/designer"
                 element={<TransformDesigner />}
@@ -148,6 +160,7 @@ export default function App() {
                 path="/v2/operations/dashboard"
                 element={<OperationsDashboard />}
               />
+              <Route path="/v2/mart-freshness" element={<MartFreshness />} />
               <Route
                 path="/v2/service-mart"
                 element={<ServiceMartViewer />}

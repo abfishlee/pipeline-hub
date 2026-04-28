@@ -16,6 +16,7 @@ import {
   useWorkflows,
   type WorkflowOut,
 } from "@/api/pipelines";
+import { useInboundChannels } from "@/api/v2/inbound_channels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,6 +52,7 @@ const STATUS_OPTIONS: PipelineRunStatus[] = [
 
 export function PipelineRunsList() {
   const workflows = useWorkflows({ limit: 100 });
+  const inboundChannels = useInboundChannels({});
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<PipelineRunStatus | "">("");
   const [fromDate, setFromDate] = useState<string>("");
@@ -93,6 +95,7 @@ export function PipelineRunsList() {
                 <Th>name</Th>
                 <Th>version</Th>
                 <Th>status</Th>
+                <Th>trigger</Th>
                 <Th>job 주기</Th>
                 <Th>updated</Th>
                 <Th></Th>
@@ -101,14 +104,14 @@ export function PipelineRunsList() {
             <Tbody>
               {workflows.isLoading && (
                 <Tr>
-                  <Td colSpan={7} className="text-center text-muted-foreground">
+                  <Td colSpan={8} className="text-center text-muted-foreground">
                     로딩 중…
                   </Td>
                 </Tr>
               )}
               {!workflows.isLoading && (workflows.data?.length ?? 0) === 0 && (
                 <Tr>
-                  <Td colSpan={7} className="text-center text-muted-foreground">
+                  <Td colSpan={8} className="text-center text-muted-foreground">
                     워크플로가 없습니다.
                     {canDesign && " 우측 상단 '신규 디자이너' 로 만들어 보세요."}
                   </Td>
@@ -121,6 +124,16 @@ export function PipelineRunsList() {
                   <Td className="font-mono">v{w.version}</Td>
                   <Td>
                     <Badge variant={WORKFLOW_BADGE[w.status]}>{w.status}</Badge>
+                  </Td>
+                  <Td>
+                    <WorkflowTriggerBadge
+                      workflow={w}
+                      inboundCount={
+                        inboundChannels.data?.filter(
+                          (c) => c.workflow_id === w.workflow_id,
+                        ).length ?? 0
+                      }
+                    />
                   </Td>
                   <Td className="min-w-[360px]">
                     <WorkflowJobControls
@@ -401,6 +414,39 @@ function WorkflowJobControls({
 // ---------------------------------------------------------------------------
 // HoldDecisionModal — DQ 게이트 승인/반려 (Phase 4.2.2)
 // ---------------------------------------------------------------------------
+function WorkflowTriggerBadge({
+  workflow,
+  inboundCount,
+}: {
+  workflow: WorkflowOut;
+  inboundCount: number;
+}) {
+  if (inboundCount > 0) {
+    return (
+      <div className="space-y-1">
+        <Badge variant="default">Event Trigger</Badge>
+        <div className="text-xs text-muted-foreground">
+          inbound channel {inboundCount}개
+        </div>
+      </div>
+    );
+  }
+  if (workflow.schedule_enabled && workflow.schedule_cron) {
+    return (
+      <div className="space-y-1">
+        <Badge variant="success">Schedule</Badge>
+        <div className="text-xs text-muted-foreground">cron 기반 pull</div>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-1">
+      <Badge variant="muted">Manual</Badge>
+      <div className="text-xs text-muted-foreground">수동 실행</div>
+    </div>
+  );
+}
+
 function HoldDecisionModal({
   run,
   canApprove,

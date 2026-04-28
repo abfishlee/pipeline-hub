@@ -1,17 +1,22 @@
 import {
   Activity,
+  ClipboardList,
   Database,
   Gauge,
   GitBranch,
   Globe,
+  Inbox,
   ListChecks,
   LogOut,
+  PanelTop,
   Server,
   ShieldCheck,
   Sigma,
+  Sparkles,
   Users,
   Workflow,
 } from "lucide-react";
+import type React from "react";
 import { type PropsWithChildren } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useLogout } from "@/api/auth";
@@ -26,9 +31,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
   adminOnly?: boolean;
   reviewerOk?: boolean;
-  /** ADMIN 또는 APPROVER 만 노출 (Visual ETL Designer 전용). */
   approverOk?: boolean;
-  /** ADMIN/APPROVER/OPERATOR 만 노출 (SQL Studio). */
   operatorOk?: boolean;
 }
 
@@ -48,30 +51,15 @@ function isSection(item: NavEntry): item is NavSection {
   return "kind" in item && item.kind === "section";
 }
 
-// V3 메뉴 원칙:
-// - 사용자가 실제로 반복 수행하는 핵심 업무만 1차 메뉴에 둔다.
-// - 세부 조회/운영 보조 화면은 라우트는 유지하되 사이드바에서 숨긴다.
-// - 업무 순서는 설계 → 조립/실행 → 운영 → 관리.
-//
-// 숨겨진 라우트:
-// - /sources, /pipelines/designer: v1 legacy.
-// - /raw-objects, /jobs, /pipelines/releases, /sql-studio, /crowd-tasks,
-//   /runtime, /dead-letters, /api-keys, /security-events, /admin/partitions,
-//   /master-merge, /v2/service-mart:
-//   상세 링크/관리자 직접 URL/기존 문서 호환을 위해 App.tsx 에는 유지.
 const NAV_ITEMS: NavEntry[] = [
   { to: "/", label: "Dashboard", icon: Gauge },
 
   section("1. 자산 설계"),
-  {
-    to: "/v2/connectors/public-api",
-    label: "Source/API",
-    icon: Globe,
-    operatorOk: true,
-  },
+  { to: "/v2/sources", label: "Sources", icon: PanelTop, operatorOk: true },
+  { to: "/v2/connectors/public-api", label: "API Pull", icon: Globe, operatorOk: true },
   {
     to: "/v2/inbound-channels/designer",
-    label: "Inbound Channel",
+    label: "Inbound Push",
     icon: GitBranch,
     operatorOk: true,
   },
@@ -79,6 +67,12 @@ const NAV_ITEMS: NavEntry[] = [
     to: "/v2/mappings/designer",
     label: "Field Mapping",
     icon: Workflow,
+    operatorOk: true,
+  },
+  {
+    to: "/v2/standardization",
+    label: "Standardization",
+    icon: Sparkles,
     operatorOk: true,
   },
   {
@@ -100,7 +94,7 @@ const NAV_ITEMS: NavEntry[] = [
     operatorOk: true,
   },
 
-  section("2. 프로세스 조립/실행"),
+  section("2. 수집 / 실행"),
   {
     to: "/v2/pipelines/designer",
     label: "ETL Canvas",
@@ -108,9 +102,27 @@ const NAV_ITEMS: NavEntry[] = [
     approverOk: true,
   },
   { to: "/pipelines/runs", label: "Jobs & Runs", icon: ListChecks },
+  {
+    to: "/v2/inbound-events",
+    label: "Inbound Inbox",
+    icon: Inbox,
+    operatorOk: true,
+  },
+  {
+    to: "/v2/review-queue",
+    label: "Review Queue",
+    icon: ClipboardList,
+    operatorOk: true,
+  },
 
   section("3. 운영 모니터링"),
   { to: "/v2/operations/dashboard", label: "Monitoring", icon: Activity },
+  {
+    to: "/v2/mart-freshness",
+    label: "Mart Freshness",
+    icon: Database,
+    operatorOk: true,
+  },
 
   section("4. 시스템 관리", { adminOnly: true }),
   { to: "/users", label: "Users", icon: Users, adminOnly: true },
@@ -120,17 +132,14 @@ export function Layout(_: PropsWithChildren) {
   const user = useAuthStore((s) => s.user);
   const isAdmin = !!user?.roles.includes("ADMIN");
   const isApprover = isAdmin || !!user?.roles.includes("APPROVER");
-  const isOperator =
-    isApprover || !!user?.roles.includes("OPERATOR");
+  const isOperator = isApprover || !!user?.roles.includes("OPERATOR");
   const isReviewer =
-    isAdmin ||
-    !!user?.roles.some((r) => r === "REVIEWER" || r === "APPROVER");
+    isAdmin || !!user?.roles.some((r) => r === "REVIEWER" || r === "APPROVER");
   const logout = useLogout();
   const location = useLocation();
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-secondary/30">
-      {/* Sidebar */}
       <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-background">
         <div className="flex h-14 items-center gap-2 border-b border-border px-4">
           <Server className="h-5 w-5 text-primary" />
@@ -138,12 +147,9 @@ export function Layout(_: PropsWithChildren) {
             Pipeline Hub
           </Link>
         </div>
-        <nav className="flex-1 space-y-1 p-2">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-2">
           {NAV_ITEMS.filter((it) => {
-            if (isSection(it)) {
-              if (it.adminOnly) return isAdmin;
-              return true;
-            }
+            if (isSection(it)) return it.adminOnly ? isAdmin : true;
             if (it.adminOnly) return isAdmin;
             if (it.approverOk) return isApprover;
             if (it.operatorOk) return isOperator;
@@ -154,7 +160,7 @@ export function Layout(_: PropsWithChildren) {
               return (
                 <div
                   key={`${item.label}-${index}`}
-                  className="px-3 pt-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                  className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
                 >
                   {item.label}
                 </div>
@@ -192,22 +198,18 @@ export function Layout(_: PropsWithChildren) {
               </Badge>
             ))}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={logout}
-          >
+          <Button variant="outline" size="sm" className="w-full" onClick={logout}>
             <LogOut className="h-4 w-4" />
             Logout
           </Button>
         </div>
       </aside>
 
-      {/* Content */}
       <main className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center justify-between border-b border-border bg-background px-6">
-          <h1 className="text-lg font-semibold">{currentTitle(location.pathname)}</h1>
+          <h1 className="text-lg font-semibold">
+            {currentTitle(location.pathname)}
+          </h1>
         </header>
         <div className="flex-1 overflow-y-auto p-6">
           <Outlet />
@@ -219,33 +221,27 @@ export function Layout(_: PropsWithChildren) {
 
 function currentTitle(pathname: string): string {
   if (pathname === "/") return "Dashboard";
-  if (pathname.startsWith("/sources")) return "Sources (legacy)";
-  if (pathname.startsWith("/v2/connectors/public-api"))
-    return "Source/API";
-  if (pathname.startsWith("/v2/inbound-channels"))
-    return "Inbound Channel Designer";
-  if (pathname.startsWith("/v2/mappings/designer"))
-    return "Field Mapping";
-  if (pathname.startsWith("/v2/transforms/designer"))
-    return "Transform";
-  if (pathname.startsWith("/v2/quality/designer"))
-    return "DQ / Quality";
-  if (pathname.startsWith("/v2/marts/designer"))
-    return "Mart Designer";
-  if (pathname.startsWith("/v2/operations/dashboard"))
-    return "Monitoring";
-  if (pathname.startsWith("/v2/service-mart"))
-    return "Service Mart Viewer";
-  if (pathname.startsWith("/v2/dryrun/workflow"))
-    return "Dry-run Results";
-  if (pathname.startsWith("/v2/publish/"))
-    return "Publish Approval";
+  if (pathname.startsWith("/v2/sources")) return "Sources";
+  if (pathname.startsWith("/v2/connectors/public-api")) return "API Pull Source";
+  if (pathname.startsWith("/v2/inbound-channels")) return "Inbound Push Channel";
+  if (pathname.startsWith("/v2/inbound-events")) return "Inbound Inbox";
+  if (pathname.startsWith("/v2/mappings/designer")) return "Field Mapping";
+  if (pathname.startsWith("/v2/standardization")) return "Standardization";
+  if (pathname.startsWith("/v2/review-queue")) return "Review Queue";
+  if (pathname.startsWith("/v2/transforms/designer")) return "Transform";
+  if (pathname.startsWith("/v2/quality/designer")) return "DQ / Quality";
+  if (pathname.startsWith("/v2/marts/designer")) return "Mart Designer";
+  if (pathname.startsWith("/v2/operations/dashboard")) return "Monitoring";
+  if (pathname.startsWith("/v2/mart-freshness")) return "Mart Freshness";
+  if (pathname.startsWith("/v2/service-mart")) return "Service Mart Viewer";
+  if (pathname.startsWith("/v2/dryrun/workflow")) return "Dry-run Results";
+  if (pathname.startsWith("/v2/publish/")) return "Publish Approval";
   if (pathname.startsWith("/jobs")) return "Collection Jobs";
   if (pathname.startsWith("/raw-objects")) return "Raw Objects";
   if (pathname.startsWith("/pipelines/runs/")) return "Pipeline Run Detail";
   if (pathname.startsWith("/pipelines/runs")) return "Jobs & Runs";
   if (pathname.startsWith("/v2/pipelines/designer")) return "ETL Canvas";
-  if (pathname.startsWith("/pipelines/designer")) return "Visual ETL Designer (legacy)";
+  if (pathname.startsWith("/pipelines/designer")) return "Visual ETL Designer";
   if (pathname.startsWith("/pipelines/releases")) return "Releases";
   if (pathname.startsWith("/sql-studio")) return "SQL Studio";
   if (pathname.startsWith("/crowd-tasks")) return "Review Queue";
@@ -256,5 +252,6 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/security-events")) return "Security Events";
   if (pathname.startsWith("/admin/partitions")) return "Partition Archive";
   if (pathname.startsWith("/master-merge")) return "Master Merge";
+  if (pathname.startsWith("/sources")) return "Sources (legacy)";
   return "";
 }

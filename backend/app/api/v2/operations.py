@@ -67,6 +67,22 @@ class NodeHeatmapCell(BaseModel):
     skipped_count: int
 
 
+class InboundEventOut(BaseModel):
+    envelope_id: int
+    received_at: datetime
+    channel_code: str
+    channel_id: int | None
+    domain_code: str | None
+    content_type: str
+    payload_size_bytes: int
+    payload_object_key: str | None
+    has_inline_payload: bool
+    status: str
+    workflow_run_id: int | None
+    error_message: str | None
+    processed_at: datetime | None
+
+
 def _run_in_sync(fn: Any) -> Any:
     sm = get_sync_sessionmaker()
     with sm() as session:
@@ -145,6 +161,65 @@ async def get_summary() -> OperationsSummary:
             pending_replay=pending_replay,
             provider_failures_24h=provider_failures,
         )
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+@router.get("/inbound-events", response_model=list[InboundEventOut])
+async def list_inbound_events(
+    channel_code: str | None = None,
+    status: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[InboundEventOut]:
+    """Recent inbound envelopes for the operator inbox."""
+
+    def _do(s: Session) -> list[InboundEventOut]:
+        clauses: list[str] = []
+        params: dict[str, Any] = {"limit": limit}
+        if channel_code:
+            clauses.append("channel_code = :channel_code")
+            params["channel_code"] = channel_code
+        if status:
+            clauses.append("status = :status")
+            params["status"] = status
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        rows = s.execute(
+            text(
+                f"""
+                SELECT envelope_id, received_at, channel_code, channel_id,
+                       domain_code, content_type, payload_size_bytes,
+                       payload_object_key, payload_inline IS NOT NULL AS has_inline_payload,
+                       status, workflow_run_id, error_message, processed_at
+                  FROM audit.inbound_event
+                  {where}
+                 ORDER BY received_at DESC
+                 LIMIT :limit
+                """
+            ),
+            params,
+        ).all()
+        return [
+            InboundEventOut(
+                envelope_id=int(r.envelope_id),
+                received_at=r.received_at,
+                channel_code=str(r.channel_code),
+                channel_id=int(r.channel_id) if r.channel_id is not None else None,
+                domain_code=str(r.domain_code) if r.domain_code else None,
+                content_type=str(r.content_type),
+                payload_size_bytes=int(r.payload_size_bytes),
+                payload_object_key=(
+                    str(r.payload_object_key) if r.payload_object_key else None
+                ),
+                has_inline_payload=bool(r.has_inline_payload),
+                status=str(r.status),
+                workflow_run_id=(
+                    int(r.workflow_run_id) if r.workflow_run_id is not None else None
+                ),
+                error_message=str(r.error_message) if r.error_message else None,
+                processed_at=r.processed_at,
+            )
+            for r in rows
+        ]
 
     return await asyncio.to_thread(_run_in_sync, _do)
 

@@ -220,6 +220,41 @@ export interface DispatchSummary {
   }>;
 }
 
+export interface InboundEventRow {
+  envelope_id: number;
+  received_at: string;
+  channel_code: string;
+  channel_id: number | null;
+  domain_code: string | null;
+  content_type: string;
+  payload_size_bytes: number;
+  payload_object_key: string | null;
+  has_inline_payload: boolean;
+  status: string;
+  workflow_run_id: number | null;
+  error_message: string | null;
+  processed_at: string | null;
+}
+
+export function useInboundEvents(params: {
+  channel_code?: string;
+  status?: string;
+  limit?: number;
+} = {}) {
+  return useQuery({
+    queryKey: ["v2-operations-inbound-events", params],
+    queryFn: () =>
+      apiRequest<InboundEventRow[]>("/v2/operations/inbound-events", {
+        params: {
+          channel_code: params.channel_code || undefined,
+          status: params.status || undefined,
+          limit: params.limit ?? 100,
+        },
+      }),
+    refetchInterval: 15_000,
+  });
+}
+
 export function useOperationsSummary() {
   return useQuery({
     queryKey: ["v2-operations-summary"],
