@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.sync_session import get_sync_sessionmaker
@@ -108,6 +109,16 @@ def _run_in_sync(fn: Any) -> Any:
             res = fn(session)
             session.commit()
             return res
+        except IntegrityError as exc:
+            session.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "매핑 저장 중 DB 제약조건에 걸렸습니다. "
+                    "같은 contract/target table 안에서 target column이 중복되었거나 "
+                    "필수 참조값이 올바르지 않습니다."
+                ),
+            ) from exc
         except Exception:
             session.rollback()
             raise

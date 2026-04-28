@@ -42,6 +42,36 @@ interface DraftMapping {
 }
 
 const DATA_TYPES: FieldType[] = ["varchar", "date", "number", "long", "boolean", "jsonb"];
+const KOREAN_COLUMN_ALIASES: Record<string, string> = {
+  업태: "business_type",
+  품목: "item_name",
+  품종: "variety",
+  내용량: "package_size",
+  상품명: "product_name",
+  업체명: "vendor_name",
+  원산지: "origin",
+  점포명: "store_name",
+  정상가: "regular_price",
+  지역명: "region_name",
+  판매가: "sale_price",
+  행사가: "promotional_price",
+  구매제한: "purchase_limit",
+  기준재고: "base_stock",
+  등급규격: "grade_spec",
+  상품번호: "product_no",
+  상품코드: "product_code",
+  수집일자: "collected_date",
+  재고수량: "stock_quantity",
+  판매단위: "sale_unit",
+  판매상태: "sale_status",
+  품질등급: "quality_grade",
+  행사여부: "promotion_yn",
+  행사유형: "promotion_type",
+  농산물부류: "agri_category",
+  친환경인증: "eco_certification",
+  배달가능여부: "delivery_available_yn",
+  온라인판매여부: "online_sales_yn",
+};
 
 export function FieldMappingDesigner() {
   const domains = useDomains();
@@ -255,7 +285,6 @@ export function FieldMappingDesigner() {
                         <FunctionPicker
                           value={draft.transformExpr}
                           disabled={!draft.mapped}
-                          fieldPath={draft.sourcePath}
                           dataType={draft.dataType}
                           functions={functions.data ?? []}
                           onChange={(value) => updateDraft(draft.sourcePath, { transformExpr: value })}
@@ -377,14 +406,14 @@ function autoMap(fields: SourceField[], existing: FieldMapping[]): DraftMapping[
     const saved = existingBySourcePath.get(field.path);
     const inferredType = inferType(field.value, field.key);
     const sourceKey = lastPath(field.path);
-    const targetColumn = saved?.target_column ?? normalizeColumn(sourceKey);
+    const targetColumn = saved?.target_column ?? normalizeColumn(sourceKey, field.path);
     const dataType = (saved?.data_type?.toLowerCase() as FieldType | undefined) ?? inferredType;
     return {
       sourcePath: field.path,
       sourceKey,
       targetColumn,
       dataType: DATA_TYPES.includes(dataType) ? dataType : inferredType,
-      transformExpr: saved?.transform_expr ?? recommendedTransform(inferredType, field.path),
+      transformExpr: saved?.transform_expr ?? recommendedTransform(inferredType),
       mapped: true,
       confidence: saved ? 100 : inferConfidence(field.value, inferredType),
       reason: saved ? "기존 저장값을 불러왔습니다." : "JSON key 기반 자동 생성",
@@ -399,7 +428,15 @@ function inferType(value: unknown, key: string): FieldType {
   if (typeof value === "string") {
     const lowered = key.toLowerCase();
     if (looksLikeDate(value) || lowered.endsWith("_at") || lowered.includes("date")) return "date";
-    if (lowered.includes("price") || lowered.includes("amount") || lowered.includes("qty")) return "number";
+    if (key.includes("일자")) return "date";
+    if (
+      lowered.includes("price") ||
+      lowered.includes("amount") ||
+      lowered.includes("qty") ||
+      key.includes("가") ||
+      key.includes("재고") ||
+      key.includes("수량")
+    ) return "number";
     return "varchar";
   }
   if (Array.isArray(value) || isRecord(value)) return "jsonb";
@@ -413,8 +450,8 @@ function inferConfidence(value: unknown, dataType: FieldType) {
   return 85;
 }
 
-function recommendedTransform(dataType: FieldType, sourcePath: string) {
-  const varName = `$${lastPath(sourcePath)}`;
+function recommendedTransform(dataType: FieldType) {
+  const varName = "$_value";
   if (dataType === "number") return `number.parse_decimal(${varName})`;
   if (dataType === "long") return `number.parse_decimal(${varName})`;
   if (dataType === "date") return `date.parse(${varName})`;
@@ -456,20 +493,18 @@ function valueAt(root: Record<string, unknown>, item: unknown, path: string, ite
 function FunctionPicker({
   value,
   disabled,
-  fieldPath,
   dataType,
   functions,
   onChange,
 }: {
   value: string;
   disabled: boolean;
-  fieldPath: string;
   dataType: FieldType;
   functions: FunctionSpec[];
   onChange: (value: string) => void;
 }) {
-  const varName = `$${lastPath(fieldPath)}`;
-  const candidates = functionCandidates(dataType, varName, functions);
+  const valueRef = "$_value";
+  const candidates = functionCandidates(dataType, valueRef, functions);
   return (
     <select
       className="h-8 w-full rounded-md border bg-background px-2 text-sm"
@@ -508,7 +543,9 @@ function runtimePath(source: MappingSource, key: string) {
   return source.source_type === "inbound" ? `payload.${key}` : key;
 }
 
-function normalizeColumn(value: string) {
+function normalizeColumn(value: string, fallbackSeed = value) {
+  const alias = KOREAN_COLUMN_ALIASES[value];
+  if (alias) return alias;
   const snake = value
     .replace(/\[\]/g, "")
     .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
@@ -516,7 +553,7 @@ function normalizeColumn(value: string) {
     .replace(/[^a-z0-9_]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .replace(/_{2,}/g, "_");
-  return snake || "field";
+  return snake || `field_${stableHash(fallbackSeed)}`;
 }
 
 function lastPath(path: string) {
@@ -525,6 +562,14 @@ function lastPath(path: string) {
 
 function looksLikeDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}/.test(value) && !Number.isNaN(Date.parse(value));
+}
+
+function stableHash(value: string) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash.toString(36).slice(0, 6);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

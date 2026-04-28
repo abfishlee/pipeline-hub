@@ -101,11 +101,20 @@ export async function apiRequest<T = unknown>(
     let details: Record<string, unknown> | undefined;
     if (contentType.includes("application/json")) {
       try {
-        const data = (await res.json()) as Partial<ApiErrorBody>;
+        const data = (await res.json()) as Partial<ApiErrorBody> & {
+          detail?: string | { msg?: string }[];
+        };
         if (data.error) {
           code = data.error.code;
           message = data.error.message;
           details = data.error.details;
+        } else if (typeof data.detail === "string") {
+          message = data.detail;
+        } else if (Array.isArray(data.detail)) {
+          message = data.detail
+            .map((item) => item.msg)
+            .filter(Boolean)
+            .join(", ") || message;
         }
       } catch {
         /* ignore parse */
