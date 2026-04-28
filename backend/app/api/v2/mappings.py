@@ -255,10 +255,11 @@ async def list_mapping_sources(
         wanted = source_type or ""
         if wanted in ("", "api"):
             params: dict[str, Any] = {}
-            where = ""
+            where_parts = ["ds.source_type = 'API'"]
             if domain_code:
-                where = "WHERE sc.domain_code = :domain_code"
+                where_parts.append("sc.domain_code = :domain_code")
                 params["domain_code"] = domain_code
+            where = "WHERE " + " AND ".join(where_parts)
             rows = s.execute(
                 text(
                     f"""

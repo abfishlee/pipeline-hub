@@ -104,6 +104,24 @@ export function useUpdateMapping(mappingId: number) {
   });
 }
 
+export function useUpdateMappingById() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      mappingId,
+      body,
+    }: {
+      mappingId: number;
+      body: FieldMappingIn;
+    }) =>
+      apiRequest<FieldMapping>(`${BASE}/${mappingId}`, {
+        method: "PATCH",
+        body,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2-mappings"] }),
+  });
+}
+
 export function useDeleteMapping() {
   const qc = useQueryClient();
   return useMutation({
