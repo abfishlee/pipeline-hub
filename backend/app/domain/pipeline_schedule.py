@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
 from croniter import croniter
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictError, NotFoundError, ValidationError
@@ -29,6 +29,35 @@ from app.models.run import NodeRun, PipelineRun
 from app.models.wf import EdgeDefinition, NodeDefinition, WorkflowDefinition
 
 MAX_BACKFILL_DAYS = 366  # 1년 한도 — 실수로 거대한 backfill 트리거 방지.
+
+
+def _month_start(d: date) -> date:
+    return date(d.year, d.month, 1)
+
+
+def _next_month(d: date) -> date:
+    return date(d.year + 1, 1, 1) if d.month == 12 else date(d.year, d.month + 1, 1)
+
+
+def _ensure_pipeline_run_partitions(
+    session: Session, *, start_date: date, end_date: date
+) -> None:
+    """Backfill/run_date 범위의 월 파티션을 보장한다."""
+    cursor = _month_start(start_date)
+    end_month = _month_start(end_date)
+    while cursor <= end_month:
+        next_month = _next_month(cursor)
+        partition = f"pipeline_run_{cursor.year}_{cursor.month:02d}"
+        session.execute(
+            text(
+                f"""
+                CREATE TABLE IF NOT EXISTS run.{partition}
+                    PARTITION OF run.pipeline_run
+                    FOR VALUES FROM ('{cursor.isoformat()}') TO ('{next_month.isoformat()}')
+                """
+            ),
+        )
+        cursor = next_month
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +144,10 @@ def backfill(
         raise ConflictError(
             f"workflow {workflow_id} is {workflow.status} — must be PUBLISHED to backfill"
         )
+
+    _ensure_pipeline_run_partitions(
+        session, start_date=start_date, end_date=end_date
+    )
 
     nodes = list(
         session.execute(

@@ -70,6 +70,10 @@ export function FieldMappingDesigner() {
   const domains = useDomains();
   const [domainCode, setDomainCode] = useState<string>("");
   const [contractId, setContractId] = useState<number | null>(null);
+  const [sourceApiSample, setSourceApiSample] = useState<string | null>(null);
+  const [sourceApiResourceCode, setSourceApiResourceCode] = useState<string | null>(
+    null,
+  );
 
   const contracts = useContractsLight(domainCode || undefined);
   const mappings = useMappings({
@@ -85,6 +89,32 @@ export function FieldMappingDesigner() {
     () => contracts.data?.find((c) => c.contract_id === contractId),
     [contracts.data, contractId],
   );
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem("source_api_last_sample");
+    if (!raw) return;
+    setSourceApiSample(raw);
+    try {
+      const parsed = JSON.parse(raw) as {
+        domain_code?: string;
+        resource_code?: string;
+      };
+      if (parsed.domain_code) setDomainCode(parsed.domain_code);
+      if (parsed.resource_code) setSourceApiResourceCode(parsed.resource_code);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!sourceApiResourceCode || contractId || !contracts.data?.length) return;
+    const matched = contracts.data.find(
+      (c) =>
+        c.domain_code === domainCode &&
+        c.resource_code === sourceApiResourceCode,
+    );
+    if (matched) setContractId(matched.contract_id);
+  }, [contracts.data, contractId, domainCode, sourceApiResourceCode]);
 
   return (
     <div className="space-y-4">
@@ -164,6 +194,12 @@ export function FieldMappingDesigner() {
           {selectedContract && (
             <p className="text-xs text-muted-foreground">
               선택된 contract: <code>{selectedContract.label}</code>
+            </p>
+          )}
+          {sourceApiSample && (
+            <p className="rounded-md bg-primary/5 p-2 text-xs text-primary">
+              Source/API 테스트 샘플을 불러왔습니다. 새 매핑 행을 만들면 JSON Path Picker에
+              자동으로 채워집니다.
             </p>
           )}
         </CardContent>
@@ -268,6 +304,7 @@ export function FieldMappingDesigner() {
           mode="create"
           open={creating}
           contractId={contractId}
+          initialJson={sourceApiSample ?? undefined}
           onClose={() => setCreating(false)}
         />
       )}
@@ -306,6 +343,7 @@ interface MappingEditDialogProps {
   open: boolean;
   contractId: number;
   existing?: FieldMapping;
+  initialJson?: string;
   onClose: () => void;
 }
 
@@ -314,6 +352,7 @@ function MappingEditDialog({
   open,
   contractId,
   existing,
+  initialJson,
   onClose,
 }: MappingEditDialogProps) {
   const create = useCreateMapping();
@@ -428,6 +467,7 @@ function MappingEditDialog({
         {/* Phase 8.2 — sample JSON picker (생성 모드 only) */}
         {mode === "create" && !isReadOnly && (
           <JsonPathPicker
+            initialJson={initialJson}
             onPick={(path, recommended) => {
               setForm({
                 ...form,

@@ -27,11 +27,8 @@ from typing import Any
 
 import httpx
 
-from app.domain.public_api.parser import (
-    extract_path,
-    normalize_to_rows,
-    parse_response_body,
-)
+from app.domain.public_api.parser import extract_path, parse_response_body
+from app.domain.public_api.parsers import parse_response
 from app.domain.public_api.spec import (
     AuthMethod,
     ConnectorSpec,
@@ -149,16 +146,23 @@ async def _call_one_page(
             )
     duration_ms = int((time.perf_counter() - started) * 1000)
 
+    body_bytes = resp.content
     body_text = resp.text
-    parsed = parse_response_body(body_text, response_format=spec.response_format.value)
-    extracted = extract_path(parsed, spec.response_path)
-    rows = normalize_to_rows(extracted)
+    rows = parse_response(
+        body=body_bytes,
+        response_format=spec.response_format.value,
+        response_path=spec.response_path or "",
+    )
 
     # 4. cursor pagination 인 경우 다음 cursor 추출.
+    parsed: Any = None
     next_cursor = None
     if spec.pagination_kind == PaginationKind.CURSOR:
         cursor_path = spec.pagination_config.get("cursor_response_path")
         if cursor_path:
+            if spec.response_format.value not in ("json", "xml"):
+                raise PublicApiError("cursor pagination requires json or xml response")
+            parsed = parse_response_body(body_text, response_format=spec.response_format.value)
             next_cursor = extract_path(parsed, cursor_path)
 
     logger.info(
@@ -291,8 +295,6 @@ def _inject_pagination_param(
         timeout_sec=spec.timeout_sec,
         retry_max=spec.retry_max,
         rate_limit_per_min=spec.rate_limit_per_min,
-        schedule_cron=spec.schedule_cron,
-        schedule_enabled=spec.schedule_enabled,
         status=spec.status,
         is_active=spec.is_active,
     )

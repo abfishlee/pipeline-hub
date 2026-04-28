@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -60,6 +60,12 @@ class DomainLoadRequest(BaseModel):
     spec: dict[str, Any]
 
 
+class DomainCreateRequest(BaseModel):
+    domain_code: str = Field(pattern=r"^[a-z][a-z0-9_]{1,30}$")
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+
+
 class DomainLoadResponse(BaseModel):
     domain_code: str
     resource_codes: list[str]
@@ -85,6 +91,32 @@ async def list_domains() -> list[DomainOut]:
             select(DomainDefinition).order_by(DomainDefinition.domain_code)
         ).scalars().all()
         return [DomainOut.model_validate(r) for r in rows]
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
+@router.post("", response_model=DomainOut, status_code=201)
+async def create_domain(body: DomainCreateRequest) -> DomainOut:
+    """Source/API 실증 흐름용 최소 도메인 생성."""
+
+    def _do(s: Session) -> DomainOut:
+        existing = s.get(DomainDefinition, body.domain_code)
+        if existing is not None:
+            existing.name = body.name
+            existing.description = body.description
+            existing.status = "PUBLISHED"
+            s.flush()
+            return DomainOut.model_validate(existing)
+        row = DomainDefinition(
+            domain_code=body.domain_code,
+            name=body.name,
+            description=body.description,
+            schema_yaml={},
+            status="PUBLISHED",
+        )
+        s.add(row)
+        s.flush()
+        return DomainOut.model_validate(row)
 
     return await asyncio.to_thread(_run_in_sync, _do)
 

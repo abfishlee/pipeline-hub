@@ -3,7 +3,7 @@
 // 어떤 REST/JSON/XML/CSV API 든 *코딩 0줄* 로 등록 가능 — 본 시스템은 도메인 무관 공용
 // 데이터 수집 플랫폼이며, 사용자가 폼만 채우면 어떤 외부 시스템 (정부 공공데이터 / 회사
 // 내부 ERP / 외부 SaaS) 든 동일한 흐름으로 수집됩니다.
-import { Pencil, PlayCircle, Plus, Send, Trash2 } from "lucide-react";
+import { ArrowRight, Pencil, PlayCircle, Plus, Send, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ApiError } from "@/api/client";
@@ -23,7 +23,7 @@ import {
   useTransitionConnector,
   useUpdateConnector,
 } from "@/api/v2/connectors";
-import { useDomains } from "@/api/v2/domains";
+import { useCreateDomain, useDomains } from "@/api/v2/domains";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,7 +52,15 @@ const PAGINATION_KINDS: PaginationKind[] = [
   "offset_limit",
   "cursor",
 ];
-const RESPONSE_FORMATS: ResponseFormat[] = ["json", "xml"];
+const RESPONSE_FORMATS: ResponseFormat[] = [
+  "json",
+  "xml",
+  "csv",
+  "tsv",
+  "text",
+  "excel",
+  "binary",
+];
 
 type ConnectorFormState = ConnectorIn;
 
@@ -76,8 +84,6 @@ const EMPTY_FORM: ConnectorFormState = {
   timeout_sec: 15,
   retry_max: 2,
   rate_limit_per_min: 60,
-  schedule_cron: "",
-  schedule_enabled: false,
 };
 
 function statusVariant(
@@ -137,7 +143,6 @@ export function SourceApiDesigner() {
                   <Th>Endpoint</Th>
                   <Th>Auth</Th>
                   <Th>상태</Th>
-                  <Th>수집 주기</Th>
                   <Th>업데이트</Th>
                   <Th>동작</Th>
                 </Tr>
@@ -171,13 +176,6 @@ export function SourceApiDesigner() {
                     </Td>
                     <Td>
                       <Badge variant={statusVariant(c.status)}>{c.status}</Badge>
-                    </Td>
-                    <Td>
-                      {c.schedule_cron ? (
-                        <span className="font-mono text-xs">{c.schedule_cron}</span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">수동</span>
-                      )}
                     </Td>
                     <Td className="text-xs text-muted-foreground">
                       {formatDateTime(c.updated_at)}
@@ -233,6 +231,7 @@ function ConnectorEditDialog({
   onClose,
 }: ConnectorEditDialogProps) {
   const domains = useDomains();
+  const createDomain = useCreateDomain();
   const create = useCreateConnector();
   const update = useUpdateConnector(existing?.connector_id ?? 0);
   const transition = useTransitionConnector(existing?.connector_id ?? 0);
@@ -246,6 +245,8 @@ function ConnectorEditDialog({
   const [paginationText, setPaginationText] = useState<string>("{}");
   const [testResult, setTestResult] = useState<TestCallResponse | null>(null);
   const [runtimeParamsText, setRuntimeParamsText] = useState<string>("{}");
+  const [newDomainCode, setNewDomainCode] = useState("");
+  const [newDomainName, setNewDomainName] = useState("");
 
   // 첫 로드 시 form 초기화.
   useEffect(() => {
@@ -270,8 +271,6 @@ function ConnectorEditDialog({
         timeout_sec: existing.timeout_sec,
         retry_max: existing.retry_max,
         rate_limit_per_min: existing.rate_limit_per_min,
-        schedule_cron: existing.schedule_cron ?? "",
-        schedule_enabled: existing.schedule_enabled,
       });
       setHeadersText(JSON.stringify(existing.request_headers, null, 2));
       setQueryText(JSON.stringify(existing.query_template, null, 2));
@@ -336,7 +335,6 @@ function ConnectorEditDialog({
       auth_param_name: form.auth_param_name?.trim() || null,
       secret_ref: form.secret_ref?.trim() || null,
       response_path: form.response_path?.trim() || null,
-      schedule_cron: form.schedule_cron?.trim() || null,
       description: form.description?.trim() || null,
     };
 
@@ -373,6 +371,20 @@ function ConnectorEditDialog({
     try {
       const result = await testCall.mutateAsync({ runtime_params, max_pages: 1 });
       setTestResult(result);
+      if (result.sample_rows.length > 0) {
+        sessionStorage.setItem(
+          "source_api_last_sample",
+          JSON.stringify(
+            {
+              domain_code: existing.domain_code,
+              resource_code: existing.resource_code,
+              items: result.sample_rows,
+            },
+            null,
+            2,
+          ),
+        );
+      }
       if (result.success) {
         toast.success(
           `호출 성공 — http=${result.http_status}, ${result.row_count}건 추출 (${result.duration_ms}ms)`,
@@ -394,6 +406,29 @@ function ConnectorEditDialog({
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : (e as Error).message;
       toast.error(`전이 실패: ${msg}`);
+    }
+  }
+
+  async function handleCreateDomain() {
+    const code = newDomainCode.trim();
+    const name = newDomainName.trim() || code;
+    if (!code) {
+      toast.error("도메인 코드를 입력해 주세요");
+      return;
+    }
+    try {
+      const created = await createDomain.mutateAsync({
+        domain_code: code,
+        name,
+        description: "Created from Source/API workbench",
+      });
+      setForm({ ...form, domain_code: created.domain_code });
+      setNewDomainCode("");
+      setNewDomainName("");
+      toast.success(`도메인 생성: ${created.domain_code}`);
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : (e as Error).message;
+      toast.error(`도메인 생성 실패: ${msg}`);
     }
   }
 
@@ -452,6 +487,38 @@ function ConnectorEditDialog({
               disabled={isReadOnly}
               testid="field-domain"
             />
+            <div className="rounded-md border border-dashed border-border p-2">
+              <div className="mb-2 text-xs font-medium text-muted-foreground">
+                도메인이 없으면 여기서 바로 생성
+              </div>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_1fr_auto]">
+                <Input
+                  value={newDomainCode}
+                  onChange={(e) =>
+                    setNewDomainCode(e.target.value.toLowerCase())
+                  }
+                  placeholder="domain code, 예: iot"
+                  disabled={isReadOnly || createDomain.isPending}
+                  className="h-8 text-xs"
+                />
+                <Input
+                  value={newDomainName}
+                  onChange={(e) => setNewDomainName(e.target.value)}
+                  placeholder="도메인 이름"
+                  disabled={isReadOnly || createDomain.isPending}
+                  className="h-8 text-xs"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleCreateDomain}
+                  disabled={isReadOnly || createDomain.isPending}
+                >
+                  생성
+                </Button>
+              </div>
+            </div>
             <FieldText
               label="리소스 코드"
               value={form.resource_code}
@@ -657,31 +724,9 @@ function ConnectorEditDialog({
             />
           </Section>
 
-          {/* 7. Schedule */}
-          <Section title="7. 수집 주기">
-            <FieldText
-              label="Cron 표현식 (선택)"
-              value={form.schedule_cron ?? ""}
-              onChange={(v) => setForm({ ...form, schedule_cron: v })}
-              placeholder="예: 0 9 * * * (매일 9시)"
-              disabled={isReadOnly}
-            />
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.schedule_enabled ?? false}
-                onChange={(e) =>
-                  setForm({ ...form, schedule_enabled: e.target.checked })
-                }
-                disabled={isReadOnly}
-              />
-              <span>스케줄 활성화 (PUBLISHED 후 자동 polling)</span>
-            </label>
-          </Section>
-
-          {/* 8. Test 호출 */}
+          {/* 7. Test 호출 */}
           {mode === "edit" && existing && (
-            <Section title="8. 테스트 호출 (실 API 사이드 이펙트 있음)">
+            <Section title="7. 테스트 호출 (실 API 사이드 이펙트 있음)">
               <FieldJson
                 label="Runtime params (JSON)"
                 value={runtimeParamsText}
@@ -699,6 +744,18 @@ function ConnectorEditDialog({
                 {testCall.isPending ? "호출 중…" : "테스트 호출"}
               </Button>
               {testResult && <TestResultView result={testResult} />}
+              {testResult?.success && testResult.sample_rows.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    window.location.href = "/v2/mappings/designer";
+                  }}
+                >
+                  <ArrowRight className="h-4 w-4" />
+                  이 샘플로 Field Mapping 열기
+                </Button>
+              )}
             </Section>
           )}
         </div>
@@ -730,6 +787,14 @@ function ConnectorEditDialog({
               {existing.status === "APPROVED" && (
                 <Button onClick={() => handleTransition("PUBLISHED")}>
                   <Send className="h-4 w-4" /> PUBLISHED 발행
+                </Button>
+              )}
+              {existing.status === "PUBLISHED" && (
+                <Button
+                  variant="secondary"
+                  onClick={() => handleTransition("DRAFT")}
+                >
+                  DRAFT로 되돌려 수정
                 </Button>
               )}
               {existing.status !== "PUBLISHED" && (

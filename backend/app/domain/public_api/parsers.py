@@ -95,7 +95,7 @@ def parse_response(
             ) from exc
         try:
             obj = xmltodict.parse(text)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ParseError(f"invalid XML: {exc}") from exc
         return _ensure_list_of_dict(_navigate(obj, response_path))
 
@@ -135,4 +135,4 @@ def parse_response(
     raise ParseError(f"unsupported response_format: {fmt!r}")
 
 
-__all__ = ["parse_response", "ParseError"]
+__all__ = ["ParseError", "parse_response"]

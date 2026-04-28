@@ -1,6 +1,7 @@
 import { Pencil, Plus } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import {
   type OnHoldRunOut,
   type PipelineRunStatus,
@@ -10,11 +11,15 @@ import {
   useOnHoldRuns,
   useRejectHold,
   useSearchRuns,
+  useTriggerRun,
+  useUpdateSchedule,
   useWorkflows,
+  type WorkflowOut,
 } from "@/api/pipelines";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { CronPicker } from "@/components/ui/cron-picker";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@/components/ui/table";
 import { cn } from "@/lib/cn";
 import { formatDateTime } from "@/lib/format";
@@ -88,6 +93,7 @@ export function PipelineRunsList() {
                 <Th>name</Th>
                 <Th>version</Th>
                 <Th>status</Th>
+                <Th>job 주기</Th>
                 <Th>updated</Th>
                 <Th></Th>
               </Tr>
@@ -95,14 +101,14 @@ export function PipelineRunsList() {
             <Tbody>
               {workflows.isLoading && (
                 <Tr>
-                  <Td colSpan={6} className="text-center text-muted-foreground">
+                  <Td colSpan={7} className="text-center text-muted-foreground">
                     로딩 중…
                   </Td>
                 </Tr>
               )}
               {!workflows.isLoading && (workflows.data?.length ?? 0) === 0 && (
                 <Tr>
-                  <Td colSpan={6} className="text-center text-muted-foreground">
+                  <Td colSpan={7} className="text-center text-muted-foreground">
                     워크플로가 없습니다.
                     {canDesign && " 우측 상단 '신규 디자이너' 로 만들어 보세요."}
                   </Td>
@@ -115,6 +121,12 @@ export function PipelineRunsList() {
                   <Td className="font-mono">v{w.version}</Td>
                   <Td>
                     <Badge variant={WORKFLOW_BADGE[w.status]}>{w.status}</Badge>
+                  </Td>
+                  <Td className="min-w-[360px]">
+                    <WorkflowJobControls
+                      workflow={w}
+                      canOperate={canApprove}
+                    />
                   </Td>
                   <Td>{formatDateTime(w.updated_at)}</Td>
                   <Td className="space-x-2 whitespace-nowrap">
@@ -315,6 +327,73 @@ export function PipelineRunsList() {
           </Table>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function WorkflowJobControls({
+  workflow,
+  canOperate,
+}: {
+  workflow: WorkflowOut;
+  canOperate: boolean;
+}) {
+  const updateSchedule = useUpdateSchedule();
+  const trigger = useTriggerRun();
+  const [cronDraft, setCronDraft] = useState(workflow.schedule_cron ?? "");
+  const [enabledDraft, setEnabledDraft] = useState(workflow.schedule_enabled);
+
+  async function saveSchedule() {
+    try {
+      await updateSchedule.mutateAsync({
+        workflowId: workflow.workflow_id,
+        cron: cronDraft.trim() || null,
+        enabled: enabledDraft && !!cronDraft.trim(),
+      });
+      toast.success("Job 주기 저장됨");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Job 주기 저장 실패");
+    }
+  }
+
+  async function runNow() {
+    try {
+      const run = await trigger.mutateAsync(workflow.workflow_id);
+      toast.success(`Job 실행 시작: run #${run.pipeline_run_id}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Job 실행 실패");
+    }
+  }
+
+  if (workflow.status !== "PUBLISHED") {
+    return <span className="text-xs text-muted-foreground">PUBLISHED 후 설정</span>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <CronPicker
+        value={cronDraft}
+        onChange={setCronDraft}
+        enabled={enabledDraft}
+        onEnabledChange={setEnabledDraft}
+      />
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={saveSchedule}
+          disabled={!canOperate || updateSchedule.isPending}
+        >
+          주기 저장
+        </Button>
+        <Button
+          size="sm"
+          onClick={runNow}
+          disabled={!canOperate || trigger.isPending}
+        >
+          지금 실행
+        </Button>
+      </div>
     </div>
   );
 }

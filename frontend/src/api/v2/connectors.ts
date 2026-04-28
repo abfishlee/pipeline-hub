@@ -6,7 +6,7 @@ import { apiRequest } from "../client";
 export type HttpMethod = "GET" | "POST";
 export type AuthMethod = "none" | "query_param" | "header" | "basic" | "bearer";
 export type PaginationKind = "none" | "page_number" | "offset_limit" | "cursor";
-export type ResponseFormat = "json" | "xml";
+export type ResponseFormat = "json" | "xml" | "csv" | "tsv" | "text" | "excel" | "binary";
 export type ConnectorStatus = "DRAFT" | "REVIEW" | "APPROVED" | "PUBLISHED";
 
 export interface PublicApiConnector {
@@ -30,8 +30,6 @@ export interface PublicApiConnector {
   timeout_sec: number;
   retry_max: number;
   rate_limit_per_min: number;
-  schedule_cron: string | null;
-  schedule_enabled: boolean;
   status: ConnectorStatus;
   is_active: boolean;
   created_at: string;
@@ -58,8 +56,6 @@ export interface ConnectorIn {
   timeout_sec?: number;
   retry_max?: number;
   rate_limit_per_min?: number;
-  schedule_cron?: string | null;
-  schedule_enabled?: boolean;
 }
 
 export interface TestCallRequest {

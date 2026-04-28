@@ -30,6 +30,7 @@ from app.domain.public_api import (
     save_spec_to_db,
     test_connector,
 )
+from app.models.domain import DomainDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +87,6 @@ class ConnectorIn(BaseModel):
     retry_max: int = Field(default=2, ge=0, le=10)
     rate_limit_per_min: int = Field(default=60, ge=1, le=10_000)
 
-    schedule_cron: str | None = None
-    schedule_enabled: bool = False
 
 
 class ConnectorOut(BaseModel):
@@ -113,8 +112,6 @@ class ConnectorOut(BaseModel):
     timeout_sec: int
     retry_max: int
     rate_limit_per_min: int
-    schedule_cron: str | None
-    schedule_enabled: bool
     status: str
     is_active: bool
     created_at: datetime
@@ -177,8 +174,6 @@ def _spec_from_in(body: ConnectorIn, *, connector_id: int | None) -> ConnectorSp
         timeout_sec=body.timeout_sec,
         retry_max=body.retry_max,
         rate_limit_per_min=body.rate_limit_per_min,
-        schedule_cron=body.schedule_cron,
-        schedule_enabled=body.schedule_enabled,
         status="DRAFT",
         is_active=True,
     )
@@ -206,12 +201,120 @@ def _row_to_out(row: Any) -> ConnectorOut:
         timeout_sec=int(row.timeout_sec),
         retry_max=int(row.retry_max),
         rate_limit_per_min=int(row.rate_limit_per_min),
-        schedule_cron=str(row.schedule_cron) if row.schedule_cron else None,
-        schedule_enabled=bool(row.schedule_enabled),
         status=str(row.status),
         is_active=bool(row.is_active),
         created_at=row.created_at,
         updated_at=row.updated_at,
+    )
+
+
+def _infer_schema_json(sample_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Test Call sample 을 Field Mapping contract 의 최소 schema 로 저장."""
+    properties: dict[str, dict[str, str]] = {}
+    for row in sample_rows[:20]:
+        for key, value in row.items():
+            if key in properties:
+                continue
+            if isinstance(value, bool):
+                typ = "boolean"
+            elif isinstance(value, int):
+                typ = "integer"
+            elif isinstance(value, float):
+                typ = "number"
+            elif isinstance(value, dict):
+                typ = "object"
+            elif isinstance(value, list):
+                typ = "array"
+            else:
+                typ = "string"
+            properties[str(key)] = {"type": typ}
+    return {"type": "object", "properties": properties, "sample_rows": sample_rows[:10]}
+
+
+def _source_code_for(spec: ConnectorSpec) -> str:
+    import re
+
+    raw = f"API_{spec.domain_code}_{spec.resource_code}".upper()
+    code = re.sub(r"[^A-Z0-9_]+", "_", raw).strip("_")
+    return code[:64] or "API_SOURCE"
+
+
+def _ensure_contract_from_test_sample(
+    s: Session,
+    *,
+    spec: ConnectorSpec,
+    sample_rows: list[dict[str, Any]],
+    user_id: int | None,
+) -> None:
+    """Source/API test 성공 시 Mapping 에서 바로 쓸 source_contract 를 보장.
+
+    wipe 직후 도메인/contract 가 비어 있어도 Source/API → Test Call → Field Mapping
+    흐름이 끊기지 않게 하는 실증용 연결 지점이다.
+    """
+    domain = s.get(DomainDefinition, spec.domain_code)
+    if domain is None:
+        # Source/API 화면의 빠른 도메인 생성이 정상 경로지만, API 직접 호출도 보호.
+        s.add(
+            DomainDefinition(
+                domain_code=spec.domain_code,
+                name=spec.domain_code,
+                description="Created from Source/API connector",
+                schema_yaml={},
+                status="PUBLISHED",
+            )
+        )
+        s.flush()
+
+    source_code = _source_code_for(spec)
+    source_id = s.execute(
+        text(
+            """
+            INSERT INTO ctl.data_source
+              (source_code, source_name, source_type, is_active, config_json)
+            VALUES
+              (:code, :name, 'API', TRUE, CAST(:cfg AS JSONB))
+            ON CONFLICT (source_code) DO UPDATE SET
+              source_name = EXCLUDED.source_name,
+              is_active = TRUE,
+              config_json = EXCLUDED.config_json,
+              updated_at = now()
+            RETURNING source_id
+            """
+        ),
+        {
+            "code": source_code,
+            "name": spec.name,
+            "cfg": json.dumps(
+                {"connector_id": spec.connector_id, "endpoint_url": spec.endpoint_url},
+                ensure_ascii=False,
+            ),
+        },
+    ).scalar_one()
+    schema_json = _infer_schema_json(sample_rows)
+    s.execute(
+        text(
+            """
+            INSERT INTO domain.source_contract
+              (source_id, domain_code, resource_code, schema_version, schema_json,
+               compatibility_mode, resource_selector_json, status, description)
+            VALUES
+              (:sid, :domain, :resource, 1, CAST(:schema AS JSONB),
+               'backward', '{}'::jsonb, 'PUBLISHED', :desc)
+            ON CONFLICT (source_id, domain_code, resource_code, schema_version)
+            DO UPDATE SET
+              schema_json = EXCLUDED.schema_json,
+              status = 'PUBLISHED',
+              description = EXCLUDED.description,
+              updated_at = now()
+            """
+        ),
+        {
+            "sid": int(source_id),
+            "domain": spec.domain_code,
+            "resource": spec.resource_code,
+            "schema": json.dumps(schema_json, ensure_ascii=False, default=str),
+            "desc": f"Auto-generated from Source/API test by user {user_id}",
+        },
     )
 
 
@@ -286,8 +389,7 @@ async def update(
             raise HTTPException(
                 409,
                 detail=(
-                    f"connector status={existing.status} — DRAFT 만 직접 수정 가능. "
-                    "APPROVED/PUBLISHED 는 새 버전 생성 (별도 API)."
+                    f"connector status={existing.status} — DRAFT 로 되돌린 뒤 수정하세요."
                 ),
             )
         spec = _spec_from_in(body, connector_id=connector_id)
@@ -423,6 +525,12 @@ async def test_call(
                 "sa": result.started_at,
                 "ca": result.completed_at,
             },
+        )
+        _ensure_contract_from_test_sample(
+            s,
+            spec=spec,
+            sample_rows=sample_rows,
+            user_id=uid,
         )
 
     await asyncio.to_thread(_run_in_sync, _log)

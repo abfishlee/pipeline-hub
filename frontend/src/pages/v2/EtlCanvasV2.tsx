@@ -1,18 +1,16 @@
-// Phase 6 Wave 4 — ETL Canvas v2 (workbench 5: 자산을 박스로 조립).
+﻿// Phase 6 Wave 4 ??ETL Canvas v2 (workbench 5: ?먯궛??諛뺤뒪濡?議곕┰).
 //
-// 사용자 시나리오 (§ 13.5):
-//   1. 좌측 palette 에서 13종 v2 노드 박스 드래그 → 캔버스
-//   2. 박스 클릭 → 우측 drawer 에서 *어떤 자산* 사용할지 dropdown 선택
-//      - PUBLIC_API_FETCH → connector dropdown
-//      - MAP_FIELDS → contract_id dropdown
-//      - SQL_ASSET_TRANSFORM → asset_code + version
-//      - LOAD_TARGET → load_policy
-//      - HTTP_TRANSFORM → provider_code
-//   3. 자산이 없으면 "+ 새 자산 만들기" 버튼 → 해당 designer 로 이동 (별 탭)
-//   4. 화살표 연결 + 저장 → wf.workflow_definition 1건 / wf.node_definition N개
-//   5. PUBLISH → 스케줄/실행 (v1 와 동일 백엔드)
+// ?ъ슜???쒕굹由ъ삤 (짠 13.5):
+//   1. 醫뚯륫 palette ?먯꽌 13醫?v2 ?몃뱶 諛뺤뒪 ?쒕옒洹???罹붾쾭??//   2. 諛뺤뒪 ?대┃ ???곗륫 drawer ?먯꽌 *?대뼡 ?먯궛* ?ъ슜?좎? dropdown ?좏깮
+//      - PUBLIC_API_FETCH ??connector dropdown
+//      - MAP_FIELDS ??contract_id dropdown
+//      - SQL_ASSET_TRANSFORM ??asset_code + version
+//      - LOAD_TARGET ??load_policy
+//      - HTTP_TRANSFORM ??provider_code
+//   3. ?먯궛???놁쑝硫?"+ ???먯궛 留뚮뱾湲? 踰꾪듉 ???대떦 designer 濡??대룞 (蹂???
+//   4. ?붿궡???곌껐 + ?????wf.workflow_definition 1嫄?/ wf.node_definition N媛?//   5. PUBLISH ???ㅼ?以??ㅽ뻾 (v1 ? ?숈씪 諛깆뿏??
 //
-// 백엔드는 /v1/pipelines API 를 그대로 사용 (NodeType Literal 확장으로 v2 노드도 통과).
+// 諛깆뿏?쒕뒗 /v1/pipelines API 瑜?洹몃?濡??ъ슜 (NodeType Literal ?뺤옣?쇰줈 v2 ?몃뱶???듦낵).
 import {
   addEdge,
   Background,
@@ -31,10 +29,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
-  CalendarRange,
   FlaskConical,
   Loader2,
-  PlayCircle,
   Save,
   Send,
 } from "lucide-react";
@@ -45,11 +41,8 @@ import {
   type EdgeIn,
   type NodeIn,
   type NodeType,
-  useBackfill,
   useCreateWorkflow,
   useTransitionWorkflowStatus,
-  useTriggerRun,
-  useUpdateSchedule,
   useUpdateWorkflow,
   useWorkflowDetail,
 } from "@/api/pipelines";
@@ -67,12 +60,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CronPicker } from "@/components/ui/cron-picker";
 import { Input } from "@/components/ui/input";
 
 type DesignerFlowNode = Node<DesignerNodeDataV2>;
 
-// v2 노드 prefix — 신규 노드 key 자동 생성용.
+// v2 ?몃뱶 prefix ???좉퇋 ?몃뱶 key ?먮룞 ?앹꽦??
 const V2_KEY_PREFIX: Partial<Record<NodeType, string>> = {
   SOURCE_DATA: "src",
   PUBLIC_API_FETCH: "fetch_api",
@@ -123,15 +115,6 @@ function DesignerInner() {
   const create = useCreateWorkflow();
   const update = useUpdateWorkflow();
   const transition = useTransitionWorkflowStatus();
-  const trigger = useTriggerRun();
-  const updateSchedule = useUpdateSchedule();
-  const backfill = useBackfill();
-
-  const [showBackfill, setShowBackfill] = useState(false);
-  const [backfillStart, setBackfillStart] = useState("");
-  const [backfillEnd, setBackfillEnd] = useState("");
-  const [cronDraft, setCronDraft] = useState("");
-  const [scheduleEnabledDraft, setScheduleEnabledDraft] = useState(false);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -147,8 +130,6 @@ function DesignerInner() {
     const wf = detail.data;
     setName(wf.name);
     setDescription(wf.description ?? "");
-    setCronDraft(wf.schedule_cron ?? "");
-    setScheduleEnabledDraft(wf.schedule_enabled);
     const nodeKeyById = new Map<number, string>();
     const flowNodes: DesignerFlowNode[] = wf.nodes.map((n) => {
       nodeKeyById.set(n.node_id, n.node_key);
@@ -229,7 +210,7 @@ function DesignerInner() {
     (conn: Connection) => {
       if (!conn.source || !conn.target) return;
       if (conn.source === conn.target) {
-        toast.error("자기 자신과는 연결할 수 없습니다.");
+        toast.error("?먭린 ?먯떊怨쇰뒗 ?곌껐?????놁뒿?덈떎.");
         return;
       }
       setEdges((curr) =>
@@ -331,11 +312,11 @@ function DesignerInner() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      toast.error("workflow name 을 입력해 주세요.");
+      toast.error("workflow name ???낅젰??二쇱꽭??");
       return;
     }
     if (nodes.length === 0) {
-      toast.error("최소 1개 노드가 필요합니다.");
+      toast.error("理쒖냼 1媛??몃뱶媛 ?꾩슂?⑸땲??");
       return;
     }
     const payload = buildPayload();
@@ -345,26 +326,26 @@ function DesignerInner() {
           workflowId: editingWorkflowId,
           body: payload,
         });
-        toast.success("저장 완료");
+        toast.success("????꾨즺");
       } else {
         const created = await create.mutateAsync(payload);
-        toast.success(`생성 완료 (workflow_id=${created.workflow_id})`);
+        toast.success(`?앹꽦 ?꾨즺 (workflow_id=${created.workflow_id})`);
         navigate(`/v2/pipelines/designer/${created.workflow_id}`, {
           replace: true,
         });
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "저장 실패");
+      toast.error(e instanceof Error ? e.message : "????ㅽ뙣");
     }
   };
 
   const handlePublish = async () => {
     if (!editingWorkflowId) {
-      toast.error("먼저 저장해 주세요.");
+      toast.error("癒쇱? ??ν빐 二쇱꽭??");
       return;
     }
     if (detail.data?.status !== "DRAFT") {
-      toast.error(`현재 상태=${detail.data?.status} — DRAFT 만 PUBLISH 가능`);
+      toast.error(`현재 상태=${detail.data?.status}; DRAFT만 PUBLISH할 수 있습니다.`);
       return;
     }
     try {
@@ -375,61 +356,13 @@ function DesignerInner() {
       const pub = result.published_workflow;
       const rel = result.release;
       if (pub && rel) {
-        toast.success(`v${pub.version} 배포 완료 (release #${rel.release_id})`);
+        toast.success(`v${pub.version} 諛고룷 ?꾨즺 (release #${rel.release_id})`);
         navigate(`/v2/pipelines/designer/${pub.workflow_id}`);
       } else {
-        toast.success("배포 완료");
+        toast.success("諛고룷 ?꾨즺");
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "전환 실패");
-    }
-  };
-
-  const handleSaveSchedule = async () => {
-    if (!editingWorkflowId) return;
-    try {
-      await updateSchedule.mutateAsync({
-        workflowId: editingWorkflowId,
-        cron: cronDraft.trim() || null,
-        enabled: scheduleEnabledDraft && !!cronDraft.trim(),
-      });
-      toast.success("스케줄 저장됨");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "스케줄 저장 실패");
-    }
-  };
-
-  const handleBackfill = async () => {
-    if (!editingWorkflowId) return;
-    if (!backfillStart || !backfillEnd) {
-      toast.error("시작/종료 날짜를 선택해 주세요.");
-      return;
-    }
-    try {
-      const res = await backfill.mutateAsync({
-        workflowId: editingWorkflowId,
-        start_date: backfillStart,
-        end_date: backfillEnd,
-      });
-      toast.success(`Backfill 적재됨 — run ${res.pipeline_run_ids.length}개`);
-      setShowBackfill(false);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Backfill 실패");
-    }
-  };
-
-  const handleRun = async () => {
-    if (!editingWorkflowId) return;
-    if (detail.data?.status !== "PUBLISHED") {
-      toast.error("PUBLISHED 워크플로만 실행 가능합니다.");
-      return;
-    }
-    try {
-      const run = await trigger.mutateAsync(editingWorkflowId);
-      toast.success(`실행 트리거됨 (run_id=${run.pipeline_run_id})`);
-      navigate(`/pipelines/runs/${run.pipeline_run_id}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "실행 실패");
+      toast.error(e instanceof Error ? e.message : "?꾪솚 ?ㅽ뙣");
     }
   };
 
@@ -450,7 +383,7 @@ function DesignerInner() {
           <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="설명 (선택)"
+            placeholder="?ㅻ챸 (?좏깮)"
             disabled={isReadonly}
             className="h-9 flex-1 min-w-[180px]"
           />
@@ -476,14 +409,13 @@ function DesignerInner() {
               ) : (
                 <Save className="h-3 w-3" />
               )}
-              저장
-            </Button>
+              ???            </Button>
             <Button
               size="sm"
               variant="outline"
               onClick={() => {
                 if (!editingWorkflowId) {
-                  toast.error("먼저 저장해 주세요.");
+                  toast.error("癒쇱? ??ν빐 二쇱꽭??");
                   return;
                 }
                 navigate(`/v2/dryrun/workflow/${editingWorkflowId}?auto=1`);
@@ -508,93 +440,29 @@ function DesignerInner() {
             </Button>
             <Button
               size="sm"
-              onClick={handleRun}
-              disabled={status !== "PUBLISHED" || trigger.isPending}
+              onClick={() => navigate("/pipelines/runs")}
+              disabled={!editingWorkflowId}
             >
-              <PlayCircle className="h-3 w-3" />
-              실행
+              Jobs & Runs
             </Button>
           </div>
           {isReadonly && (
             <p className="basis-full text-xs text-amber-700">
-              ※ {status} 워크플로는 편집할 수 없습니다. 새 버전을 생성해 주세요.
+              ??{status} ?뚰겕?뚮줈???몄쭛?????놁뒿?덈떎. ??踰꾩쟾???앹꽦??二쇱꽭??
             </p>
           )}
 
           {editingWorkflowId && status === "PUBLISHED" && (
-            <div className="basis-full space-y-2 border-t border-border pt-3 text-xs">
-              {/* Phase 8.6 — Cron Picker (사용자 친화적 6 모드) */}
-              <CronPicker
-                value={cronDraft}
-                onChange={setCronDraft}
-                enabled={scheduleEnabledDraft}
-                onEnabledChange={setScheduleEnabledDraft}
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleSaveSchedule}
-                  disabled={updateSchedule.isPending}
-                >
-                  스케줄 저장
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setShowBackfill((v) => !v)}
-                >
-                  <CalendarRange className="h-3 w-3" />
-                  Backfill
-                </Button>
-                {detail.data?.schedule_cron && (
-                  <span className="text-muted-foreground">
-                    저장된 cron: <code>{detail.data.schedule_cron}</code> ·{" "}
-                    {detail.data.schedule_enabled ? "ON" : "OFF"}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {showBackfill && editingWorkflowId && status === "PUBLISHED" && (
-            <div className="basis-full flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs">
-              <span className="text-amber-800">
-                Backfill — 시작/종료 날짜의 모든 일자에 PENDING run 생성.
-              </span>
-              <Input
-                type="date"
-                value={backfillStart}
-                onChange={(e) => setBackfillStart(e.target.value)}
-                className="h-8 w-36 text-xs"
-              />
-              <span>→</span>
-              <Input
-                type="date"
-                value={backfillEnd}
-                onChange={(e) => setBackfillEnd(e.target.value)}
-                className="h-8 w-36 text-xs"
-              />
-              <Button
-                size="sm"
-                onClick={handleBackfill}
-                disabled={
-                  backfill.isPending || !backfillStart || !backfillEnd
-                }
-              >
-                {backfill.isPending && (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                )}
-                실행
-              </Button>
-            </div>
+            <p className="basis-full border-t border-border pt-3 text-xs text-muted-foreground">
+              실행 주기, 즉시 실행, 모니터링은 Jobs & Runs 화면에서 관리합니다.
+            </p>
           )}
         </CardContent>
       </Card>
 
       <CanvasProgressBar nodeTypes={nodes.map((n) => n.data.node_type)} />
 
-      {/* Phase 8.6 — 신규 사용자 가이드 (노드 0개 시점에 가장 유용) */}
+      {/* Phase 8.6 ???좉퇋 ?ъ슜??媛?대뱶 (?몃뱶 0媛??쒖젏??媛???좎슜) */}
       {nodes.length === 0 && <CanvasPatternHint />}
 
       {nodes.length > 0 && (

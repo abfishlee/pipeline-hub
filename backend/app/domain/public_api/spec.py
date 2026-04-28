@@ -86,8 +86,6 @@ class ConnectorSpec:
     retry_max: int = 2
     rate_limit_per_min: int = 60
 
-    schedule_cron: str | None = None
-    schedule_enabled: bool = False
     status: str = "DRAFT"
     is_active: bool = True
 
@@ -114,7 +112,7 @@ def load_spec_from_db(session: Session, *, connector_id: int) -> ConnectorSpec |
             "       pagination_kind, pagination_config, "
             "       response_format, response_path, "
             "       timeout_sec, retry_max, rate_limit_per_min, "
-            "       schedule_cron, schedule_enabled, status, is_active "
+            "       status, is_active "
             "FROM domain.public_api_connector WHERE connector_id = :id"
         ),
         {"id": connector_id},
@@ -142,8 +140,6 @@ def load_spec_from_db(session: Session, *, connector_id: int) -> ConnectorSpec |
         timeout_sec=int(row.timeout_sec),
         retry_max=int(row.retry_max),
         rate_limit_per_min=int(row.rate_limit_per_min),
-        schedule_cron=str(row.schedule_cron) if row.schedule_cron else None,
-        schedule_enabled=bool(row.schedule_enabled),
         status=str(row.status),
         is_active=bool(row.is_active),
     )
@@ -180,8 +176,6 @@ def save_spec_to_db(
         "timeout_sec": spec.timeout_sec,
         "retry_max": spec.retry_max,
         "rate_limit_per_min": spec.rate_limit_per_min,
-        "schedule_cron": spec.schedule_cron,
-        "schedule_enabled": spec.schedule_enabled,
         "status": spec.status,
         "is_active": spec.is_active,
     }
@@ -196,7 +190,7 @@ def save_spec_to_db(
                 " request_headers, query_template, body_template, "
                 " pagination_kind, pagination_config, response_format, response_path, "
                 " timeout_sec, retry_max, rate_limit_per_min, "
-                " schedule_cron, schedule_enabled, status, is_active, created_by) "
+                " status, is_active, created_by) "
                 "VALUES (:domain_code, :resource_code, :name, :description, :endpoint_url, "
                 "        :http_method, :auth_method, :auth_param_name, :secret_ref, "
                 "        CAST(:request_headers AS JSONB), CAST(:query_template AS JSONB), "
@@ -204,7 +198,7 @@ def save_spec_to_db(
                 "        :pagination_kind, CAST(:pagination_config AS JSONB), "
                 "        :response_format, :response_path, "
                 "        :timeout_sec, :retry_max, :rate_limit_per_min, "
-                "        :schedule_cron, :schedule_enabled, :status, :is_active, :created_by) "
+                "        :status, :is_active, :created_by) "
                 "RETURNING connector_id"
             ),
             payload,
@@ -227,7 +221,6 @@ def save_spec_to_db(
             "  response_format = :response_format, response_path = :response_path, "
             "  timeout_sec = :timeout_sec, retry_max = :retry_max, "
             "  rate_limit_per_min = :rate_limit_per_min, "
-            "  schedule_cron = :schedule_cron, schedule_enabled = :schedule_enabled, "
             "  status = :status, is_active = :is_active, updated_at = now() "
             "WHERE connector_id = :connector_id"
         ),
