@@ -162,6 +162,10 @@ function DqTab() {
   const domains = useDomains();
   const [domainCode, setDomainCode] = useState("");
   const [targetTable, setTargetTable] = useState("");
+  const schemaFilter = useMemo(
+    () => (domainCode ? [`${domainCode}_stg`, `${domainCode}_mart`] : null),
+    [domainCode],
+  );
   const rules = useDqRules({
     domain_code: domainCode || undefined,
     target_table: targetTable || undefined,
@@ -180,7 +184,10 @@ function DqTab() {
               <select
                 className="mt-1 h-9 w-48 rounded-md border bg-background px-3 text-sm"
                 value={domainCode}
-                onChange={(e) => setDomainCode(e.target.value)}
+                onChange={(e) => {
+                  setDomainCode(e.target.value);
+                  setTargetTable("");
+                }}
               >
                 <option value="">전체</option>
                 {domains.data?.map((d) => (
@@ -198,6 +205,7 @@ function DqTab() {
                 value={targetTable}
                 onChange={setTargetTable}
                 allowEmpty
+                schemaFilter={schemaFilter}
               />
             </div>
             <div className="ml-auto">
@@ -367,6 +375,10 @@ function DqRuleEditDialog({
   }, [mode, existing]);
 
   const isReadOnly = mode === "edit" && existing && existing.status !== "DRAFT";
+  const schemaFilter = useMemo(
+    () => (form.domain_code ? [`${form.domain_code}_stg`, `${form.domain_code}_mart`] : null),
+    [form.domain_code],
+  );
 
   function setKind(kind: DqRuleKind) {
     const def = defaultRuleJson(kind);
@@ -503,6 +515,7 @@ function DqRuleEditDialog({
                   onChange={(v) =>
                     setForm({ ...form, target_table: v })
                   }
+                  schemaFilter={schemaFilter}
                 />
               )}
             </div>

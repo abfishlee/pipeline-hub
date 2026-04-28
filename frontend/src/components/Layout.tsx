@@ -54,77 +54,27 @@ function isSection(item: NavEntry): item is NavSection {
 const NAV_ITEMS: NavEntry[] = [
   { to: "/", label: "Dashboard", icon: Gauge },
 
-  section("1. 자산 설계"),
+  section("1. Source Design"),
   { to: "/v2/sources", label: "Sources", icon: PanelTop, operatorOk: true },
   { to: "/v2/connectors/public-api", label: "API Pull", icon: Globe, operatorOk: true },
-  {
-    to: "/v2/inbound-channels/designer",
-    label: "Inbound Push",
-    icon: GitBranch,
-    operatorOk: true,
-  },
-  {
-    to: "/v2/mappings/designer",
-    label: "Field Mapping",
-    icon: Workflow,
-    operatorOk: true,
-  },
-  {
-    to: "/v2/standardization",
-    label: "Standardization",
-    icon: Sparkles,
-    operatorOk: true,
-  },
-  {
-    to: "/v2/quality/designer",
-    label: "DQ / Quality",
-    icon: ShieldCheck,
-    operatorOk: true,
-  },
-  {
-    to: "/v2/transforms/designer",
-    label: "Transform",
-    icon: Sigma,
-    operatorOk: true,
-  },
-  {
-    to: "/v2/marts/designer",
-    label: "Mart Designer",
-    icon: Database,
-    operatorOk: true,
-  },
+  { to: "/v2/inbound-channels/designer", label: "Inbound Push", icon: GitBranch, operatorOk: true },
+  { to: "/v2/mappings/designer", label: "Field Mapping", icon: Workflow, operatorOk: true },
+  { to: "/v2/transforms/designer", label: "Transform", icon: Sigma, operatorOk: true },
+  { to: "/v2/standardization", label: "Standardization Rules", icon: Sparkles, operatorOk: true },
+  { to: "/v2/quality/designer", label: "Quality Rules", icon: ShieldCheck, operatorOk: true },
+  { to: "/v2/marts/designer", label: "Mart Designer", icon: Database, operatorOk: true },
 
-  section("2. 수집 / 실행"),
-  {
-    to: "/v2/pipelines/designer",
-    label: "ETL Canvas",
-    icon: Workflow,
-    approverOk: true,
-  },
+  section("2. Build / Run"),
+  { to: "/v2/pipelines/designer", label: "ETL Canvas", icon: Workflow, approverOk: true },
   { to: "/pipelines/runs", label: "Jobs & Runs", icon: ListChecks },
-  {
-    to: "/v2/inbound-events",
-    label: "Inbound Inbox",
-    icon: Inbox,
-    operatorOk: true,
-  },
-  {
-    to: "/v2/review-queue",
-    label: "Review Queue",
-    icon: ClipboardList,
-    operatorOk: true,
-  },
+  { to: "/v2/inbound-events", label: "Inbound Inbox", icon: Inbox, operatorOk: true },
+  { to: "/v2/review-queue", label: "Review Queue", icon: ClipboardList, operatorOk: true },
 
-  section("3. 운영 모니터링"),
+  section("3. Operations"),
   { to: "/v2/operations/dashboard", label: "Monitoring", icon: Activity },
-  {
-    to: "/v2/mart-freshness",
-    label: "Mart Freshness",
-    icon: Database,
-    operatorOk: true,
-  },
+  { to: "/v2/mart-freshness", label: "Mart Freshness", icon: Database, operatorOk: true },
 
-  section("4. 시스템 관리", { adminOnly: true }),
+  section("4. System", { adminOnly: true }),
   { to: "/users", label: "Users", icon: Users, adminOnly: true },
 ];
 
@@ -207,9 +157,7 @@ export function Layout(_: PropsWithChildren) {
 
       <main className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center justify-between border-b border-border bg-background px-6">
-          <h1 className="text-lg font-semibold">
-            {currentTitle(location.pathname)}
-          </h1>
+          <h1 className="text-lg font-semibold">{currentTitle(location.pathname)}</h1>
         </header>
         <div className="flex-1 overflow-y-auto p-6">
           <Outlet />
@@ -226,10 +174,10 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/v2/inbound-channels")) return "Inbound Push Channel";
   if (pathname.startsWith("/v2/inbound-events")) return "Inbound Inbox";
   if (pathname.startsWith("/v2/mappings/designer")) return "Field Mapping";
-  if (pathname.startsWith("/v2/standardization")) return "Standardization";
-  if (pathname.startsWith("/v2/review-queue")) return "Review Queue";
   if (pathname.startsWith("/v2/transforms/designer")) return "Transform";
-  if (pathname.startsWith("/v2/quality/designer")) return "DQ / Quality";
+  if (pathname.startsWith("/v2/standardization")) return "Standardization Rules";
+  if (pathname.startsWith("/v2/quality/designer")) return "Quality Rules";
+  if (pathname.startsWith("/v2/review-queue")) return "Review Queue";
   if (pathname.startsWith("/v2/marts/designer")) return "Mart Designer";
   if (pathname.startsWith("/v2/operations/dashboard")) return "Monitoring";
   if (pathname.startsWith("/v2/mart-freshness")) return "Mart Freshness";

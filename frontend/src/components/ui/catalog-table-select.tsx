@@ -1,7 +1,3 @@
-// Phase 8.6 — 카탈로그 기반 테이블 dropdown.
-//
-// SQL Studio / Quality Workbench / Mart 등 *기존 mart 테이블* 을 선택해야 하는 화면에서
-// 자유 텍스트 입력 대신 dropdown 으로 사용. 카테고리별 그룹핑 (mart / stg / wf / 기타).
 import { useMemo } from "react";
 import { useCatalogTables } from "@/api/v2/mappings";
 
@@ -9,25 +5,27 @@ interface Props {
   value: string;
   onChange: (v: string) => void;
   allowEmpty?: boolean;
-  /** 어떤 schema 만 노출할지 (예: ['mart','agri_mart']). null/undefined = 전체 */
   schemaFilter?: string[] | null;
+  excludeSchemas?: string[];
 }
 
 const ALLOWED_PREFIXES = ["mart", "stg", "wf", "service_mart"];
+const DEFAULT_EXCLUDED_SCHEMAS = ["agri_mart", "agri_stg"];
 
 export function CatalogTableSelect({
   value,
   onChange,
   allowEmpty = false,
   schemaFilter,
+  excludeSchemas = DEFAULT_EXCLUDED_SCHEMAS,
 }: Props) {
   const q = useCatalogTables();
 
   const grouped = useMemo(() => {
     if (!q.data) return [];
     const tables = q.data.filter((t) => {
+      if (excludeSchemas.includes(t.schema_name)) return false;
       if (schemaFilter) return schemaFilter.includes(t.schema_name);
-      // 기본: *_mart, *_stg, mart, service_mart, stg, wf 만
       return (
         t.schema_name.endsWith("_mart") ||
         t.schema_name.endsWith("_stg") ||
@@ -41,7 +39,7 @@ export function CatalogTableSelect({
       buckets.get(key)!.push(t);
     }
     return Array.from(buckets.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [q.data, schemaFilter]);
+  }, [q.data, schemaFilter, excludeSchemas]);
 
   return (
     <select
@@ -50,8 +48,8 @@ export function CatalogTableSelect({
       onChange={(e) => onChange(e.target.value)}
       disabled={q.isLoading}
     >
-      {allowEmpty && <option value="">— 전체 —</option>}
-      {!allowEmpty && <option value="">— 선택 —</option>}
+      {allowEmpty && <option value="">All tables</option>}
+      {!allowEmpty && <option value="">Select table</option>}
       {grouped.map(([schema, tables]) => (
         <optgroup key={schema} label={schema}>
           {tables.map((t) => {

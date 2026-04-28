@@ -1,8 +1,3 @@
-// Phase 6 Wave 4 — v2 ETL Canvas palette.
-// Phase 8.4 — 누락 3종 추가 (OCR_RESULT_INGEST / CRAWLER_RESULT_INGEST / CDC_EVENT_FETCH).
-//
-// v1 PipelineDesigner 의 NodePalette 와 별개. v2 generic 파이프라인은 자산 박스
-// (connector / mapping / sql_asset / load_policy / dq_rule) 를 끌어다 조립.
 import {
   Bell,
   Code2,
@@ -32,7 +27,6 @@ interface PaletteEntry {
   label: string;
   description: string;
   icon: React.ComponentType<{ className?: string }>;
-  // Phase 8.4 — Phase 9 에서 정식 구현될 stub 노드 표기.
   stub?: boolean;
 }
 
@@ -41,148 +35,144 @@ interface PaletteCategory {
   entries: PaletteEntry[];
 }
 
-// v2 13 종 (Phase 5 generic + Phase 6 PUBLIC_API_FETCH).
 const PALETTE: PaletteCategory[] = [
   {
-    label: "DATA SOURCES",
+    label: "1. Source",
     entries: [
       {
         type: "SOURCE_DATA",
         label: "SOURCE_DATA",
-        description: "raw_object 또는 polling source 읽기",
+        description: "기존 raw/source 데이터를 읽습니다.",
         icon: Database,
       },
       {
         type: "PUBLIC_API_FETCH",
         label: "PUBLIC_API_FETCH",
-        description: "등록된 OpenAPI connector 호출 (pull)",
+        description: "등록된 API Pull connector를 호출합니다.",
         icon: Globe,
       },
-      // Phase 7 Wave 1A — 외부 push / upload / DB 수집 3종
       {
         type: "WEBHOOK_INGEST",
         label: "WEBHOOK_INGEST",
-        description: "외부 시스템 push 수신 (HMAC + idempotency)",
+        description: "Inbound Push 이벤트를 읽습니다.",
         icon: Inbox,
       },
       {
         type: "FILE_UPLOAD_INGEST",
         label: "FILE_UPLOAD_INGEST",
-        description: "사용자 multipart 업로드 (CSV / JSON)",
+        description: "업로드 파일의 payload를 읽습니다.",
         icon: Upload,
       },
       {
         type: "DB_INCREMENTAL_FETCH",
         label: "DB_INCREMENTAL_FETCH",
-        description: "외부 DB watermark 기반 incremental",
+        description: "외부 DB를 watermark 기준으로 증분 수집합니다.",
         icon: DatabaseZap,
       },
       {
         type: "OCR_TRANSFORM",
         label: "OCR_TRANSFORM",
-        description: "이미지 → 텍스트 (CLOVA/Upstage)",
+        description: "이미지를 OCR 텍스트/필드로 변환합니다.",
         icon: Image,
       },
       {
         type: "CRAWL_FETCH",
         label: "CRAWL_FETCH",
-        description: "웹 페이지 크롤링",
+        description: "웹 페이지를 크롤링해 원천 데이터를 수집합니다.",
         icon: Network,
       },
-      // Phase 7 Wave 1B — 외부 OCR/Crawler 업체 push 결과 수신 (Phase 8.4 팔레트 노출)
       {
         type: "OCR_RESULT_INGEST",
         label: "OCR_RESULT_INGEST",
-        description: "외부 OCR 업체 결과 push 수신 (텍스트 + 신뢰도)",
+        description: "외부 OCR 업체가 push한 결과를 읽습니다.",
         icon: FileText,
       },
       {
         type: "CRAWLER_RESULT_INGEST",
         label: "CRAWLER_RESULT_INGEST",
-        description: "외부 Crawler 업체 결과 push 수신 (페이지/상품)",
+        description: "외부 crawler 업체가 push한 결과를 읽습니다.",
         icon: Network,
       },
-      // Phase 7 Wave 1B — DB CDC stream (Phase 9 정식 구현 예정).
       {
         type: "CDC_EVENT_FETCH",
         label: "CDC_EVENT_FETCH",
-        description: "DB logical replication slot stream (Phase 9 stub)",
+        description: "DB logical replication stream. Phase 9 stub.",
         icon: Repeat,
         stub: true,
       },
     ],
   },
   {
-    label: "TRANSFORM",
+    label: "2. Prepare",
     entries: [
       {
         type: "MAP_FIELDS",
         label: "MAP_FIELDS",
-        description: "field_mapping 적용 (source → target)",
+        description: "JSONB/source fields를 flat columns로 매핑합니다.",
         icon: Wand2,
       },
       {
         type: "SQL_INLINE_TRANSFORM",
         label: "SQL_INLINE",
-        description: "즉석 SQL (즉시 실행, 미저장)",
+        description: "일회성 SQL로 값을 변환합니다.",
         icon: Code2,
       },
       {
         type: "SQL_ASSET_TRANSFORM",
         label: "SQL_ASSET",
-        description: "등록된 sql_asset (APPROVED/PUBLISHED) 실행",
+        description: "등록된 SQL Asset을 실행합니다.",
         icon: Sigma,
       },
       {
         type: "HTTP_TRANSFORM",
         label: "HTTP",
-        description: "외부 정제 API 호출 (provider binding)",
+        description: "외부 API로 값을 보강합니다.",
         icon: Network,
       },
       {
         type: "FUNCTION_TRANSFORM",
         label: "FUNCTION",
-        description: "26+ allowlist 함수 적용",
+        description: "허용된 함수를 적용합니다.",
         icon: FunctionSquare,
       },
       {
         type: "STANDARDIZE",
         label: "STANDARDIZE",
-        description: "표준코드 namespace 매칭",
+        description: "표준코드, 표준명, 표준단위에 매칭합니다.",
         icon: Sparkles,
       },
     ],
   },
   {
-    label: "VALIDATE",
+    label: "3. Validate",
     entries: [
       {
         type: "DEDUP",
         label: "DEDUP",
-        description: "key 기준 중복 제거",
+        description: "business key 기준으로 중복을 제거합니다.",
         icon: Filter,
       },
       {
         type: "DQ_CHECK",
         label: "DQ_CHECK",
-        description: "등록된 dq_rule 평가",
+        description: "Quality Rule을 실행하고 실패를 기록합니다.",
         icon: ShieldCheck,
       },
     ],
   },
   {
-    label: "LOAD / OUTPUT",
+    label: "4. Load / Output",
     entries: [
       {
         type: "LOAD_TARGET",
         label: "LOAD_TARGET",
-        description: "load_policy 사용 → mart 적재",
+        description: "Load Policy에 따라 staging/mart에 적재합니다.",
         icon: HardDrive,
       },
       {
         type: "NOTIFY",
         label: "NOTIFY",
-        description: "Slack/Email/Webhook",
+        description: "Slack, Email, Webhook으로 결과를 알립니다.",
         icon: Bell,
       },
     ],
@@ -204,7 +194,8 @@ export function NodePaletteV2({ onAdd }: Props) {
   return (
     <aside className="flex w-60 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border bg-background p-3">
       <div className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase text-muted-foreground">
-        <Hash className="h-3 w-3" />v2 노드 팔레트
+        <Hash className="h-3 w-3" />
+        v2 node palette
       </div>
       {PALETTE.map((cat) => (
         <div key={cat.label} className="space-y-1">
@@ -224,26 +215,22 @@ export function NodePaletteV2({ onAdd }: Props) {
                 }`}
                 title={
                   p.stub
-                    ? "Phase 9 정식 구현 예정 — Canvas 배치는 가능하지만 dry-run/실행은 stub 응답"
-                    : "드래그하거나 더블클릭으로 추가"
+                    ? "Phase 9 planned node. It can be placed, but execution is not fully implemented yet."
+                    : "Drag or double-click to add this node."
                 }
               >
                 <div className="flex items-start gap-2 p-2 text-xs">
                   <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <div className="flex-1">
                     <div className="flex items-center gap-1">
-                      <span className="font-mono text-[11px] font-semibold">
-                        {p.label}
-                      </span>
+                      <span className="font-mono text-[11px] font-semibold">{p.label}</span>
                       {p.stub && (
                         <span className="rounded bg-amber-100 px-1 text-[9px] font-semibold text-amber-700">
                           STUB
                         </span>
                       )}
                     </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {p.description}
-                    </div>
+                    <div className="text-[10px] text-muted-foreground">{p.description}</div>
                   </div>
                 </div>
               </Card>
@@ -251,10 +238,6 @@ export function NodePaletteV2({ onAdd }: Props) {
           })}
         </div>
       ))}
-      <p className="mt-2 text-[10px] text-muted-foreground">
-        ※ Phase 6 Wave 4 — v2 generic 파이프라인 전용. v1 페이지는{" "}
-        <code className="text-[10px]">/pipelines/designer</code>.
-      </p>
     </aside>
   );
 }
