@@ -10,6 +10,7 @@ Field Mapping Designer 가 사용. Workbench 가 자산 (mapping) 을 row 단위
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime
 from typing import Any
 
@@ -22,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.db.sync_session import get_sync_sessionmaker
 from app.deps import CurrentUserDep, require_roles
 from app.domain.functions import list_functions
+from app.domain.inbound_contracts import get_contract
 from app.models.domain import FieldMapping
 
 router = APIRouter(
@@ -81,6 +83,19 @@ class TableColumnOut(BaseModel):
     data_type: str
     is_nullable: bool
     ordinal_position: int
+
+
+class MappingSourceOut(BaseModel):
+    source_type: str
+    source_id: str
+    contract_id: int
+    domain_code: str
+    resource_code: str
+    label: str
+    status: str
+    item_path: str | None = None
+    payload_schema: dict[str, Any]
+    sample_payload: dict[str, Any]
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +243,149 @@ async def transition_mapping(
 # ---------------------------------------------------------------------------
 # Helpers — UI 도움말
 # ---------------------------------------------------------------------------
+@router.get("/sources/list", response_model=list[MappingSourceOut])
+async def list_mapping_sources(
+    domain_code: str | None = None,
+    source_type: str | None = None,
+) -> list[MappingSourceOut]:
+    """Unified mapping source list for API Pull and Inbound contracts."""
+
+    def _do(s: Session) -> list[MappingSourceOut]:
+        out: list[MappingSourceOut] = []
+        wanted = source_type or ""
+        if wanted in ("", "api"):
+            params: dict[str, Any] = {}
+            where = ""
+            if domain_code:
+                where = "WHERE sc.domain_code = :domain_code"
+                params["domain_code"] = domain_code
+            rows = s.execute(
+                text(
+                    f"""
+                    SELECT sc.contract_id, sc.domain_code, sc.resource_code,
+                           sc.schema_version, sc.status, sc.schema_json,
+                           ds.source_name
+                      FROM domain.source_contract sc
+                      JOIN ctl.data_source ds ON ds.source_id = sc.source_id
+                      {where}
+                     ORDER BY sc.domain_code, sc.resource_code, sc.schema_version DESC
+                     LIMIT 200
+                    """
+                ),
+                params,
+            ).all()
+            for r in rows:
+                schema_json = r.schema_json or {}
+                sample_rows = schema_json.get("sample_rows")
+                sample_payload = {"items": sample_rows[:3]} if isinstance(sample_rows, list) and sample_rows else _sample_from_schema(schema_json)
+                out.append(
+                    MappingSourceOut(
+                        source_type="api",
+                        source_id=f"contract:{r.contract_id}",
+                        contract_id=int(r.contract_id),
+                        domain_code=str(r.domain_code),
+                        resource_code=str(r.resource_code),
+                        label=f"API #{r.contract_id} {r.source_name} / {r.resource_code} [{r.status}]",
+                        status=str(r.status),
+                        item_path="items" if isinstance(sample_rows, list) and sample_rows else None,
+                        payload_schema=schema_json,
+                        sample_payload=sample_payload,
+                    )
+                )
+        if wanted in ("", "inbound"):
+            params = {}
+            where = ""
+            if domain_code:
+                where = "WHERE c.domain_code = :domain_code"
+                params["domain_code"] = domain_code
+            rows = s.execute(
+                text(
+                    f"""
+                    SELECT c.channel_id, c.channel_code, c.domain_code, c.name,
+                           c.channel_kind, c.status
+                      FROM domain.inbound_channel c
+                      {where}
+                     ORDER BY c.channel_code
+                    """
+                ),
+                params,
+            ).all()
+            for r in rows:
+                contract = get_contract(s, str(r.channel_code)) or {}
+                source_type_db = "OCR" if r.channel_kind == "OCR_RESULT" else "CRAWLER" if r.channel_kind == "CRAWLER_RESULT" else "APP"
+                source_code = f"INBOUND_{str(r.channel_code).upper()}"[:64]
+                source_id = s.execute(
+                    text(
+                        """
+                        INSERT INTO ctl.data_source
+                          (source_code, source_name, source_type, is_active, config_json)
+                        VALUES
+                          (:code, :name, :type, TRUE, CAST(:cfg AS JSONB))
+                        ON CONFLICT (source_code) DO UPDATE SET
+                          source_name = EXCLUDED.source_name,
+                          is_active = TRUE,
+                          config_json = EXCLUDED.config_json,
+                          updated_at = now()
+                        RETURNING source_id
+                        """
+                    ),
+                    {
+                        "code": source_code,
+                        "name": str(r.name),
+                        "type": source_type_db,
+                        "cfg": json.dumps({"channel_id": int(r.channel_id), "channel_code": str(r.channel_code), "channel_kind": str(r.channel_kind)}, ensure_ascii=False),
+                    },
+                ).scalar_one()
+                schema_json = contract.get("payload_schema") or {}
+                sample_payload = contract.get("sample_payload") or {}
+                contract_id = s.execute(
+                    text(
+                        """
+                        INSERT INTO domain.source_contract
+                          (source_id, domain_code, resource_code, schema_version,
+                           schema_json, compatibility_mode, resource_selector_json,
+                           status, description)
+                        VALUES
+                          (:sid, :domain, :resource, 1, CAST(:schema AS JSONB),
+                           'backward', CAST(:selector AS JSONB), 'PUBLISHED', :desc)
+                        ON CONFLICT (source_id, domain_code, resource_code, schema_version)
+                        DO UPDATE SET
+                          schema_json = EXCLUDED.schema_json,
+                          resource_selector_json = EXCLUDED.resource_selector_json,
+                          status = 'PUBLISHED',
+                          description = EXCLUDED.description,
+                          updated_at = now()
+                        RETURNING contract_id
+                        """
+                    ),
+                    {
+                        "sid": int(source_id),
+                        "domain": str(r.domain_code),
+                        "resource": str(r.channel_code),
+                        "schema": json.dumps(schema_json, ensure_ascii=False),
+                        "selector": json.dumps({"source_type": "inbound", "channel_code": str(r.channel_code), "item_path": contract.get("item_path")}, ensure_ascii=False),
+                        "desc": f"Inbound contract for {r.channel_code}",
+                    },
+                ).scalar_one()
+                out.append(
+                    MappingSourceOut(
+                        source_type="inbound",
+                        source_id=f"inbound:{r.channel_id}",
+                        contract_id=int(contract_id),
+                        domain_code=str(r.domain_code),
+                        resource_code=str(r.channel_code),
+                        label=f"Inbound #{r.channel_id} {r.name} / {r.channel_kind} [{r.status}]",
+                        status=str(r.status),
+                        item_path=contract.get("item_path"),
+                        payload_schema=schema_json,
+                        sample_payload=sample_payload,
+                    )
+                )
+        return out
+
+    return await asyncio.to_thread(_run_in_sync, _do)
+
+
 @router.get("/functions/list", response_model=list[FunctionSpecOut])
 async def list_function_registry() -> list[FunctionSpecOut]:
     """26+ 함수 allowlist — UI 의 transform_expr 입력 도움말."""
@@ -382,3 +540,23 @@ async def list_contracts_light(
 
 
 __all__ = ["router"]
+
+
+def _sample_from_schema(schema_json: dict[str, Any]) -> dict[str, Any]:
+    props = schema_json.get("properties")
+    if not isinstance(props, dict):
+        return {}
+    sample: dict[str, Any] = {}
+    for key, spec in props.items():
+        typ = spec.get("type") if isinstance(spec, dict) else None
+        if typ in {"number", "integer"}:
+            sample[key] = 0
+        elif typ == "boolean":
+            sample[key] = False
+        elif typ == "array":
+            sample[key] = []
+        elif typ == "object":
+            sample[key] = {}
+        else:
+            sample[key] = ""
+    return sample

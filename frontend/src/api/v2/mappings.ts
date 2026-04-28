@@ -54,6 +54,19 @@ export interface ContractLight {
   label: string;
 }
 
+export interface MappingSource {
+  source_type: "api" | "inbound";
+  source_id: string;
+  contract_id: number;
+  domain_code: string;
+  resource_code: string;
+  label: string;
+  status: string;
+  item_path: string | null;
+  payload_schema: Record<string, unknown>;
+  sample_payload: Record<string, unknown>;
+}
+
 const BASE = "/v2/mappings";
 
 export interface ListMappingsParams {
@@ -158,6 +171,22 @@ export function useContractsLight(domainCode?: string) {
     queryFn: () =>
       apiRequest<ContractLight[]>(`${BASE}/contracts/list-light`, {
         params: { domain_code: domainCode },
+      }),
+  });
+}
+
+export function useMappingSources(params: {
+  domain_code?: string;
+  source_type?: "api" | "inbound" | "";
+} = {}) {
+  return useQuery({
+    queryKey: ["v2-mapping-sources", params],
+    queryFn: () =>
+      apiRequest<MappingSource[]>(`${BASE}/sources/list`, {
+        params: {
+          domain_code: params.domain_code || undefined,
+          source_type: params.source_type || undefined,
+        },
       }),
   });
 }
