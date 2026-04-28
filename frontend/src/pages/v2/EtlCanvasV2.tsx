@@ -312,11 +312,11 @@ function DesignerInner() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      toast.error("workflow name ???낅젰??二쇱꽭??");
+      toast.error("workflow name을 입력해 주세요.");
       return;
     }
     if (nodes.length === 0) {
-      toast.error("理쒖냼 1媛??몃뱶媛 ?꾩슂?⑸땲??");
+      toast.error("최소 1개 노드가 필요합니다.");
       return;
     }
     const payload = buildPayload();
@@ -326,16 +326,16 @@ function DesignerInner() {
           workflowId: editingWorkflowId,
           body: payload,
         });
-        toast.success("????꾨즺");
+        toast.success("저장 완료");
       } else {
         const created = await create.mutateAsync(payload);
-        toast.success(`?앹꽦 ?꾨즺 (workflow_id=${created.workflow_id})`);
+        toast.success(`생성 완료 (workflow_id=${created.workflow_id})`);
         navigate(`/v2/pipelines/designer/${created.workflow_id}`, {
           replace: true,
         });
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "????ㅽ뙣");
+      toast.error(e instanceof Error ? e.message : "저장 실패");
     }
   };
 
@@ -370,7 +370,7 @@ function DesignerInner() {
   const isReadonly = !!editingWorkflowId && status !== "DRAFT";
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex min-h-[calc(100vh-8rem)] flex-col gap-3">
       <Card>
         <CardContent className="flex flex-wrap items-center gap-3 p-3 text-sm">
           <Input
@@ -383,7 +383,7 @@ function DesignerInner() {
           <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="?ㅻ챸 (?좏깮)"
+            placeholder="설명 (선택)"
             disabled={isReadonly}
             className="h-9 flex-1 min-w-[180px]"
           />
@@ -409,7 +409,8 @@ function DesignerInner() {
               ) : (
                 <Save className="h-3 w-3" />
               )}
-              ???            </Button>
+              저장
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -469,7 +470,7 @@ function DesignerInner() {
         <CanvasReadinessChecklist nodes={nodes} edges={edges} />
       )}
 
-      <div className="flex flex-1 overflow-hidden rounded-lg border border-border bg-background">
+      <div className="flex min-h-[460px] flex-1 overflow-hidden rounded-lg border border-border bg-background">
         <NodePaletteV2 onAdd={handlePaletteAdd} />
         <div
           ref={wrapperRef}
@@ -478,6 +479,7 @@ function DesignerInner() {
           onDrop={onDrop}
         >
           <ReactFlow
+            className="h-full min-h-[460px]"
             nodes={nodes.map((n) => ({
               ...n,
               data: {
