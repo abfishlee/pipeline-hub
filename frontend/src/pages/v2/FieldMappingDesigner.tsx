@@ -359,13 +359,13 @@ function extractSourceFields(source: MappingSource): SourceField[] {
 
   for (const [key, value] of Object.entries(sample)) {
     if (key === itemPath && Array.isArray(value)) continue;
-    fields.push({ path: key, key, value, scope: "root" });
+    fields.push({ path: runtimePath(source, key), key, value, scope: "root" });
   }
 
   const items = sample[itemPath];
   if (Array.isArray(items) && items.length > 0 && isRecord(items[0])) {
     for (const [key, value] of Object.entries(items[0])) {
-      fields.push({ path: `${itemPath}[].${key}`, key, value, scope: "item" });
+      fields.push({ path: runtimePath(source, key), key, value, scope: "item" });
     }
   }
   return fields;
@@ -444,6 +444,12 @@ function valueAt(root: Record<string, unknown>, item: unknown, path: string, ite
     const key = path.slice(`${itemPath}[].`.length);
     return isRecord(item) ? item[key] : undefined;
   }
+  if (path.startsWith("payload.")) {
+    const key = path.slice("payload.".length);
+    if (isRecord(item) && key in item) return item[key];
+    return root[key];
+  }
+  if (isRecord(item) && path in item) return item[path];
   return root[path];
 }
 
@@ -496,6 +502,10 @@ function functionCandidates(dataType: FieldType, varName: string, functions: Fun
 
 function defaultTargetTable(source: MappingSource) {
   return `${source.domain_code}_stg.${normalizeColumn(source.resource_code)}_flat`;
+}
+
+function runtimePath(source: MappingSource, key: string) {
+  return source.source_type === "inbound" ? `payload.${key}` : key;
 }
 
 function normalizeColumn(value: string) {
