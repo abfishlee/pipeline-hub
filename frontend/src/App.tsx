@@ -32,12 +32,10 @@ import { MartFreshness } from "@/pages/v2/MartFreshness";
 import { MartDesigner } from "@/pages/v2/MartDesigner";
 import { OperationsDashboard } from "@/pages/v2/OperationsDashboard";
 import { PublishApproval } from "@/pages/v2/PublishApproval";
-import { QualityWorkbench } from "@/pages/v2/QualityWorkbench";
 import { ReviewQueueV2 } from "@/pages/v2/ReviewQueueV2";
 import { ServiceMartViewer } from "@/pages/v2/ServiceMartViewer";
 import { SourceApiDesigner } from "@/pages/v2/SourceApiDesigner";
 import { SourcesHub } from "@/pages/v2/SourcesHub";
-import { StandardizationWorkbench } from "@/pages/v2/StandardizationWorkbench";
 import { TransformDesigner } from "@/pages/v2/TransformDesigner";
 import { useAuthStore } from "@/store/auth";
 
@@ -141,7 +139,7 @@ export default function App() {
               />
               <Route
                 path="/v2/standardization"
-                element={<StandardizationWorkbench />}
+                element={<Navigate to="/v2/transforms/designer" replace />}
               />
               <Route path="/v2/review-queue" element={<ReviewQueueV2 />} />
               <Route
@@ -150,7 +148,7 @@ export default function App() {
               />
               <Route
                 path="/v2/quality/designer"
-                element={<QualityWorkbench />}
+                element={<Navigate to="/v2/transforms/designer" replace />}
               />
               <Route
                 path="/v2/marts/designer"

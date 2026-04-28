@@ -352,6 +352,7 @@ class SqlAsset(Base):
         Text, ForeignKey("domain.domain_definition.domain_code"), nullable=False
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    asset_type: Mapped[str] = mapped_column(Text, nullable=False, server_default="TRANSFORM_SQL")
     sql_text: Mapped[str] = mapped_column(Text, nullable=False)
     checksum: Mapped[str] = mapped_column(Text, nullable=False)
     output_table: Mapped[str | None] = mapped_column(Text)

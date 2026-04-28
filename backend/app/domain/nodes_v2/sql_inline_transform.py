@@ -54,10 +54,54 @@ def _writable_schemas(domain_code: str) -> frozenset[str]:
     return frozenset({"wf", "stg", f"{domain_code.lower()}_stg"})
 
 
+def _pick_input_table(context: NodeV2Context, config: Mapping[str, Any]) -> str | None:
+    configured = str(config.get("input_table") or "").strip()
+    if configured:
+        return configured
+    input_from = str(config.get("input_from") or "").strip()
+    payload = context.upstream_outputs.get(input_from) if input_from else None
+    if payload is None and context.upstream_outputs:
+        payload = context.upstream_outputs[sorted(context.upstream_outputs.keys())[0]]
+    if not isinstance(payload, Mapping):
+        return None
+    for key in ("output_table", "target_table", "source_table", "table"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _render_sql(
+    sql: str, *, context: NodeV2Context, config: Mapping[str, Any], output_table: str
+) -> str:
+    input_table = _pick_input_table(context, config)
+    params = {
+        "input_table": input_table,
+        "output_table": output_table,
+        "domain_code": context.domain_code,
+        "run_id": context.pipeline_run_id,
+        "node_key": context.node_key,
+    }
+    rendered = sql
+    for key, value in params.items():
+        rendered = rendered.replace("{{" + key + "}}", "" if value is None else str(value))
+    missing = sorted(set(re.findall(r"\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}", rendered)))
+    if missing:
+        raise NodeV2Error(f"unresolved SQL template parameters: {missing}")
+    return rendered
+
+
 def run(context: NodeV2Context, config: Mapping[str, Any]) -> NodeV2Output:
     sql = str(config.get("sql") or "").strip().rstrip(";")
     if not sql:
         raise NodeV2Error("SQL_INLINE_TRANSFORM requires `sql`")
+    materialize = bool(config.get("materialize", True))
+    writable = _writable_schemas(context.domain_code)
+    output_table = str(
+        config.get("output_table") or _default_output(context.pipeline_run_id, context.node_key)
+    )
+    output_table = _validate_output_table(output_table, allowed_schemas=writable)
+    sql = _render_sql(sql, context=context, config=config, output_table=output_table)
 
     # 가드 — 도메인 인지 ALLOWED_SCHEMAS + write target = staging/temp only.
     extra: frozenset[str] = frozenset(
@@ -78,13 +122,6 @@ def run(context: NodeV2Context, config: Mapping[str, Any]) -> NodeV2Output:
             error_message=f"sql guard violation: {exc}",
             payload={"reason": "sql_guard"},
         )
-
-    materialize = bool(config.get("materialize", True))
-    writable = _writable_schemas(context.domain_code)
-    output_table = str(
-        config.get("output_table") or _default_output(context.pipeline_run_id, context.node_key)
-    )
-    output_table = _validate_output_table(output_table, allowed_schemas=writable)
 
     if not materialize:
         scalar = context.session.execute(

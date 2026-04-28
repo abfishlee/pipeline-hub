@@ -3,12 +3,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../client";
 
 export type AssetStatus = "DRAFT" | "REVIEW" | "APPROVED" | "PUBLISHED";
+export type SqlAssetType =
+  | "TRANSFORM_SQL"
+  | "STANDARDIZATION_SQL"
+  | "QUALITY_CHECK_SQL"
+  | "DML_SCRIPT"
+  | "FUNCTION"
+  | "PROCEDURE";
 
 export interface SqlAsset {
   asset_id: number;
   asset_code: string;
   domain_code: string;
   version: number;
+  asset_type: SqlAssetType;
   sql_text: string;
   checksum: string;
   output_table: string | null;
@@ -21,6 +29,7 @@ export interface SqlAsset {
 export interface SqlAssetIn {
   asset_code: string;
   domain_code: string;
+  asset_type?: SqlAssetType;
   sql_text: string;
   output_table?: string | null;
   description?: string | null;
@@ -28,6 +37,7 @@ export interface SqlAssetIn {
 }
 
 export interface SqlAssetUpdate {
+  asset_type?: SqlAssetType;
   sql_text?: string;
   output_table?: string | null;
   description?: string | null;
@@ -39,6 +49,7 @@ export interface ListSqlAssetsParams {
   domain_code?: string;
   status?: AssetStatus;
   asset_code?: string;
+  asset_type?: SqlAssetType;
 }
 
 export function useSqlAssets(params: ListSqlAssetsParams = {}) {

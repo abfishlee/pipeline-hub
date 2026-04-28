@@ -34,7 +34,7 @@ from app.domain.nodes_v2 import (
 )
 from app.domain.pipeline_runtime import complete_node, mark_node_running
 from app.models.run import NodeRun
-from app.models.wf import NodeDefinition
+from app.models.wf import EdgeDefinition, NodeDefinition
 from app.workers import pipeline_actor
 
 V2_NODE_TYPES: frozenset[str] = frozenset(list_v2_node_types())
@@ -70,6 +70,7 @@ def _execute_v2(session: Session, node_run: NodeRun) -> NodeV2Output:
     config: dict[str, Any] = dict(nd.config_json or {})
     domain_code, contract_id, source_id = _v2_runtime_context(config)
     runner = get_v2_runner(node_run.node_type)
+    upstream_outputs = _upstream_outputs(session, node_run=node_run, node=nd)
     ctx = NodeV2Context(
         session=session,
         pipeline_run_id=node_run.pipeline_run_id,
@@ -79,8 +80,46 @@ def _execute_v2(session: Session, node_run: NodeRun) -> NodeV2Output:
         contract_id=contract_id,
         source_id=source_id,
         user_id=None,
+        upstream_outputs=upstream_outputs,
     )
     return runner.run(ctx, config)
+
+
+def _upstream_outputs(
+    session: Session, *, node_run: NodeRun, node: NodeDefinition
+) -> dict[str, dict[str, Any]]:
+    edges = (
+        session.query(EdgeDefinition)
+        .filter(EdgeDefinition.workflow_id == node.workflow_id)
+        .filter(EdgeDefinition.to_node_id == node.node_id)
+        .all()
+    )
+    if not edges:
+        return {}
+    from_ids = [e.from_node_id for e in edges]
+    rows = (
+        session.query(NodeRun)
+        .filter(NodeRun.pipeline_run_id == node_run.pipeline_run_id)
+        .filter(NodeRun.run_date == node_run.run_date)
+        .filter(NodeRun.node_definition_id.in_(from_ids))
+        .all()
+    )
+    key_by_def = {
+        n.node_id: n.node_key
+        for n in session.query(NodeDefinition)
+        .filter(NodeDefinition.node_id.in_(from_ids))
+        .all()
+    }
+    out: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if row.status != "SUCCESS":
+            continue
+        node_key = key_by_def.get(row.node_definition_id)
+        if not node_key:
+            continue
+        payload = row.output_json if isinstance(row.output_json, dict) else {}
+        out[node_key] = dict(payload)
+    return out
 
 
 @pipeline_actor(queue_name="pipeline_node_v2", max_retries=3, time_limit=180_000)
