@@ -31,6 +31,7 @@ from app.domain import dq_gate as dq_gate_domain
 from app.domain import pipeline_release as release_domain
 from app.domain import pipeline_runtime as runtime
 from app.domain import pipeline_schedule as schedule_domain
+from app.models.run import NodeRun
 from app.models.wf import EdgeDefinition, NodeDefinition, WorkflowDefinition
 from app.repositories import pipelines as pipelines_repo
 from app.schemas.pipelines import (
@@ -67,6 +68,29 @@ router = APIRouter(
     tags=["pipelines"],
     dependencies=[Depends(require_roles("ADMIN", "APPROVER", "OPERATOR"))],
 )
+
+
+def _enqueue_node_run(node_run_id: int, run_date_iso: str, *, event_suffix: str) -> None:
+    """Send a node run to the v1 or v2 worker queue based on node_type."""
+    sm = get_sync_sessionmaker()
+    with sm() as session:
+        nr = session.get(NodeRun, node_run_id)
+        node_type = nr.node_type if nr is not None else ""
+    from app.workers.pipeline_node_worker import process_node_event
+    from app.workers.pipeline_node_v2_worker import V2_NODE_TYPES, process_v2_node_event
+
+    if node_type in V2_NODE_TYPES:
+        process_v2_node_event.send(
+            event_id=f"v2-node-run-{node_run_id}-{event_suffix}",
+            node_run_id=node_run_id,
+            run_date_iso=run_date_iso,
+        )
+    else:
+        process_node_event.send(
+            event_id=f"node-run-{node_run_id}-{event_suffix}",
+            node_run_id=node_run_id,
+            run_date_iso=run_date_iso,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -388,13 +412,11 @@ async def trigger_run(
 
     # entry node 들을 actor 로 enqueue.
     try:
-        from app.workers.pipeline_node_worker import process_node_event
-
         for node_run_id in started.ready_node_run_ids:
-            process_node_event.send(
-                event_id=f"node-run-{node_run_id}-attempt-1",
-                node_run_id=node_run_id,
-                run_date_iso=started.run_date.isoformat(),
+            _enqueue_node_run(
+                node_run_id,
+                started.run_date.isoformat(),
+                event_suffix="attempt-1",
             )
     except Exception:
         # broker 미가동 시에도 API 는 200 — 운영자가 화면에서 PENDING 확인 후 수동 재발송.
@@ -505,13 +527,11 @@ async def restart_run(
 
     # entry 또는 from_node 들을 actor 로 enqueue (broker 미가동 시에도 API 는 200).
     try:
-        from app.workers.pipeline_node_worker import process_node_event
-
         for node_run_id in result.ready_node_run_ids:
-            process_node_event.send(
-                event_id=f"node-run-{node_run_id}-attempt-1",
-                node_run_id=node_run_id,
-                run_date_iso=result.new_run_date.isoformat(),
+            _enqueue_node_run(
+                node_run_id,
+                result.new_run_date.isoformat(),
+                event_suffix="attempt-1",
             )
     except Exception:
         pass
@@ -618,13 +638,11 @@ async def approve_hold_endpoint(
 
     # 후속 ready 노드 enqueue (broker 미가동 시에도 200).
     try:
-        from app.workers.pipeline_node_worker import process_node_event
-
         for node_run_id in result.ready_node_run_ids:
-            process_node_event.send(
-                event_id=f"node-run-{node_run_id}-approve-{result.decision_id}",
-                node_run_id=node_run_id,
-                run_date_iso=result.run_date.isoformat(),
+            _enqueue_node_run(
+                node_run_id,
+                result.run_date.isoformat(),
+                event_suffix=f"approve-{result.decision_id}",
             )
     except Exception:
         pass

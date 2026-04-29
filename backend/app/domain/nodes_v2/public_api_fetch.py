@@ -152,7 +152,7 @@ def run(context: NodeV2Context, config: Mapping[str, Any]) -> NodeV2Output:
     )
 
     columns = _safe_columns(result.rows)
-    if not columns:
+    if not result.rows:
         # rows 가 0 건이거나 모두 unsafe column. row_count 0 으로 success.
         _record_run(
             context,
@@ -172,25 +172,27 @@ def run(context: NodeV2Context, config: Mapping[str, Any]) -> NodeV2Output:
                 "endpoint": spec.endpoint_url,
                 "output_table": output_table,
                 "row_count": 0,
-                "note": "no rows or no safe columns",
+                "note": "no rows",
             },
         )
 
     # CREATE TABLE + INSERT.
-    quoted_cols = ", ".join(f'"{c}"' for c in columns)
+    quoted_cols = ", ".join(['"payload"'] + [f'"{c}"' for c in columns])
     create_sql = (
-        f"CREATE TABLE {output_table} ("
-        + ", ".join(f'"{c}" TEXT' for c in columns)
+        f"CREATE TABLE {output_table} (payload JSONB"
+        + (", " + ", ".join(f'"{c}" TEXT' for c in columns) if columns else "")
         + ")"
     )
     context.session.execute(text(f"DROP TABLE IF EXISTS {output_table}"))
     context.session.execute(text(create_sql))
 
-    placeholders = ", ".join(f":{c}" for c in columns)
+    placeholders = ", ".join([":payload"] + [f":{c}" for c in columns])
     insert_sql = text(f"INSERT INTO {output_table} ({quoted_cols}) VALUES ({placeholders})")
     inserted = 0
     for row in result.rows:
-        params: dict[str, Any] = {}
+        params: dict[str, Any] = {
+            "payload": json.dumps(row, ensure_ascii=False, default=str)
+        }
         for c in columns:
             v = row.get(c)
             if isinstance(v, dict | list):

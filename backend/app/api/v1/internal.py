@@ -29,10 +29,32 @@ from app.core.events import RedisPubSub
 from app.db.sync_session import get_sync_sessionmaker
 from app.deps import SessionDep
 from app.domain import pipeline_runtime as runtime
-from app.models.run import PipelineRun
+from app.models.run import NodeRun, PipelineRun
 from app.repositories import pipelines as pipelines_repo
 
 router = APIRouter(prefix="/v1/pipelines/internal", tags=["pipelines-internal"])
+
+
+def _enqueue_node_run(node_run_id: int, run_date_iso: str, *, event_suffix: str) -> None:
+    sm = get_sync_sessionmaker()
+    with sm() as session:
+        nr = session.get(NodeRun, node_run_id)
+        node_type = nr.node_type if nr is not None else ""
+    from app.workers.pipeline_node_worker import process_node_event
+    from app.workers.pipeline_node_v2_worker import V2_NODE_TYPES, process_v2_node_event
+
+    if node_type in V2_NODE_TYPES:
+        process_v2_node_event.send(
+            event_id=f"v2-node-run-{node_run_id}-{event_suffix}",
+            node_run_id=node_run_id,
+            run_date_iso=run_date_iso,
+        )
+    else:
+        process_node_event.send(
+            event_id=f"node-run-{node_run_id}-{event_suffix}",
+            node_run_id=node_run_id,
+            run_date_iso=run_date_iso,
+        )
 
 
 class InternalRunRequest(BaseModel):
@@ -142,13 +164,11 @@ async def trigger_run_internal(
 
     # entry node actor enqueue — broker 미가동 시에도 200 정책.
     try:
-        from app.workers.pipeline_node_worker import process_node_event
-
         for node_run_id in started.ready_node_run_ids:
-            process_node_event.send(
-                event_id=f"node-run-{node_run_id}-attempt-1",
-                node_run_id=node_run_id,
-                run_date_iso=started.run_date.isoformat(),
+            _enqueue_node_run(
+                node_run_id,
+                started.run_date.isoformat(),
+                event_suffix="attempt-1",
             )
     except Exception:
         pass
