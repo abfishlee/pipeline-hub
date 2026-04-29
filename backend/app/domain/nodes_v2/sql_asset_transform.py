@@ -60,12 +60,16 @@ def _load_asset(
     version: int | None,
     domain_code: str,
 ) -> dict[str, Any] | None:
-    cols = "asset_id, asset_code, version, asset_type, sql_text, output_table, status"
+    cols = (
+        "asset_id, asset_code, version, asset_type, sql_text, output_table, "
+        "status, is_active"
+    )
     if version is None:
         sql = (
             f"SELECT {cols} FROM domain.sql_asset "
             "WHERE asset_code = :code AND domain_code = :dom "
             "AND status = ANY(:statuses) "
+            "AND is_active = true "
             "ORDER BY version DESC LIMIT 1"
         )
         params: dict[str, Any] = {
@@ -76,7 +80,8 @@ def _load_asset(
     else:
         sql = (
             f"SELECT {cols} FROM domain.sql_asset "
-            "WHERE asset_code = :code AND domain_code = :dom AND version = :ver"
+            "WHERE asset_code = :code AND domain_code = :dom AND version = :ver "
+            "AND is_active = true"
         )
         params = {"code": asset_code, "dom": domain_code, "ver": int(version)}
     row = session.execute(text(sql), params).mappings().first()

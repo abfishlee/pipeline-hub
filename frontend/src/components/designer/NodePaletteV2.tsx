@@ -10,6 +10,7 @@ import {
   Image,
   Inbox,
   Network,
+  Braces,
   Repeat,
   Upload,
   Wand2,
@@ -109,19 +110,25 @@ const PALETTE: PaletteCategory[] = [
     ],
   },
   {
-    label: "3. SQL Studio",
+    label: "3. Model",
     entries: [
       {
         type: "SQL_ASSET_TRANSFORM",
-        label: "SQL Asset",
-        description: "SQL Studio 자산을 실행합니다. Transform/표준화/품질검사/함수 등록을 모두 포함합니다.",
+        label: "Saved SQL Model",
+        description: "모형 레포지토리에 저장된 SQL 모형을 실행합니다.",
         icon: Code2,
       },
       {
         type: "SQL_INLINE_TRANSFORM",
-        label: "SQL Inline",
-        description: "Canvas에서 임시 SQL을 직접 작성해 실행합니다.",
+        label: "SQL Model",
+        description: "Canvas에서 SQL을 작성하고 필요하면 모형으로 저장합니다.",
         icon: Code2,
+      },
+      {
+        type: "PYTHON_MODEL_TRANSFORM",
+        label: "Python Model",
+        description: "Canvas에서 Python 코드를 작성하고 staging 결과를 만듭니다.",
+        icon: Braces,
       },
     ],
   },

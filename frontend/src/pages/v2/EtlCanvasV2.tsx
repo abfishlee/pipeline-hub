@@ -73,6 +73,7 @@ const V2_KEY_PREFIX: Partial<Record<NodeType, string>> = {
   MAP_FIELDS: "map",
   SQL_INLINE_TRANSFORM: "sql_inline",
   SQL_ASSET_TRANSFORM: "sql_asset",
+  PYTHON_MODEL_TRANSFORM: "python_model",
   HTTP_TRANSFORM: "http",
   FUNCTION_TRANSFORM: "fn",
   STANDARDIZE: "stdz",
@@ -95,10 +96,28 @@ function makeFlowNode(
   existingKeys: Set<string>,
 ): DesignerFlowNode {
   const node_key = defaultNodeKey(type, existingKeys);
+  const config_json =
+    type === "PYTHON_MODEL_TRANSFORM"
+      ? {
+          code: [
+            "rows = read_rows(limit=1000)",
+            "result_rows = []",
+            "for row in rows:",
+            "    payload = row.get('payload') or row",
+            "    result_rows.append({",
+            "        'store_name': payload.get('store_name') or payload.get('storeName') or payload.get('점포명'),",
+            "        'item_name': payload.get('item') or payload.get('itemName') or payload.get('품목'),",
+            "        'regular_price': re.sub(r'[^0-9.]', '', str(payload.get('regular_price') or payload.get('regularPrice') or payload.get('정상가') or '')) or None,",
+            "    })",
+          ].join("\n"),
+          model_category: "TRANSFORM",
+          model_version: 1,
+        }
+      : {};
   const data: DesignerNodeDataV2 = {
     node_key,
     node_type: type,
-    config_json: {},
+    config_json,
     position_x: position.x,
     position_y: position.y,
   };

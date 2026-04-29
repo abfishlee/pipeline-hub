@@ -57,7 +57,7 @@ const NAV_ITEMS: NavEntry[] = [
   { to: "/v2/connectors/public-api", label: "API Pull", icon: Globe, operatorOk: true },
   { to: "/v2/inbound-channels/designer", label: "Inbound Push", icon: GitBranch, operatorOk: true },
   { to: "/v2/mappings/designer", label: "Field Mapping", icon: Workflow, operatorOk: true },
-  { to: "/v2/transforms/designer", label: "SQL Studio", icon: Code2, operatorOk: true },
+  { to: "/v2/transforms/designer", label: "Model Repository", icon: Code2, operatorOk: true },
   { to: "/v2/marts/designer", label: "Mart Designer", icon: Database, operatorOk: true },
 
   section("2. Build / Run"),
@@ -170,9 +170,9 @@ function currentTitle(pathname: string): string {
   if (pathname.startsWith("/v2/inbound-channels")) return "Inbound Push Channel";
   if (pathname.startsWith("/v2/inbound-events")) return "Inbound Inbox";
   if (pathname.startsWith("/v2/mappings/designer")) return "Field Mapping";
-  if (pathname.startsWith("/v2/transforms/designer")) return "SQL Studio";
-  if (pathname.startsWith("/v2/standardization")) return "SQL Studio";
-  if (pathname.startsWith("/v2/quality/designer")) return "SQL Studio";
+  if (pathname.startsWith("/v2/transforms/designer")) return "Model Repository";
+  if (pathname.startsWith("/v2/standardization")) return "Model Repository";
+  if (pathname.startsWith("/v2/quality/designer")) return "Model Repository";
   if (pathname.startsWith("/v2/review-queue")) return "Review Queue";
   if (pathname.startsWith("/v2/marts/designer")) return "Mart Designer";
   if (pathname.startsWith("/v2/operations/dashboard")) return "Monitoring";

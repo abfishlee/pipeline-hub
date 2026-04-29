@@ -7,10 +7,15 @@ import { useConnectors } from "@/api/v2/connectors";
 import { useInboundChannels } from "@/api/v2/inbound_channels";
 import { useLoadPolicies } from "@/api/v2/load_policies";
 import { useContractsLight } from "@/api/v2/mappings";
-import { useSqlAssets } from "@/api/v2/sql_assets";
+import {
+  type ModelCategory,
+  useCreateSqlAsset,
+  useSqlAssets,
+} from "@/api/v2/sql_assets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 export interface DesignerNodeDataV2 {
   node_key: string;
@@ -165,6 +170,8 @@ function AssetSection({
       return <SqlAssetAsset config={config} onPatch={onPatch} />;
     case "SQL_INLINE_TRANSFORM":
       return <SqlInlineAsset config={config} onPatch={onPatch} />;
+    case "PYTHON_MODEL_TRANSFORM":
+      return <PythonModelAsset config={config} onPatch={onPatch} />;
     case "LOAD_TARGET":
       return <LoadTargetAsset config={config} onPatch={onPatch} />;
     case "WEBHOOK_INGEST":
@@ -335,7 +342,7 @@ function MapFieldsAsset({ config, onPatch }: AssetProps) {
 }
 
 function SqlAssetAsset({ config, onPatch }: AssetProps) {
-  const assets = useSqlAssets();
+  const assets = useSqlAssets({ is_active: true });
   const current = (config.asset_code as string | undefined) ?? "";
   const versions = useMemo(() => {
     if (!current || !assets.data) return [];
@@ -349,15 +356,21 @@ function SqlAssetAsset({ config, onPatch }: AssetProps) {
     : versions[0];
 
   return (
-    <NodeCard title="SQL Studio Asset">
-      <LinkHeader label="asset_code" to="/v2/transforms/designer" text="SQL Studio" />
+    <NodeCard title="Saved SQL Model">
+      <LinkHeader label="asset_code" to="/v2/transforms/designer" text="Model Repository" />
       <select
         className="h-9 w-full rounded-md border bg-background px-2 text-xs"
         value={current}
         onChange={(e) => onPatch({ asset_code: e.target.value || null, version: null })}
       >
-        <option value="">Select SQL asset</option>
-        {Array.from(new Set(assets.data?.map((a) => a.asset_code) ?? [])).map((code) => (
+        <option value="">Select saved SQL model</option>
+        {Array.from(
+          new Set(
+            assets.data
+              ?.filter((a) => a.asset_type !== "PYTHON_SCRIPT")
+              .map((a) => a.asset_code) ?? [],
+          ),
+        ).map((code) => (
           <option key={code} value={code}>
             {code}
           </option>
@@ -382,6 +395,9 @@ function SqlAssetAsset({ config, onPatch }: AssetProps) {
           <AssetStatusBadge status={selected.status} />
           <div className="rounded-md bg-muted/40 p-2 text-[10px] text-muted-foreground">
             type: <span className="font-semibold text-foreground">{selected.asset_type}</span>
+            <br />
+            category:{" "}
+            <span className="font-semibold text-foreground">{selected.model_category}</span>
             <br />
             default output:{" "}
             <span className="font-mono">{selected.output_table || "wf.tmp_run_* / script"}</span>
@@ -415,7 +431,7 @@ function SqlAssetAsset({ config, onPatch }: AssetProps) {
 
 function SqlInlineAsset({ config, onPatch }: AssetProps) {
   return (
-    <NodeCard title="Inline SQL">
+    <NodeCard title="SQL Model">
       <textarea
         value={(config.sql as string) ?? ""}
         onChange={(e) => onPatch({ sql: e.target.value })}
@@ -423,6 +439,7 @@ function SqlInlineAsset({ config, onPatch }: AssetProps) {
         className="h-56 w-full resize-y rounded-md border bg-background p-2 font-mono text-[11px]"
         placeholder={"SELECT *\nFROM {{input_table}}"}
       />
+      <ModelMetaFields config={config} onPatch={onPatch} defaultCode="canvas_sql_model" />
       <TextInput
         label="input_from"
         value={(config.input_from as string) ?? ""}
@@ -441,8 +458,182 @@ function SqlInlineAsset({ config, onPatch }: AssetProps) {
         placeholder="empty -> wf.tmp_run_*"
         onChange={(value) => onPatch({ output_table: value || null })}
       />
+      <SaveModelButton config={config} kind="sql" />
     </NodeCard>
   );
+}
+
+function PythonModelAsset({ config, onPatch }: AssetProps) {
+  const assets = useSqlAssets({ asset_type: "PYTHON_SCRIPT", is_active: true });
+  const current = (config.asset_code as string | undefined) ?? "";
+  const versions = useMemo(() => {
+    if (!current || !assets.data) return [];
+    return assets.data
+      .filter((a) => a.asset_code === current)
+      .sort((a, b) => b.version - a.version);
+  }, [assets.data, current]);
+  return (
+    <NodeCard title="Python Model">
+      <LinkHeader label="asset_code" to="/v2/transforms/designer" text="Model Repository" />
+      <select
+        className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+        value={current}
+        onChange={(e) => onPatch({ asset_code: e.target.value || null, version: null })}
+      >
+        <option value="">Inline Python code</option>
+        {Array.from(new Set(assets.data?.map((a) => a.asset_code) ?? [])).map((code) => (
+          <option key={code} value={code}>
+            {code}
+          </option>
+        ))}
+      </select>
+      {versions.length > 0 && (
+        <select
+          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+          value={(config.version as number | undefined) ?? ""}
+          onChange={(e) => onPatch({ version: e.target.value ? Number(e.target.value) : null })}
+        >
+          <option value="">Auto latest APPROVED/PUBLISHED</option>
+          {versions.map((a) => (
+            <option key={a.asset_id} value={a.version}>
+              v{a.version} [{a.status}]
+            </option>
+          ))}
+        </select>
+      )}
+      {!current && (
+        <>
+          <textarea
+            value={(config.code as string) ?? starterPython()}
+            onChange={(e) => onPatch({ code: e.target.value })}
+            spellCheck={false}
+            className="h-64 w-full resize-y rounded-md border bg-background p-2 font-mono text-[11px]"
+          />
+          <ModelMetaFields config={config} onPatch={onPatch} defaultCode="canvas_python_model" />
+          <SaveModelButton config={config} kind="python" />
+        </>
+      )}
+      <TextInput
+        label="input_from"
+        value={(config.input_from as string) ?? ""}
+        placeholder="empty -> first upstream output"
+        onChange={(value) => onPatch({ input_from: value || null })}
+      />
+      <TextInput
+        label="input_table override"
+        value={(config.input_table as string) ?? ""}
+        placeholder="optional; otherwise upstream output_table"
+        onChange={(value) => onPatch({ input_table: value || null })}
+      />
+      <TextInput
+        label="output_table override"
+        value={(config.output_table as string) ?? ""}
+        placeholder="empty -> wf.tmp_run_*"
+        onChange={(value) => onPatch({ output_table: value || null })}
+      />
+      <p className="text-[10px] text-muted-foreground">
+        Available helpers: read_rows(limit=1000), write_rows(result_rows), input_table, output_table, re.
+      </p>
+    </NodeCard>
+  );
+}
+
+function ModelMetaFields({
+  config,
+  onPatch,
+  defaultCode,
+}: AssetProps & { defaultCode: string }) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      <TextInput
+        label="model_code"
+        value={(config.model_code as string) ?? ""}
+        placeholder={defaultCode}
+        onChange={(value) => onPatch({ model_code: value || null })}
+      />
+      <FieldLabel label="category">
+        <select
+          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+          value={(config.model_category as string) ?? "TRANSFORM"}
+          onChange={(e) => onPatch({ model_category: e.target.value })}
+        >
+          <option value="TRANSFORM">Transform</option>
+          <option value="DQ">DQ</option>
+          <option value="STANDARDIZATION">Standardization</option>
+          <option value="ENRICHMENT">Enrichment</option>
+          <option value="LOAD">Load</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </FieldLabel>
+      <NumberInput
+        label="version"
+        value={(config.model_version as number | undefined) ?? 1}
+        min={1}
+        max={9999}
+        onChange={(value) => onPatch({ model_version: value })}
+      />
+    </div>
+  );
+}
+
+function SaveModelButton({
+  config,
+  kind,
+}: {
+  config: Record<string, unknown>;
+  kind: "sql" | "python";
+}) {
+  const create = useCreateSqlAsset();
+  const save = async () => {
+    const body = kind === "sql" ? String(config.sql ?? "") : String(config.code ?? starterPython());
+    const code = String(config.model_code ?? "").trim();
+    if (!code) {
+      toast.error("model_code를 입력해주세요.");
+      return;
+    }
+    if (!body.trim()) {
+      toast.error(kind === "sql" ? "SQL을 입력해주세요." : "Python 코드를 입력해주세요.");
+      return;
+    }
+    try {
+      await create.mutateAsync({
+        asset_code: code,
+        domain_code: "agri_price",
+        version: Number(config.model_version ?? 1) || 1,
+        asset_type: kind === "sql" ? "TRANSFORM_SQL" : "PYTHON_SCRIPT",
+        model_category: ((config.model_category as ModelCategory | undefined) ?? "TRANSFORM"),
+        sql_text: body,
+        output_table: (config.output_table as string | undefined) || null,
+        description: `Saved from Canvas ${kind.toUpperCase()} Model node`,
+      });
+      toast.success("모형 레포지토리에 DRAFT로 저장했습니다.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "모형 저장 실패");
+    }
+  };
+  return (
+    <Button size="sm" variant="outline" onClick={save} disabled={create.isPending}>
+      <Save className="h-3 w-3" />
+      Save as model
+    </Button>
+  );
+}
+
+function starterPython() {
+  return [
+    "rows = read_rows(limit=1000)",
+    "result_rows = []",
+    "",
+    "for row in rows:",
+    "    payload = row.get('payload') or row",
+    "    price_text = str(payload.get('regular_price') or payload.get('regularPrice') or payload.get('정상가') or '')",
+    "    digits = re.sub(r'[^0-9.]', '', price_text)",
+    "    result_rows.append({",
+    "        'store_name': payload.get('store_name') or payload.get('storeName') or payload.get('점포명'),",
+    "        'item_name': payload.get('item') or payload.get('itemName') or payload.get('품목'),",
+    "        'regular_price': digits or None,",
+    "    })",
+  ].join("\n");
 }
 
 function LoadTargetAsset({ config, onPatch }: AssetProps) {

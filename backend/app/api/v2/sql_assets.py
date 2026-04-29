@@ -1,9 +1,9 @@
-"""HTTP API for SQL Studio assets.
+"""HTTP API for reusable processing models.
 
-SQL assets are the reusable units that Canvas SQL nodes execute. The menu is
-intentionally broader than "transform": a single asset registry can hold
-transform SQL, standardization SQL, quality checks, DML scripts, and database
-functions/procedures.
+The underlying table is still named ``sql_asset`` for migration compatibility,
+but the product concept is now a model repository. Canvas can create SQL or
+Python models; this endpoint lists them, handles approval state, and allows
+operators to deactivate a model without deleting history.
 """
 
 from __future__ import annotations
@@ -44,7 +44,10 @@ SqlAssetType = Literal[
     "DML_SCRIPT",
     "FUNCTION",
     "PROCEDURE",
+    "PYTHON_SCRIPT",
 ]
+
+ModelCategory = Literal["TRANSFORM", "DQ", "STANDARDIZATION", "ENRICHMENT", "LOAD", "OTHER"]
 
 
 class SqlAssetOut(BaseModel):
@@ -55,6 +58,8 @@ class SqlAssetOut(BaseModel):
     domain_code: str
     version: int
     asset_type: str
+    model_category: str
+    is_active: bool
     sql_text: str
     checksum: str
     output_table: str | None
@@ -68,6 +73,7 @@ class SqlAssetIn(BaseModel):
     asset_code: str = Field(min_length=2, max_length=63, pattern=r"^[a-z][a-z0-9_]{1,62}$")
     domain_code: str = Field(min_length=1, max_length=64)
     asset_type: SqlAssetType = "TRANSFORM_SQL"
+    model_category: ModelCategory = "TRANSFORM"
     sql_text: str = Field(min_length=1, max_length=200_000)
     output_table: str | None = None
     description: str | None = None
@@ -76,6 +82,7 @@ class SqlAssetIn(BaseModel):
 
 class SqlAssetUpdate(BaseModel):
     asset_type: SqlAssetType | None = None
+    model_category: ModelCategory | None = None
     sql_text: str | None = Field(default=None, min_length=1, max_length=200_000)
     output_table: str | None = None
     description: str | None = None
@@ -83,6 +90,10 @@ class SqlAssetUpdate(BaseModel):
 
 class StatusTransitionRequest(BaseModel):
     target_status: str = Field(pattern=r"^(REVIEW|APPROVED|PUBLISHED|DRAFT)$")
+
+
+class ActiveToggleRequest(BaseModel):
+    is_active: bool
 
 
 def _run_in_sync(fn: Any) -> Any:
@@ -104,6 +115,23 @@ def _checksum(sql: str) -> str:
 def _validate_script_asset(sql: str, asset_type: str) -> None:
     normalized = sql.strip()
     upper = normalized.upper()
+    if asset_type == "PYTHON_SCRIPT":
+        forbidden = (
+            "import os",
+            "import subprocess",
+            "__import__",
+            "open(",
+            "eval(",
+            "exec(",
+            "compile(",
+        )
+        lowered = normalized.lower()
+        if any(token in lowered for token in forbidden):
+            raise HTTPException(
+                422,
+                detail="PYTHON_SCRIPT cannot use os/subprocess/import hooks/open/eval/exec",
+            )
+        return
     if asset_type == "FUNCTION":
         if not upper.startswith("CREATE OR REPLACE FUNCTION "):
             raise HTTPException(
@@ -134,7 +162,7 @@ def _validate_script_asset(sql: str, asset_type: str) -> None:
 
 
 def _validate_sql(sql: str, domain_code: str, asset_type: str) -> None:
-    if asset_type in {"DML_SCRIPT", "FUNCTION", "PROCEDURE"}:
+    if asset_type in {"DML_SCRIPT", "FUNCTION", "PROCEDURE", "PYTHON_SCRIPT"}:
         _validate_script_asset(sql, asset_type)
         return
 
@@ -166,6 +194,8 @@ async def list_sql_assets(
     status: str | None = None,
     asset_code: str | None = None,
     asset_type: str | None = None,
+    model_category: str | None = None,
+    is_active: bool | None = None,
 ) -> list[SqlAssetOut]:
     def _do(s: Session) -> list[SqlAssetOut]:
         q = select(SqlAsset).order_by(
@@ -182,6 +212,10 @@ async def list_sql_assets(
             q = q.where(SqlAsset.asset_code == asset_code)
         if asset_type:
             q = q.where(SqlAsset.asset_type == asset_type)
+        if model_category:
+            q = q.where(SqlAsset.model_category == model_category)
+        if is_active is not None:
+            q = q.where(SqlAsset.is_active == is_active)
         rows = s.execute(q).scalars().all()
         return [SqlAssetOut.model_validate(r) for r in rows]
 
@@ -225,6 +259,8 @@ async def create_sql_asset(body: SqlAssetIn, user: CurrentUserDep) -> SqlAssetOu
             domain_code=body.domain_code,
             version=body.version,
             asset_type=body.asset_type,
+            model_category=body.model_category,
+            is_active=True,
             sql_text=body.sql_text,
             checksum=_checksum(body.sql_text),
             output_table=body.output_table,
@@ -262,6 +298,8 @@ async def update_sql_asset(
         _validate_sql(next_sql, asset.domain_code, next_type)
         if body.asset_type is not None:
             asset.asset_type = body.asset_type
+        if body.model_category is not None:
+            asset.model_category = body.model_category
         if body.sql_text is not None:
             asset.sql_text = body.sql_text
             asset.checksum = _checksum(body.sql_text)
@@ -290,6 +328,19 @@ async def delete_sql_asset(asset_id: int) -> Response:
 
     await asyncio.to_thread(_run_in_sync, _do)
     return Response(status_code=204)
+
+
+@router.post("/{asset_id}/active", response_model=SqlAssetOut)
+async def set_sql_asset_active(asset_id: int, body: ActiveToggleRequest) -> SqlAssetOut:
+    def _do(s: Session) -> SqlAssetOut:
+        asset = s.get(SqlAsset, asset_id)
+        if asset is None:
+            raise HTTPException(404, detail=f"model {asset_id} not found")
+        asset.is_active = body.is_active
+        s.flush()
+        return SqlAssetOut.model_validate(asset)
+
+    return await asyncio.to_thread(_run_in_sync, _do)
 
 
 @router.post("/{asset_id}/transition", response_model=SqlAssetOut)

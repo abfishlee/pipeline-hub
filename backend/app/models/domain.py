@@ -353,6 +353,8 @@ class SqlAsset(Base):
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     asset_type: Mapped[str] = mapped_column(Text, nullable=False, server_default="TRANSFORM_SQL")
+    model_category: Mapped[str] = mapped_column(Text, nullable=False, server_default="TRANSFORM")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     sql_text: Mapped[str] = mapped_column(Text, nullable=False)
     checksum: Mapped[str] = mapped_column(Text, nullable=False)
     output_table: Mapped[str | None] = mapped_column(Text)

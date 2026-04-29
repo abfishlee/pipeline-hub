@@ -9,7 +9,16 @@ export type SqlAssetType =
   | "QUALITY_CHECK_SQL"
   | "DML_SCRIPT"
   | "FUNCTION"
-  | "PROCEDURE";
+  | "PROCEDURE"
+  | "PYTHON_SCRIPT";
+
+export type ModelCategory =
+  | "TRANSFORM"
+  | "DQ"
+  | "STANDARDIZATION"
+  | "ENRICHMENT"
+  | "LOAD"
+  | "OTHER";
 
 export interface SqlAsset {
   asset_id: number;
@@ -17,6 +26,8 @@ export interface SqlAsset {
   domain_code: string;
   version: number;
   asset_type: SqlAssetType;
+  model_category: ModelCategory;
+  is_active: boolean;
   sql_text: string;
   checksum: string;
   output_table: string | null;
@@ -30,6 +41,7 @@ export interface SqlAssetIn {
   asset_code: string;
   domain_code: string;
   asset_type?: SqlAssetType;
+  model_category?: ModelCategory;
   sql_text: string;
   output_table?: string | null;
   description?: string | null;
@@ -38,6 +50,7 @@ export interface SqlAssetIn {
 
 export interface SqlAssetUpdate {
   asset_type?: SqlAssetType;
+  model_category?: ModelCategory;
   sql_text?: string;
   output_table?: string | null;
   description?: string | null;
@@ -50,6 +63,8 @@ export interface ListSqlAssetsParams {
   status?: AssetStatus;
   asset_code?: string;
   asset_type?: SqlAssetType;
+  model_category?: ModelCategory;
+  is_active?: boolean;
 }
 
 export function useSqlAssets(params: ListSqlAssetsParams = {}) {
@@ -96,6 +111,18 @@ export function useTransitionSqlAsset(assetId: number) {
       apiRequest<SqlAsset>(`${BASE}/${assetId}/transition`, {
         method: "POST",
         body: { target_status },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["v2-sql-assets"] }),
+  });
+}
+
+export function useToggleSqlAssetActive(assetId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (is_active: boolean) =>
+      apiRequest<SqlAsset>(`${BASE}/${assetId}/active`, {
+        method: "POST",
+        body: { is_active },
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["v2-sql-assets"] }),
   });

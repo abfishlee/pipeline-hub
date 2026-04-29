@@ -1,6 +1,3 @@
-// Phase 8.1 — ETL Canvas 6단계 진행 바.
-//
-// 사용자가 캔버스에서 어떤 단계까지 자산을 배치했는지 한 눈에 볼 수 있도록.
 import { CheckCircle2, Circle } from "lucide-react";
 import type { NodeType } from "@/api/pipelines";
 import { cn } from "@/lib/cn";
@@ -27,14 +24,15 @@ const STEPS: Step[] = [
     ],
   },
   {
-    label: "2. 매핑",
+    label: "2. 평탄화",
     matchTypes: ["MAP_FIELDS"],
   },
   {
-    label: "3. 정제·표준화",
+    label: "3. 모형 처리",
     matchTypes: [
       "SQL_INLINE_TRANSFORM",
       "SQL_ASSET_TRANSFORM",
+      "PYTHON_MODEL_TRANSFORM",
       "HTTP_TRANSFORM",
       "FUNCTION_TRANSFORM",
       "STANDARDIZE",
@@ -42,7 +40,7 @@ const STEPS: Step[] = [
     ],
   },
   {
-    label: "4. DQ",
+    label: "4. 검증",
     matchTypes: ["DQ_CHECK", "DEDUP"],
   },
   {
@@ -50,8 +48,8 @@ const STEPS: Step[] = [
     matchTypes: ["LOAD_TARGET", "LOAD_MASTER"],
   },
   {
-    label: "6. 검증·배포",
-    matchTypes: ["NOTIFY"],  // PUBLISH/Dry-run 은 toolbar 가 별도 표시
+    label: "6. 알림",
+    matchTypes: ["NOTIFY"],
   },
 ];
 
@@ -71,9 +69,7 @@ export function CanvasProgressBar({ nodeTypes }: CanvasProgressBarProps) {
             <div
               className={cn(
                 "flex items-center gap-1 rounded-md px-2 py-1",
-                isFilled
-                  ? "bg-primary/10 text-primary font-semibold"
-                  : "text-muted-foreground",
+                isFilled ? "bg-primary/10 font-semibold text-primary" : "text-muted-foreground",
               )}
             >
               {isFilled ? (
@@ -84,12 +80,7 @@ export function CanvasProgressBar({ nodeTypes }: CanvasProgressBarProps) {
               <span className="whitespace-nowrap">{step.label}</span>
             </div>
             {idx < STEPS.length - 1 && (
-              <div
-                className={cn(
-                  "h-0.5 flex-1",
-                  isFilled ? "bg-primary/30" : "bg-border",
-                )}
-              />
+              <div className={cn("h-0.5 flex-1", isFilled ? "bg-primary/30" : "bg-border")} />
             )}
           </div>
         );
