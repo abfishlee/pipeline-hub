@@ -1,4 +1,4 @@
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, GitMerge, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -25,23 +25,24 @@ export function CanvasPatternHint() {
           <>
             <div className="overflow-x-auto">
               <div className="flex min-w-max items-center gap-1 text-[11px]">
-                <NodePill label="SOURCE_DATA" hint="원천 데이터 선택" />
+                <NodePill label="SOURCE" hint="API Pull / Inbound" />
                 <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                <NodePill label="MAP_FIELDS" hint="필드 매핑" highlight />
+                <NodePill label="MAP_FIELDS" hint="JSONB 평탄화" highlight />
                 <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                <NodePill label="FUNCTION_TRANSFORM" hint="함수 변환" optional />
+                <NodePill label="SQL MODEL" hint="대량 변환" />
+                <NodePill label="PYTHON MODEL" hint="복잡한 파싱" />
                 <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                <NodePill label="STANDARDIZE" hint="표준화" optional />
-                <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                <NodePill label="DQ_CHECK" hint="품질 검증" />
-                <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                <NodePill label="LOAD_TARGET" hint="적재" highlight />
+                <NodePill label="LOAD_TARGET" hint="마트 적재" highlight />
               </div>
             </div>
-            <p className="text-[10px] text-muted-foreground">
-              필수 박스부터 캔버스에 올린 뒤, 각 박스의 설정 패널에서 사용할 자산을
-              선택하세요.
-            </p>
+            <div className="flex gap-2 rounded-md bg-white/70 p-2 text-[10px] leading-4 text-muted-foreground">
+              <GitMerge className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-700" />
+              <p>
+                노드는 첫 노드를 기준으로 격자에 정렬됩니다. 같은 열의 여러 노드는 병렬 단계로
+                배치하기 좋고, 실행 순서는 선(edge)으로 결정됩니다. 한 노드에 선행 노드가 2개
+                이상 연결되면 모든 선행 노드가 성공해야 다음 노드가 실행됩니다.
+              </p>
+            </div>
           </>
         )}
       </CardContent>
@@ -53,21 +54,17 @@ function NodePill({
   label,
   hint,
   highlight = false,
-  optional = false,
 }: {
   label: string;
   hint: string;
   highlight?: boolean;
-  optional?: boolean;
 }) {
   return (
     <div
       className={`flex flex-col items-center rounded-md border px-2 py-1 ${
         highlight
           ? "border-blue-500 bg-blue-100 font-semibold text-blue-800"
-          : optional
-            ? "border-dashed border-zinc-300 bg-white italic text-muted-foreground"
-            : "border-zinc-300 bg-white"
+          : "border-zinc-300 bg-white"
       }`}
       title={hint}
     >

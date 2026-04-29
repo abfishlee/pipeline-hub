@@ -64,6 +64,10 @@ import { Input } from "@/components/ui/input";
 
 type DesignerFlowNode = Node<DesignerNodeDataV2>;
 
+const GRID_COL_GAP = 280;
+const GRID_ROW_GAP = 120;
+const OCCUPIED_TOLERANCE = 36;
+
 // v2 ?몃뱶 prefix ???좉퇋 ?몃뱶 key ?먮룞 ?앹꽦??
 const V2_KEY_PREFIX: Partial<Record<NodeType, string>> = {
   SOURCE_DATA: "src",
@@ -88,6 +92,64 @@ function defaultNodeKey(type: NodeType, existingKeys: Set<string>): string {
   let i = 1;
   while (existingKeys.has(`${prefix}_${i}`)) i += 1;
   return `${prefix}_${i}`;
+}
+
+function snapToGrid(value: number, base: number, gap: number): number {
+  return base + Math.round((value - base) / gap) * gap;
+}
+
+function isOccupied(
+  position: { x: number; y: number },
+  nodes: DesignerFlowNode[],
+): boolean {
+  return nodes.some(
+    (n) =>
+      Math.abs(n.position.x - position.x) < OCCUPIED_TOLERANCE &&
+      Math.abs(n.position.y - position.y) < OCCUPIED_TOLERANCE,
+  );
+}
+
+function firstFreeSlot(
+  position: { x: number; y: number },
+  nodes: DesignerFlowNode[],
+): { x: number; y: number } {
+  let next = { ...position };
+  while (isOccupied(next, nodes)) {
+    next = { x: next.x, y: next.y + GRID_ROW_GAP };
+  }
+  return next;
+}
+
+function alignedDropPosition(
+  raw: { x: number; y: number },
+  nodes: DesignerFlowNode[],
+): { x: number; y: number } {
+  if (nodes.length === 0) {
+    return {
+      x: Math.round(raw.x / GRID_COL_GAP) * GRID_COL_GAP,
+      y: Math.round(raw.y / GRID_ROW_GAP) * GRID_ROW_GAP,
+    };
+  }
+  const base = nodes[0].position;
+  const snapped = {
+    x: snapToGrid(raw.x, base.x, GRID_COL_GAP),
+    y: snapToGrid(raw.y, base.y, GRID_ROW_GAP),
+  };
+  return firstFreeSlot(snapped, nodes);
+}
+
+function nextSequentialPosition(
+  nodes: DesignerFlowNode[],
+  selectedId: string | null,
+  fallback: { x: number; y: number },
+): { x: number; y: number } {
+  if (nodes.length === 0) return alignedDropPosition(fallback, nodes);
+  const selected = selectedId ? nodes.find((n) => n.id === selectedId) : null;
+  const anchor = selected ?? nodes[nodes.length - 1];
+  return firstFreeSlot(
+    { x: anchor.position.x + GRID_COL_GAP, y: anchor.position.y },
+    nodes,
+  );
 }
 
 function makeFlowNode(
@@ -205,11 +267,11 @@ function DesignerInner() {
         x: event.clientX,
         y: event.clientY,
       });
-      const next = makeFlowNode(type, position, existingKeys);
+      const next = makeFlowNode(type, alignedDropPosition(position, nodes), existingKeys);
       setNodes((curr) => [...curr, next]);
       setSelectedId(next.id);
     },
-    [reactFlow, existingKeys, setNodes],
+    [reactFlow, nodes, existingKeys, setNodes],
   );
 
   const handlePaletteAdd = useCallback(
@@ -218,11 +280,15 @@ function DesignerInner() {
         x: window.innerWidth / 2,
         y: window.innerHeight / 2,
       });
-      const next = makeFlowNode(type, center, existingKeys);
+      const next = makeFlowNode(
+        type,
+        nextSequentialPosition(nodes, selectedId, center),
+        existingKeys,
+      );
       setNodes((curr) => [...curr, next]);
       setSelectedId(next.id);
     },
-    [reactFlow, existingKeys, setNodes],
+    [reactFlow, nodes, selectedId, existingKeys, setNodes],
   );
 
   const onConnect: OnConnect = useCallback(
