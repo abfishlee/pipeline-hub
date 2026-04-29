@@ -122,6 +122,20 @@ def _resource_target_table(session: Any, resource_id: int) -> str | None:
     return target
 
 
+def _upstream_table(context: NodeV2Context, config: Mapping[str, Any]) -> str | None:
+    requested = str(config.get("input_from") or "").strip()
+    payload = context.upstream_outputs.get(requested) if requested else None
+    if payload is None and context.upstream_outputs:
+        payload = context.upstream_outputs[sorted(context.upstream_outputs.keys())[0]]
+    if not isinstance(payload, Mapping):
+        return None
+    for key in ("output_table", "target_table", "source_table", "table"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
 def _build_upsert(
     *,
     src_qualified: str,
@@ -161,9 +175,13 @@ def _build_append(
 
 
 def run(context: NodeV2Context, config: Mapping[str, Any]) -> NodeV2Output:
-    source_raw = str(config.get("source_table") or "").strip()
+    source_raw = str(config.get("source_table") or "").strip() or (
+        _upstream_table(context, config) or ""
+    )
     if not source_raw:
-        raise NodeV2Error("LOAD_TARGET requires source_table")
+        raise NodeV2Error(
+            "LOAD_TARGET requires source_table or an upstream node with output_table"
+        )
     policy_id = config.get("policy_id")
     resource_id = config.get("resource_id")
     if policy_id is None and resource_id is None:

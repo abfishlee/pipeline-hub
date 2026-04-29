@@ -1,4 +1,5 @@
 import { ExternalLink, Save, Trash2 } from "lucide-react";
+import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { NodeType } from "@/api/pipelines";
@@ -52,7 +53,7 @@ export function NodeConfigPanelV2({ selected, onChange, onDelete }: Props) {
     return (
       <aside className="flex w-96 shrink-0 flex-col border-l border-border bg-background p-3 text-xs text-muted-foreground">
         <div className="mb-2 text-xs font-semibold uppercase">Node Settings</div>
-        <p>Canvas에서 노드를 선택하면 자산과 실행 파라미터를 설정할 수 있습니다.</p>
+        <p>Select a Canvas node to configure assets, input source, and runtime parameters.</p>
       </aside>
     );
   }
@@ -87,19 +88,17 @@ export function NodeConfigPanelV2({ selected, onChange, onDelete }: Props) {
   return (
     <aside className="flex w-96 shrink-0 flex-col gap-3 overflow-y-auto border-l border-border bg-background p-3">
       <div className="text-xs font-semibold uppercase text-muted-foreground">
-        Node Settings · {selected.node_type}
+        Node Settings - {selected.node_type}
       </div>
 
       <Card>
         <CardContent className="space-y-3 p-3 text-xs">
-          <label className="block space-y-1 font-semibold">
-            node_type
+          <FieldLabel label="node_type">
             <div className="rounded-md border border-input bg-muted/40 px-3 py-2 font-mono">
               {selected.node_type}
             </div>
-          </label>
-          <label className="block space-y-1 font-semibold">
-            node_key
+          </FieldLabel>
+          <FieldLabel label="node_key">
             <Input
               value={keyDraft}
               onChange={(e) => setKeyDraft(e.target.value)}
@@ -107,7 +106,7 @@ export function NodeConfigPanelV2({ selected, onChange, onDelete }: Props) {
               className="h-9 font-mono text-xs"
               placeholder="clean_price"
             />
-          </label>
+          </FieldLabel>
         </CardContent>
       </Card>
 
@@ -125,7 +124,7 @@ export function NodeConfigPanelV2({ selected, onChange, onDelete }: Props) {
           <div className="flex justify-end">
             <Button variant="ghost" size="sm" onClick={commitJson} className="h-7 text-xs">
               <Save className="h-3 w-3" />
-              적용
+              Apply
             </Button>
           </div>
           <textarea
@@ -141,7 +140,7 @@ export function NodeConfigPanelV2({ selected, onChange, onDelete }: Props) {
       {onDelete && (
         <Button variant="destructive" size="sm" onClick={onDelete}>
           <Trash2 className="h-4 w-4" />
-          노드 삭제
+          Delete node
         </Button>
       )}
     </aside>
@@ -177,31 +176,17 @@ function AssetSection({
     case "CRAWLER_RESULT_INGEST":
       return <InboundChannelAsset config={config} onPatch={onPatch} channelKind="CRAWLER_RESULT" />;
     case "DB_INCREMENTAL_FETCH":
-      return <SimpleField title="DB incremental" name="source_code" config={config} onPatch={onPatch} />;
+      return <DbIncrementalAsset config={config} onPatch={onPatch} />;
     default:
       return (
         <Card>
           <CardContent className="space-y-2 p-3 text-xs text-muted-foreground">
             <div className="font-semibold text-foreground">No dedicated form</div>
-            이 노드는 Advanced config JSON에서 직접 설정합니다.
+            Use Advanced config JSON for this node.
           </CardContent>
         </Card>
       );
   }
-}
-
-function AssetStatusBadge({ status }: { status: string }) {
-  const tone =
-    status === "PUBLISHED"
-      ? "bg-green-100 text-green-800"
-      : status === "DRAFT"
-        ? "bg-rose-100 text-rose-800 border border-rose-300"
-        : "bg-amber-100 text-amber-800";
-  return (
-    <div className={`rounded-md px-2 py-1 text-[10px] ${tone}`}>
-      선택한 자산 상태: <span className="font-semibold">{status}</span>
-    </div>
-  );
 }
 
 function PublicApiFetchAsset({ config, onPatch }: AssetProps) {
@@ -209,24 +194,94 @@ function PublicApiFetchAsset({ config, onPatch }: AssetProps) {
   const current = (config.connector_id as number | undefined) ?? null;
   const selected = connectors.data?.find((c) => c.connector_id === current);
   return (
-    <Card>
-      <CardContent className="space-y-2 p-3 text-xs">
-        <LinkHeader label="connector_id" to="/v2/connectors/public-api" text="API Pull" />
-        <select
-          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
-          value={current ?? ""}
-          onChange={(e) => onPatch({ connector_id: e.target.value ? Number(e.target.value) : null })}
-        >
-          <option value="">선택</option>
-          {connectors.data?.map((c) => (
-            <option key={c.connector_id} value={c.connector_id}>
-              #{c.connector_id} {c.name} [{c.status}]
-            </option>
-          ))}
-        </select>
-        {selected && <AssetStatusBadge status={selected.status} />}
-      </CardContent>
-    </Card>
+    <NodeCard title="API Pull">
+      <LinkHeader label="connector_id" to="/v2/connectors/public-api" text="Manage APIs" />
+      <select
+        className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+        value={current ?? ""}
+        onChange={(e) => onPatch({ connector_id: e.target.value ? Number(e.target.value) : null })}
+      >
+        <option value="">Select connector</option>
+        {connectors.data?.map((c) => (
+          <option key={c.connector_id} value={c.connector_id}>
+            #{c.connector_id} {c.name} [{c.status}]
+          </option>
+        ))}
+      </select>
+      {selected && <AssetStatusBadge status={selected.status} />}
+      <NumberInput
+        label="max_pages"
+        value={(config.max_pages as number | undefined) ?? 10}
+        min={1}
+        max={100}
+        onChange={(value) => onPatch({ max_pages: value })}
+      />
+      <TextInput
+        label="output_table override"
+        value={(config.output_table as string) ?? ""}
+        placeholder="empty -> wf.tmp_run_*"
+        onChange={(value) => onPatch({ output_table: value || null })}
+      />
+      <JsonTextArea
+        label="runtime_params"
+        value={config.runtime_params}
+        placeholder={'{\n  "page": 1\n}'}
+        onChange={(value) => onPatch({ runtime_params: value })}
+      />
+    </NodeCard>
+  );
+}
+
+function InboundChannelAsset({
+  config,
+  onPatch,
+  channelKind,
+}: AssetProps & { channelKind: "WEBHOOK" | "FILE_UPLOAD" | "OCR_RESULT" | "CRAWLER_RESULT" }) {
+  const channels = useInboundChannels({ channel_kind: channelKind });
+  const current = (config.channel_code as string | undefined) ?? "";
+  const selected = channels.data?.find((c) => c.channel_code === current);
+  return (
+    <NodeCard title={`${channelKind} ingest`}>
+      <LinkHeader label="channel_code" to="/v2/inbound-channels/designer" text="Manage channels" />
+      <select
+        className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+        value={current}
+        onChange={(e) => onPatch({ channel_code: e.target.value || null })}
+      >
+        <option value="">Select channel</option>
+        {channels.data?.map((c) => (
+          <option key={c.channel_id} value={c.channel_code}>
+            {c.channel_code} ({c.domain_code}) [{c.status}]
+          </option>
+        ))}
+      </select>
+      {selected && <AssetStatusBadge status={selected.status} />}
+      <NumberInput
+        label="max_envelopes"
+        value={(config.max_envelopes as number | undefined) ?? 100}
+        min={1}
+        max={1000}
+        onChange={(value) => onPatch({ max_envelopes: value })}
+      />
+      <TextInput
+        label="envelope_id"
+        value={String((config.envelope_id as number | string | undefined) ?? "")}
+        placeholder="optional single envelope id"
+        onChange={(value) => onPatch({ envelope_id: value ? Number(value) : null })}
+      />
+      <TextInput
+        label="payload_path"
+        value={(config.payload_path as string) ?? ""}
+        placeholder="optional JSON path, e.g. items"
+        onChange={(value) => onPatch({ payload_path: value || null })}
+      />
+      <TextInput
+        label="output_table override"
+        value={(config.output_table as string) ?? ""}
+        placeholder="empty -> wf.tmp_run_*"
+        onChange={(value) => onPatch({ output_table: value || null })}
+      />
+    </NodeCard>
   );
 }
 
@@ -235,40 +290,47 @@ function MapFieldsAsset({ config, onPatch }: AssetProps) {
   const current = (config.contract_id as number | undefined) ?? null;
   const selected = contracts.data?.find((c) => c.contract_id === current);
   return (
-    <Card>
-      <CardContent className="space-y-2 p-3 text-xs">
-        <LinkHeader label="contract_id" to="/v2/mappings/designer" text="Field Mapping" />
-        <select
-          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
-          value={current ?? ""}
-          onChange={(e) => onPatch({ contract_id: e.target.value ? Number(e.target.value) : null })}
-        >
-          <option value="">선택</option>
-          {contracts.data?.map((c) => (
-            <option key={c.contract_id} value={c.contract_id}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-        {selected && <AssetStatusBadge status={selected.status} />}
-        <label className="block space-y-1 font-semibold">
-          source_table
-          <Input
-            value={(config.source_table as string) ?? ""}
-            onChange={(e) => onPatch({ source_table: e.target.value || null })}
-            placeholder="선행 노드 자동 주입은 다음 단계에서 사용, 현재는 명시 입력"
-          />
-        </label>
-        <label className="block space-y-1 font-semibold">
-          target_table override
-          <Input
-            value={(config.target_table as string) ?? ""}
-            onChange={(e) => onPatch({ target_table: e.target.value || null })}
-            placeholder="비우면 mapping 기본 target 또는 wf.tmp_run_*"
-          />
-        </label>
-      </CardContent>
-    </Card>
+    <NodeCard title="Field Mapping">
+      <LinkHeader label="contract_id" to="/v2/mappings/designer" text="Manage mappings" />
+      <select
+        className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+        value={current ?? ""}
+        onChange={(e) => onPatch({ contract_id: e.target.value ? Number(e.target.value) : null })}
+      >
+        <option value="">Select contract</option>
+        {contracts.data?.map((c) => (
+          <option key={c.contract_id} value={c.contract_id}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+      {selected && <AssetStatusBadge status={selected.status} />}
+      <TextInput
+        label="input_from"
+        value={(config.input_from as string) ?? ""}
+        placeholder="empty -> first upstream output"
+        onChange={(value) => onPatch({ input_from: value || null })}
+      />
+      <TextInput
+        label="source_table override"
+        value={(config.source_table as string) ?? ""}
+        placeholder="optional; otherwise upstream output_table"
+        onChange={(value) => onPatch({ source_table: value || null })}
+      />
+      <TextInput
+        label="target_table override"
+        value={(config.target_table as string) ?? ""}
+        placeholder="empty -> mapping default or wf.tmp_run_*"
+        onChange={(value) => onPatch({ target_table: value || null })}
+      />
+      <NumberInput
+        label="limit_rows"
+        value={(config.limit_rows as number | undefined) ?? 100000}
+        min={1}
+        max={10000000}
+        onChange={(value) => onPatch({ limit_rows: value })}
+      />
+    </NodeCard>
   );
 }
 
@@ -285,95 +347,101 @@ function SqlAssetAsset({ config, onPatch }: AssetProps) {
   const selected = currentVersion
     ? versions.find((a) => a.version === currentVersion)
     : versions[0];
+
   return (
-    <Card>
-      <CardContent className="space-y-2 p-3 text-xs">
-        <LinkHeader label="SQL Studio asset" to="/v2/transforms/designer" text="SQL Studio" />
+    <NodeCard title="SQL Studio Asset">
+      <LinkHeader label="asset_code" to="/v2/transforms/designer" text="SQL Studio" />
+      <select
+        className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+        value={current}
+        onChange={(e) => onPatch({ asset_code: e.target.value || null, version: null })}
+      >
+        <option value="">Select SQL asset</option>
+        {Array.from(new Set(assets.data?.map((a) => a.asset_code) ?? [])).map((code) => (
+          <option key={code} value={code}>
+            {code}
+          </option>
+        ))}
+      </select>
+      {versions.length > 0 && (
         <select
           className="h-9 w-full rounded-md border bg-background px-2 text-xs"
-          value={current}
-          onChange={(e) => onPatch({ asset_code: e.target.value || null, version: null })}
+          value={(config.version as number | undefined) ?? ""}
+          onChange={(e) => onPatch({ version: e.target.value ? Number(e.target.value) : null })}
         >
-          <option value="">선택</option>
-          {Array.from(new Set(assets.data?.map((a) => a.asset_code) ?? [])).map((code) => (
-            <option key={code} value={code}>
-              {code}
+          <option value="">Auto latest APPROVED/PUBLISHED</option>
+          {versions.map((a) => (
+            <option key={a.asset_id} value={a.version}>
+              v{a.version} - {a.asset_type} [{a.status}]
             </option>
           ))}
         </select>
-        {versions.length > 0 && (
-          <select
-            className="h-9 w-full rounded-md border bg-background px-2 text-xs"
-            value={(config.version as number | undefined) ?? ""}
-            onChange={(e) => onPatch({ version: e.target.value ? Number(e.target.value) : null })}
-          >
-            <option value="">자동 (최신 APPROVED/PUBLISHED)</option>
-            {versions.map((a) => (
-              <option key={a.asset_id} value={a.version}>
-                v{a.version} · {a.asset_type} [{a.status}]
-              </option>
-            ))}
-          </select>
-        )}
-        {selected && (
-          <>
-            <AssetStatusBadge status={selected.status} />
-            <div className="rounded-md bg-muted/40 p-2 text-[10px] text-muted-foreground">
-              type: <span className="font-semibold text-foreground">{selected.asset_type}</span>
-              <br />
-              default output:{" "}
-              <span className="font-mono">{selected.output_table || "wf.tmp_run_* / script"}</span>
-            </div>
-          </>
-        )}
-        <label className="block space-y-1 font-semibold">
-          input_from
-          <Input
-            value={(config.input_from as string) ?? ""}
-            onChange={(e) => onPatch({ input_from: e.target.value || null })}
-            placeholder="비우면 첫 번째 선행 노드 output 사용"
-          />
-        </label>
-        <label className="block space-y-1 font-semibold">
-          output_table override
-          <Input
-            value={(config.output_table as string) ?? ""}
-            onChange={(e) => onPatch({ output_table: e.target.value || null })}
-            placeholder="비우면 SQL 자산 기본값 또는 wf.tmp_run_*"
-          />
-        </label>
-        <p className="text-[10px] text-muted-foreground">
-          SQL의 {"{{input_table}}"}은 선행 노드 output table로 자동 치환됩니다.
-        </p>
-      </CardContent>
-    </Card>
+      )}
+      {selected && (
+        <>
+          <AssetStatusBadge status={selected.status} />
+          <div className="rounded-md bg-muted/40 p-2 text-[10px] text-muted-foreground">
+            type: <span className="font-semibold text-foreground">{selected.asset_type}</span>
+            <br />
+            default output:{" "}
+            <span className="font-mono">{selected.output_table || "wf.tmp_run_* / script"}</span>
+          </div>
+        </>
+      )}
+      <TextInput
+        label="input_from"
+        value={(config.input_from as string) ?? ""}
+        placeholder="empty -> first upstream output"
+        onChange={(value) => onPatch({ input_from: value || null })}
+      />
+      <TextInput
+        label="input_table override"
+        value={(config.input_table as string) ?? ""}
+        placeholder="optional; otherwise upstream output_table"
+        onChange={(value) => onPatch({ input_table: value || null })}
+      />
+      <TextInput
+        label="output_table override"
+        value={(config.output_table as string) ?? ""}
+        placeholder="empty -> asset default or wf.tmp_run_*"
+        onChange={(value) => onPatch({ output_table: value || null })}
+      />
+      <p className="text-[10px] text-muted-foreground">
+        SQL templates can use {"{{input_table}}"}, {"{{output_table}}"}, {"{{run_id}}"}, and {"{{domain_code}}"}.
+      </p>
+    </NodeCard>
   );
 }
 
 function SqlInlineAsset({ config, onPatch }: AssetProps) {
   return (
-    <Card>
-      <CardContent className="space-y-2 p-3 text-xs">
-        <div className="font-semibold">Inline SQL</div>
-        <textarea
-          value={(config.sql as string) ?? ""}
-          onChange={(e) => onPatch({ sql: e.target.value })}
-          spellCheck={false}
-          className="h-56 w-full resize-y rounded-md border bg-background p-2 font-mono text-[11px]"
-          placeholder={"SELECT *\nFROM {{input_table}}"}
-        />
-        <Input
-          value={(config.input_from as string) ?? ""}
-          onChange={(e) => onPatch({ input_from: e.target.value || null })}
-          placeholder="input_from (optional)"
-        />
-        <Input
-          value={(config.output_table as string) ?? ""}
-          onChange={(e) => onPatch({ output_table: e.target.value || null })}
-          placeholder="output_table override (optional)"
-        />
-      </CardContent>
-    </Card>
+    <NodeCard title="Inline SQL">
+      <textarea
+        value={(config.sql as string) ?? ""}
+        onChange={(e) => onPatch({ sql: e.target.value })}
+        spellCheck={false}
+        className="h-56 w-full resize-y rounded-md border bg-background p-2 font-mono text-[11px]"
+        placeholder={"SELECT *\nFROM {{input_table}}"}
+      />
+      <TextInput
+        label="input_from"
+        value={(config.input_from as string) ?? ""}
+        placeholder="empty -> first upstream output"
+        onChange={(value) => onPatch({ input_from: value || null })}
+      />
+      <TextInput
+        label="input_table override"
+        value={(config.input_table as string) ?? ""}
+        placeholder="optional; otherwise upstream output_table"
+        onChange={(value) => onPatch({ input_table: value || null })}
+      />
+      <TextInput
+        label="output_table override"
+        value={(config.output_table as string) ?? ""}
+        placeholder="empty -> wf.tmp_run_*"
+        onChange={(value) => onPatch({ output_table: value || null })}
+      />
+    </NodeCard>
   );
 }
 
@@ -382,80 +450,203 @@ function LoadTargetAsset({ config, onPatch }: AssetProps) {
   const current = (config.policy_id as number | undefined) ?? null;
   const selected = policies.data?.find((p) => p.policy_id === current);
   return (
+    <NodeCard title="Load Target">
+      <LinkHeader label="policy_id" to="/v2/marts/designer" text="Mart Designer" />
+      <select
+        className="h-9 w-full rounded-md border bg-background px-2 text-xs"
+        value={current ?? ""}
+        onChange={(e) => onPatch({ policy_id: e.target.value ? Number(e.target.value) : null })}
+      >
+        <option value="">Select load policy</option>
+        {policies.data?.map((p) => (
+          <option key={p.policy_id} value={p.policy_id}>
+            #{p.policy_id} resource={p.resource_id} {p.mode} [{p.status}]
+          </option>
+        ))}
+      </select>
+      {selected && <AssetStatusBadge status={selected.status} />}
+      <TextInput
+        label="input_from"
+        value={(config.input_from as string) ?? ""}
+        placeholder="empty -> first upstream output"
+        onChange={(value) => onPatch({ input_from: value || null })}
+      />
+      <TextInput
+        label="source_table override"
+        value={(config.source_table as string) ?? ""}
+        placeholder="optional; otherwise upstream output_table"
+        onChange={(value) => onPatch({ source_table: value || null })}
+      />
+      <TextInput
+        label="target_table override"
+        value={(config.target_table as string) ?? ""}
+        placeholder="optional; otherwise policy/resource target"
+        onChange={(value) => onPatch({ target_table: value || null })}
+      />
+    </NodeCard>
+  );
+}
+
+function DbIncrementalAsset({ config, onPatch }: AssetProps) {
+  return (
+    <NodeCard title="DB Incremental">
+      <TextInput
+        label="source_code"
+        value={(config.source_code as string) ?? ""}
+        placeholder="registered DB source_code"
+        onChange={(value) => onPatch({ source_code: value || null })}
+      />
+      <NumberInput
+        label="batch_size"
+        value={(config.batch_size as number | undefined) ?? 1000}
+        min={1}
+        max={100000}
+        onChange={(value) => onPatch({ batch_size: value })}
+      />
+      <TextInput
+        label="output_table override"
+        value={(config.output_table as string) ?? ""}
+        placeholder="empty -> wf.tmp_run_*"
+        onChange={(value) => onPatch({ output_table: value || null })}
+      />
+    </NodeCard>
+  );
+}
+
+function NodeCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
     <Card>
       <CardContent className="space-y-2 p-3 text-xs">
-        <LinkHeader label="policy_id" to="/v2/marts/designer" text="Mart Designer" />
-        <select
-          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
-          value={current ?? ""}
-          onChange={(e) => onPatch({ policy_id: e.target.value ? Number(e.target.value) : null })}
-        >
-          <option value="">선택</option>
-          {policies.data?.map((p) => (
-            <option key={p.policy_id} value={p.policy_id}>
-              #{p.policy_id} resource={p.resource_id} {p.mode} [{p.status}]
-            </option>
-          ))}
-        </select>
-        {selected && <AssetStatusBadge status={selected.status} />}
-        <Input
-          value={(config.source_table as string) ?? ""}
-          onChange={(e) => onPatch({ source_table: e.target.value || null })}
-          placeholder="source_table"
-        />
+        <div className="font-semibold text-foreground">{title}</div>
+        {children}
       </CardContent>
     </Card>
   );
 }
 
-function InboundChannelAsset({
-  config,
-  onPatch,
-  channelKind,
-}: AssetProps & { channelKind: "WEBHOOK" | "FILE_UPLOAD" | "OCR_RESULT" | "CRAWLER_RESULT" }) {
-  const channels = useInboundChannels({ channel_kind: channelKind });
-  const current = (config.channel_code as string | undefined) ?? "";
-  const selected = channels.data?.find((c) => c.channel_code === current);
+function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <Card>
-      <CardContent className="space-y-2 p-3 text-xs">
-        <LinkHeader label="channel_code" to="/v2/inbound-channels/designer" text="Inbound Push" />
-        <select
-          className="h-9 w-full rounded-md border bg-background px-2 text-xs"
-          value={current}
-          onChange={(e) => onPatch({ channel_code: e.target.value || null })}
-        >
-          <option value="">선택</option>
-          {channels.data?.map((c) => (
-            <option key={c.channel_id} value={c.channel_code}>
-              {c.channel_code} ({c.domain_code}) [{c.status}]
-            </option>
-          ))}
-        </select>
-        {selected && <AssetStatusBadge status={selected.status} />}
-        <Input
-          type="number"
-          value={(config.max_envelopes as number | undefined) ?? 100}
-          onChange={(e) => onPatch({ max_envelopes: Number(e.target.value) || 100 })}
-          placeholder="max_envelopes"
-        />
-      </CardContent>
-    </Card>
+    <label className="block space-y-1 font-semibold">
+      {label}
+      {children}
+    </label>
   );
 }
 
-function SimpleField({ title, name, config, onPatch }: AssetProps & { title: string; name: string }) {
+function TextInput({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onChange: (value: string) => void;
+}) {
   return (
-    <Card>
-      <CardContent className="space-y-2 p-3 text-xs">
-        <div className="font-semibold">{title}</div>
-        <Input
-          value={(config[name] as string) ?? ""}
-          onChange={(e) => onPatch({ [name]: e.target.value || null })}
-          placeholder={name}
-        />
-      </CardContent>
-    </Card>
+    <FieldLabel label={label}>
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+    </FieldLabel>
+  );
+}
+
+function NumberInput({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <FieldLabel label={label}>
+      <Input
+        type="number"
+        value={value}
+        min={min}
+        max={max}
+        onChange={(e) => onChange(Number(e.target.value) || min)}
+      />
+    </FieldLabel>
+  );
+}
+
+function JsonTextArea({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: unknown;
+  placeholder?: string;
+  onChange: (value: Record<string, unknown>) => void;
+}) {
+  const [draft, setDraft] = useState(() =>
+    value ? JSON.stringify(value, null, 2) : "",
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(value ? JSON.stringify(value, null, 2) : "");
+    setError(null);
+  }, [value]);
+
+  const commit = () => {
+    if (!draft.trim()) {
+      setError(null);
+      onChange({});
+      return;
+    }
+    try {
+      const parsed = JSON.parse(draft);
+      if (typeof parsed !== "object" || parsed == null || Array.isArray(parsed)) {
+        setError("Must be a JSON object.");
+        return;
+      }
+      setError(null);
+      onChange(parsed as Record<string, unknown>);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "JSON parse failed");
+    }
+  };
+
+  return (
+    <FieldLabel label={label}>
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        spellCheck={false}
+        className="h-24 w-full resize-y rounded-md border bg-background p-2 font-mono text-[11px]"
+        placeholder={placeholder}
+      />
+      {error && <p className="text-[10px] text-rose-600">{error}</p>}
+    </FieldLabel>
+  );
+}
+
+function AssetStatusBadge({ status }: { status: string }) {
+  const tone =
+    status === "PUBLISHED"
+      ? "bg-green-100 text-green-800"
+      : status === "DRAFT"
+        ? "border border-rose-300 bg-rose-100 text-rose-800"
+        : "bg-amber-100 text-amber-800";
+  return (
+    <div className={`rounded-md px-2 py-1 text-[10px] ${tone}`}>
+      Asset status: <span className="font-semibold">{status}</span>
+    </div>
   );
 }
 

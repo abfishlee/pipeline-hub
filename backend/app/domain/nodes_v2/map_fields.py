@@ -66,6 +66,20 @@ def _default_target(pipeline_run_id: int, node_key: str) -> str:
     return f"wf.tmp_run_{pipeline_run_id}_{safe}"
 
 
+def _upstream_table(context: NodeV2Context, config: Mapping[str, Any]) -> str | None:
+    requested = str(config.get("input_from") or "").strip()
+    payload = context.upstream_outputs.get(requested) if requested else None
+    if payload is None and context.upstream_outputs:
+        payload = context.upstream_outputs[sorted(context.upstream_outputs.keys())[0]]
+    if not isinstance(payload, Mapping):
+        return None
+    for key in ("output_table", "target_table", "source_table", "table"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
 def _load_mappings(
     session: Any,
     *,
@@ -159,9 +173,13 @@ def run(context: NodeV2Context, config: Mapping[str, Any]) -> NodeV2Output:
     contract_id = config.get("contract_id") or context.contract_id
     if not contract_id:
         raise NodeV2Error("MAP_FIELDS requires contract_id")
-    source_table = str(config.get("source_table") or "").strip()
+    source_table = str(config.get("source_table") or "").strip() or (
+        _upstream_table(context, config) or ""
+    )
     if not source_table:
-        raise NodeV2Error("MAP_FIELDS requires source_table")
+        raise NodeV2Error(
+            "MAP_FIELDS requires source_table or an upstream node with output_table"
+        )
     apply_only_published = bool(config.get("apply_only_published", True))
     limit_rows = int(config.get("limit_rows") or 100_000)
     if limit_rows <= 0 or limit_rows > 10_000_000:
